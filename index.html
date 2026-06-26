@@ -2207,6 +2207,8 @@
         let editingQuoteId = null;
         let currentUser = null;
         let editSelectedProduct = null;
+	// INTERRUPTOR CRÍTICO DE SEGURIDAD
+	let erpDataLoaded = false;
 
         // 2. SINCRONIZADOR EN TIEMPO REAL (El "Radar" de Firebase)
         db.collection("plastensa_erp").doc("datos_centrales").onSnapshot((doc) => {
@@ -2215,7 +2217,7 @@
                 products = data.products ? JSON.parse(data.products) : products;
                 quotes = data.quotes ? JSON.parse(data.quotes) : quotes;
                 orders = data.orders ? JSON.parse(data.orders) : orders;
-		dbMovimientosCaja = data.dbMovimientosCaja ? JSON.parse(data.dbMovimientosCaja) : [];
+                dbMovimientosCaja = data.dbMovimientosCaja ? JSON.parse(data.dbMovimientosCaja) : [];
                 dbClients = data.dbClients ? JSON.parse(data.dbClients) : dbClients;
                 dbExtSellers = data.dbExtSellers ? JSON.parse(data.dbExtSellers) : dbExtSellers;
                 dbIntSellers = data.dbIntSellers ? JSON.parse(data.dbIntSellers) : dbIntSellers;
@@ -2229,21 +2231,41 @@
                 dbReportesCorte = data.dbReportesCorte ? JSON.parse(data.dbReportesCorte) : dbReportesCorte;
                 dbDespachos = data.dbDespachos ? JSON.parse(data.dbDespachos) : dbDespachos;
                 dbBloques = data.dbBloques ? JSON.parse(data.dbBloques) : dbBloques;
-                dbKardex = data.dbKardex ? JSON.parse(data.dbKardex) : dbKardex; // Sincroniza Kardex
-		dbSilos = data.dbSilos ? JSON.parse(data.dbSilos) : dbSilos;
-dbSilosHistory = data.dbSilosHistory ? JSON.parse(data.dbSilosHistory) : dbSilosHistory;
+                dbKardex = data.dbKardex ? JSON.parse(data.dbKardex) : dbKardex;
+                dbSilos = data.dbSilos ? JSON.parse(data.dbSilos) : dbSilos;
+                dbSilosHistory = data.dbSilosHistory ? JSON.parse(data.dbSilosHistory) : dbSilosHistory;
+                
+                // ¡CANDADO ABIERTO!: Los datos se descargaron con éxito de la nube, es seguro guardar.
+                erpDataLoaded = true; 
                 
                 // Actualizar la pantalla al instante si alguien más hizo un cambio
                 if(currentUser) renderAll();
             } else {
                 // Si la base de datos está totalmente virgen, creamos el usuario Admin por defecto
                 dbIntSellers = [{name: 'Administrador Planta', email: 'admin@plastensa.com', pass: '1234', ci:'0', phone:'0', role: 'ADMIN'}];
+                erpDataLoaded = true; // Permitimos guardar solo por ser inicialización virgen
                 save();
             }
+        }, (error) => {
+            console.error("Error crítico en el radar de Firebase: ", error);
+            // Si hay error de red o permisos, bloqueamos el guardado de inmediato
+            erpDataLoaded = false; 
         });
 
-// 3. FUNCIÓN DE GUARDADO EN LA NUBE
+// 3. FUNCIÓN DE GUARDADO EN LA NUBE (VERSION CON BLINDAJE ANTI-BORRADO)
 function save() {
+    // CONDICION 1: Si el sistema no ha terminado de descargar los datos de Google, NO se guarda nada.
+    if (!erpDataLoaded) {
+        console.error("🛑 BLOQUEO DE SEGURIDAD: Guardado rechazado. Los datos no han terminado de cargar del servidor o hay un problema de conexión.");
+        return;
+    }
+
+    // CONDICION 2: Si por un error grave las listas vitales se vacían repentinamente, abortamos la escritura.
+    if (products.length === 0 && dbIntSellers.length <= 1 && dbBloques.length === 0) {
+        console.error("🛑 BLOQUEO DE SEGURIDAD: Se detectó un intento de sobreescribir la nube con listas vacías. Operación abortada.");
+        return;
+    }
+
     // 1. Guardamos en Firebase con merge: true (Esto evita que se borren datos si algo falta)
     db.collection("plastensa_erp").doc("datos_centrales").set({
         products: JSON.stringify(products),
@@ -2266,18 +2288,19 @@ function save() {
         dbKardex: JSON.stringify(dbKardex),
         dbSilos: JSON.stringify(dbSilos),
         dbSilosHistory: JSON.stringify(dbSilosHistory)
-    }, { merge: true }) // <--- ESTA ES LA CLAVE QUE EVITA EL BORRADO
+    }, { merge: true }) 
     .then(() => {
         console.log("Guardado en la nube exitoso.");
     })
     .catch(error => console.error("Error guardando en la nube: ", error));
 
-    // 2. Respaldo local
+    // 2. Respaldo de contingencia local
     localStorage.setItem('plast_products', JSON.stringify(products));
     localStorage.setItem('plast_orders', JSON.stringify(orders));
-    // Opcional: También te recomiendo guardar los bloques localmente para que sea instantáneo
     localStorage.setItem('plast_bloques', JSON.stringify(dbBloques));
 }
+
+
         // ==========================================
         // MÓDULO: KARDEX E INVENTARIO INICIAL (PT)
         // ==========================================
