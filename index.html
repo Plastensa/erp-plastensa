@@ -7740,6 +7740,48 @@ window.addEventListener('beforeunload', function (e) {
 });
 // ==========================================
 
+
+// ==========================================
+// RESPALDO AUTOMÁTICO SILENCIOSO (CADA 4 HORAS)
+// ==========================================
+
+function enviarRespaldoSilencioso() {
+    console.log("Iniciando respaldo automático en segundo plano...");
+
+    // 1. Empaquetamos todo exactamente igual que en tu botón de emergencia
+    const backup = { 
+        fechaRespaldo: new Date().toLocaleString(),
+        products, quotes, orders, dbMovimientosCaja, dbClients, dbExtSellers, 
+        dbIntSellers, dbPendingVerifications, dbSchedules, dbMateriaPrima, 
+        dbMpTipos, dbExpansion, dbPreciosBase, dbBancoRetazos, dbReportesCorte, 
+        dbDespachos, dbBloques, dbKardex, dbSilos, dbSilosHistory 
+    };
+
+    // 2. PEGA AQUÍ LA URL QUE COPIASTE DE GOOGLE APPS SCRIPT
+    const urlGoogleScript = "https://script.google.com/macros/s/AKfycbzDjmWalQbHTLp-4vMwLT63txZuvCt0N03KptGRzF-D3D5r98_NJ1AS1jRt3rBVe6jU/exec";
+
+    // 3. Lo enviamos silenciosamente sin interrumpir la pantalla del usuario
+    fetch(urlGoogleScript, {
+        method: 'POST',
+        // Usamos text/plain para evitar bloqueos de seguridad del navegador (CORS)
+        headers: { 'Content-Type': 'text/plain;charset=utf-8' }, 
+        body: JSON.stringify(backup)
+    })
+    .then(response => console.log("Respaldo automático enviado con éxito al correo."))
+    .catch(error => console.error("Fallo al enviar el respaldo automático: ", error));
+}
+
+// 4. Programamos el cronómetro. 
+// 14400000 milisegundos = 4 horas. (Si quieres cada hora, cambia a 3600000)
+// Esto se ejecutará cíclicamente mientras la pestaña del ERP esté abierta.
+setInterval(enviarRespaldoSilencioso, 14400000);
+
+// Opcional: Que mande uno de inmediato 1 minuto después de abrir el sistema por primera vez en el día
+setTimeout(enviarRespaldoSilencioso, 60000); 
+
+// ==========================================
+
+
 renderAll();
     </script>
 </body>
