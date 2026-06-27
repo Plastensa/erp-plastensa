@@ -7703,35 +7703,51 @@ function importarPreciosCSV(event) {
 }
 
 // ==========================================
-// SEGURO ANTI-CIERRE ACCIDENTAL (PARA CELULARES Y PC)
+// SEGURO ANTI-CIERRE Y RETORNO A LOGIN
 // ==========================================
 
-// 1. Trampa para el botón físico "Atrás" del celular
 window.addEventListener('load', function() {
-    // Al cargar el sistema, creamos un "paso falso" en el historial
-    history.pushState({ plastensa: 'seguro' }, "ERP Plastensa", location.href);
+    // 1. Ponemos el primer seguro al cargar
+    history.pushState({ estado: 'dentro' }, "ERP Plastensa", location.href);
 });
 
 window.addEventListener('popstate', function (event) {
-    // Si el usuario presiona "Atrás", cae en esta trampa en lugar de salir
-    const confirmacion = confirm("⚠️ ¿Estás seguro que deseas salir del sistema Plastensa?");
+    // 2. Cuando presiona "Atrás" en el celular o PC
+    const salir = confirm("⚠️ ¿Estás seguro que deseas cerrar sesión y volver a la pantalla de inicio?");
     
-    if (confirmacion) {
-        // Si de verdad quería salir, lo dejamos ir (retrocedemos el paso real)
-        history.back(); 
+    if (salir) {
+        // Si dice SÍ: Lo mantenemos en la misma página (evita que el navegador cierre la pestaña)
+        history.pushState({ estado: 'login' }, "Login", location.href);
+        
+        // Ejecutamos la salida al Login (Ocultamos la app y mostramos la pantalla de inicio)
+        const mainApp = document.getElementById('main-app');
+        const loginScreen = document.querySelector('.login-screen') || document.getElementById('login-screen');
+        
+        if(mainApp) mainApp.classList.add('hidden');
+        if(loginScreen) {
+            loginScreen.classList.remove('hidden');
+            loginScreen.style.display = 'flex';
+        }
+        
+        // Borramos el usuario activo por seguridad
+        currentUser = null; 
+        
     } else {
-        // Si fue un accidente, creamos otro paso falso para mantenerlo adentro
-        history.pushState({ plastensa: 'seguro' }, "ERP Plastensa", location.href);
+        // Si dice NO: Volvemos a poner el seguro para que se quede exactamente donde estaba sin recargar
+        history.pushState({ estado: 'dentro' }, "ERP Plastensa", location.href);
     }
 });
 
-// 2. Alerta si intenta cerrar la pestaña del navegador o recargar la página (F5)
 window.addEventListener('beforeunload', function (e) {
-    // Los navegadores modernos muestran su propio mensaje de seguridad estándar
+    // TRUCO: Le damos 100 milisegundos al navegador. Si el usuario hace clic en "Cancelar" (quedarse), 
+    // forzamos al navegador a detener la animación de carga atascada.
+    setTimeout(function() {
+        window.stop();
+    }, 100);
+    
     e.preventDefault();
     e.returnValue = ''; 
 });
-
 // ==========================================
 
 renderAll();
