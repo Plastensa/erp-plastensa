@@ -2709,7 +2709,9 @@ function showTab(id) {
             showTab('ventas');
         } 
         else if (role === 'OPERADOR') {
-            const ocultarTabs = [...adminTabs, ...comercialTabs, ...finanzasTabs];
+            // Desglosamos las pestañas comerciales para dejar libre 'catalogo' (Productos)
+            const ocultarTabs = [...adminTabs, 'ventas', 'cotizaciones', 'registro-ventas', ...finanzasTabs];
+            
             ocultarTabs.forEach(tab => {
                 const btn = document.querySelector(`[data-tab="${tab}"]`);
                 if(btn) btn.classList.add('hidden');
@@ -2720,7 +2722,8 @@ function showTab(id) {
 
             document.querySelectorAll('nav p').forEach(p => {
                 const text = p.innerText.toUpperCase().trim();
-                if(['COMERCIAL', 'FINANZAS', 'ADMINISTRACIÓN'].includes(text)) {
+                // Ya NO ocultamos 'COMERCIAL' para que el operador pueda ver el título encima de Productos
+                if(['FINANZAS', 'ADMINISTRACIÓN'].includes(text)) {
                     p.classList.add('hidden');
                 }
             });
