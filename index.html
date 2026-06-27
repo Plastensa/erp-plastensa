@@ -7,6 +7,7 @@
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://unpkg.com/lucide@latest"></script>
     <script src="https://unpkg.com/html5-qrcode"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore-compat.js"></script>
     <style>
@@ -194,14 +195,19 @@
     </div>
 
     <!-- APP PRINCIPAL -->
-    <div id="main-app" class="min-h-screen flex flex-col md:flex-row no-print hidden">
+    <div id="main-app" class="h-screen flex w-full overflow-hidden bg-slate-50 no-print hidden relative">
         <div id="toast" class="hidden fixed top-4 right-4 z-[100] p-4 rounded-xl shadow-2xl border-l-4 bg-white border-green-500 flex items-center gap-3 transition-opacity duration-300">
             <i data-lucide="check-circle-2" class="text-green-500 w-6 h-6"></i>
             <p id="toast-msg" class="font-bold text-gray-800"></p>
         </div>
 
-        <aside class="w-full md:w-72 bg-slate-900 text-white flex-shrink-0 flex flex-col shadow-2xl z-50">
-            <div class="p-8 border-b border-slate-800">
+        <div id="mobile-overlay" onclick="toggleMenu()" class="fixed inset-0 bg-slate-900/60 z-[90] hidden md:hidden backdrop-blur-sm transition-opacity"></div>
+
+        <aside id="sidebar" class="fixed inset-y-0 left-0 z-[100] w-[280px] bg-slate-900 text-white flex-shrink-0 flex flex-col shadow-2xl transform -translate-x-full md:relative md:translate-x-0 transition-transform duration-300 h-full">
+            <button onclick="toggleMenu()" class="md:hidden absolute top-4 right-4 text-slate-400 hover:text-white p-2">
+                <i data-lucide="x" class="w-6 h-6"></i>
+            </button>
+            <div class="p-8 border-b border-slate-800 mt-4 md:mt-0">
                 <div class="flex items-center gap-3 mb-2">
                     <div class="bg-blue-600 p-2 rounded-xl shadow-lg shadow-blue-500/20">
                         <i data-lucide="database" class="w-6 h-6 text-white"></i>
@@ -311,8 +317,20 @@
             </div>
         </aside>
 
-        <main class="flex-1 p-6 md:p-10 overflow-auto">
-            <div class="max-w-[1600px] mx-auto">
+        <div class="flex-1 flex flex-col h-full w-full overflow-hidden relative">
+            
+            <header class="md:hidden bg-white border-b border-slate-200 px-4 py-3 flex items-center justify-between shadow-sm z-40 shrink-0">
+                <div class="flex items-center gap-2">
+                    <div class="bg-blue-600 p-1.5 rounded-lg shadow-sm"><i data-lucide="database" class="w-4 h-4 text-white"></i></div>
+                    <h1 class="text-lg font-black tracking-tighter uppercase text-slate-800">PLASTENSA</h1>
+                </div>
+                <button onclick="toggleMenu()" class="text-slate-500 hover:text-blue-600 transition-colors p-2 bg-slate-50 rounded-xl border border-slate-200">
+                    <i data-lucide="menu" class="w-5 h-5"></i>
+                </button>
+            </header>
+
+            <main class="flex-1 p-4 md:p-10 overflow-x-hidden overflow-y-auto w-full">
+                <div class="max-w-[1600px] mx-auto w-full pb-20 md:pb-0">
 
                 <!-- TAB NUEVO: REGISTRO DE VENTAS -->
                 <div id="tab-registro-ventas" class="tab-content hidden space-y-6">
@@ -339,9 +357,16 @@
                                 <!-- Llenado dinámico -->
                             </select>
                         </div>
-                        <div id="admin-backup-container" class="hidden w-full md:w-auto">
+                        <div id="admin-backup-container" class="hidden w-full md:w-auto flex flex-col md:flex-row gap-4 items-center">
                             <button onclick="downloadBackup()" class="w-full bg-slate-900 text-white px-8 py-3 rounded-xl font-black hover:bg-slate-800 transition-colors flex items-center justify-center gap-2 shadow-lg">
-                                <i data-lucide="hard-drive-download" class="w-5 h-5"></i> RESPALDO TOTAL
+                                <i data-lucide="hard-drive-download" class="w-5 h-5"></i> RESPALDO TOTAL (JSON)
+                            </button>
+			<input type="file" id="restoreFileInput" accept=".json" class="hidden" onchange="restaurarDesdeJSON(event)">
+    <button onclick="document.getElementById('restoreFileInput').click()" class="w-full bg-red-600 text-white px-8 py-3 rounded-xl font-black hover:bg-red-700 transition-colors flex items-center justify-center gap-2 shadow-lg">
+        <i data-lucide="upload-cloud" class="w-5 h-5"></i> RESTAURAR SISTEMA
+    </button>
+                            <button onclick="exportarExcelMaestro()" class="w-full bg-green-600 text-white px-8 py-3 rounded-xl font-black hover:bg-green-700 transition-colors flex items-center justify-center gap-2 shadow-lg">
+                                📊 Descargar Excel Maestro
                             </button>
                         </div>
                         <div class="w-full md:w-auto">
@@ -2162,7 +2187,7 @@
 </div>
         </main>
     </div>
-
+</div>
     <!-- VISTA INVISIBLE PARA IMPRESIÓN -->
     <div id="quote-print-view" class="print-only p-10 bg-white min-h-screen"></div>
 
@@ -2300,6 +2325,111 @@ function save() {
     localStorage.setItem('plast_bloques', JSON.stringify(dbBloques));
 }
 
+function exportarExcelMaestro() {
+    const wb = XLSX.utils.book_new();
+
+    // Pequeño escudo: Si una lista está vacía, crea una fila de aviso para que la hoja exista siempre
+    const prepararDatos = (datos) => {
+        if (!datos || datos.length === 0) return [{ "Estado": "Sin registros actualmente" }];
+        return datos;
+    };
+
+    // Mapeo exhaustivo de toda tu operación en fábrica y administración
+    const modulos = [
+        { nombre: "Productos", datos: prepararDatos(products) },
+        { nombre: "Reg Ventas", datos: prepararDatos(orders) },
+        { nombre: "Crono Entregas", datos: prepararDatos(dbSchedules) },
+        { nombre: "Personal", datos: prepararDatos(dbIntSellers) },
+        { nombre: "Clientes", datos: prepararDatos(dbClients) },
+        { nombre: "Despachos", datos: prepararDatos(dbDespachos) },
+        { nombre: "Caja General", datos: prepararDatos(dbMovimientosCaja) },
+        { nombre: "Precios", datos: prepararDatos(dbPreciosBase && dbPreciosBase.matriz ? dbPreciosBase.matriz : []) },
+        { nombre: "Materia Prima", datos: prepararDatos(dbMateriaPrima && dbMateriaPrima.historial ? dbMateriaPrima.historial : []) },
+        { nombre: "Expansion", datos: prepararDatos(dbExpansion && dbExpansion.consumos ? dbExpansion.consumos : []) },
+        { nombre: "Inv Bloques", datos: prepararDatos(dbBloques) },
+        { nombre: "Rep Cortes", datos: prepararDatos(dbReportesCorte) },
+        { nombre: "Inv Prod Terminado", datos: prepararDatos(dbKardex) },
+        { nombre: "Silos", datos: prepararDatos(dbSilos) }
+    ];
+
+    modulos.forEach(m => {
+        const ws = XLSX.utils.json_to_sheet(m.datos);
+        // Ajustamos el ancho de las columnas para que se vea mejor
+        ws['!cols'] = [{wch: 20}, {wch: 20}, {wch: 20}, {wch: 20}, {wch: 20}];
+        XLSX.utils.book_append_sheet(wb, ws, m.nombre);
+    });
+
+    const fecha = new Date().toISOString().slice(0, 10);
+    XLSX.writeFile(wb, `Respaldo_Maestro_Plastensa_${fecha}.xlsx`);
+    
+    showToast("Archivo Excel maestro generado correctamente.");
+}
+
+function restaurarDesdeJSON(event) {
+    const file = event.target.files[0];
+    if (!file) return;
+
+    // 1. ALERTA DE SEGURIDAD EXTREMA
+    const confirmacion = confirm("⚠️ ADVERTENCIA CRÍTICA ⚠️\n\nEstás a punto de SOBRESCRIBIR TODA LA BASE DE DATOS en la nube con este archivo.\n\nCualquier venta, bloque o movimiento registrado DESPUÉS de que descargaste este archivo SE PERDERÁ PARA SIEMPRE.\n\n¿Estás 100% seguro de que quieres inyectar este respaldo?");
+    
+    if (!confirmacion) {
+        event.target.value = ''; // Limpiamos el input si te arrepientes
+        return;
+    }
+
+    // 2. LECTURA Y PROCESAMIENTO DEL ARCHIVO
+    const reader = new FileReader();
+    reader.onload = function(e) {
+        try {
+            // Convertimos el texto del archivo a un objeto real
+            const data = JSON.parse(e.target.result);
+            
+            // 3. SEGURO ANTI-ERRORES: Verificamos que sea tu archivo y no una foto u otra cosa
+            if(!data.products || !data.dbBloques) {
+                 alert("❌ ERROR: El archivo seleccionado no parece ser un respaldo válido del ERP de Plastensa.");
+                 return;
+            }
+
+            // 4. PREPARAMOS LA CARGA MASIVA A FIREBASE
+            const updateData = {};
+            if(data.products) updateData.products = JSON.stringify(data.products);
+            if(data.quotes) updateData.quotes = JSON.stringify(data.quotes);
+            if(data.orders) updateData.orders = JSON.stringify(data.orders);
+            if(data.dbMovimientosCaja) updateData.dbMovimientosCaja = JSON.stringify(data.dbMovimientosCaja);
+            if(data.dbClients) updateData.dbClients = JSON.stringify(data.dbClients);
+            if(data.dbExtSellers) updateData.dbExtSellers = JSON.stringify(data.dbExtSellers);
+            if(data.dbIntSellers) updateData.dbIntSellers = JSON.stringify(data.dbIntSellers);
+            if(data.dbPendingVerifications) updateData.dbPendingVerifications = JSON.stringify(data.dbPendingVerifications);
+            if(data.dbSchedules) updateData.dbSchedules = JSON.stringify(data.dbSchedules);
+            if(data.dbMateriaPrima) updateData.dbMateriaPrima = JSON.stringify(data.dbMateriaPrima);
+            if(data.dbMpTipos) updateData.dbMpTipos = JSON.stringify(data.dbMpTipos);
+            if(data.dbExpansion) updateData.dbExpansion = JSON.stringify(data.dbExpansion);
+            if(data.dbPreciosBase) updateData.dbPreciosBase = JSON.stringify(data.dbPreciosBase);
+            if(data.dbBancoRetazos) updateData.dbBancoRetazos = JSON.stringify(data.dbBancoRetazos);
+            if(data.dbReportesCorte) updateData.dbReportesCorte = JSON.stringify(data.dbReportesCorte);
+            if(data.dbDespachos) updateData.dbDespachos = JSON.stringify(data.dbDespachos);
+            if(data.dbBloques) updateData.dbBloques = JSON.stringify(data.dbBloques);
+            if(data.dbKardex) updateData.dbKardex = JSON.stringify(data.dbKardex);
+            if(data.dbSilos) updateData.dbSilos = JSON.stringify(data.dbSilos);
+            if(data.dbSilosHistory) updateData.dbSilosHistory = JSON.stringify(data.dbSilosHistory);
+
+            // 5. SOBRESCRIBIMOS LA NUBE
+            db.collection("plastensa_erp").doc("datos_centrales").set(updateData)
+            .then(() => {
+                alert("✅ RESTAURACIÓN EXITOSA.\n\nLa base de datos ha vuelto al estado del respaldo. El sistema se reiniciará ahora para aplicar los cambios.");
+                window.location.reload(); // Recargamos para que el "Radar" baje los datos frescos
+            })
+            .catch(error => {
+                console.error("Error inyectando a la nube: ", error);
+                alert("Hubo un error de conexión al restaurar. Revisa tu internet.");
+            });
+
+        } catch(err) {
+            alert("❌ ERROR LEYENDO EL ARCHIVO. Asegúrate de subir el archivo .json original sin modificaciones.");
+        }
+    };
+    reader.readAsText(file);
+}	
 
         // ==========================================
         // MÓDULO: KARDEX E INVENTARIO INICIAL (PT)
@@ -2397,16 +2527,22 @@ function save() {
         // ==========================================
         // UTILIDADES DE SISTEMA (BACKUP, ETC)
         // ==========================================
-        function downloadBackup() {
-            const backup = { products, quotes, orders, dbClients, dbExtSellers, dbIntSellers, dbPendingVerifications, dbSchedules };
-            const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(backup));
+       function downloadBackup() {
+            const backup = { 
+                fechaRespaldo: new Date().toLocaleString(),
+                products, quotes, orders, dbMovimientosCaja, dbClients, dbExtSellers, 
+                dbIntSellers, dbPendingVerifications, dbSchedules, dbMateriaPrima, 
+                dbMpTipos, dbExpansion, dbPreciosBase, dbBancoRetazos, dbReportesCorte, 
+                dbDespachos, dbBloques, dbKardex, dbSilos, dbSilosHistory 
+            };
+            const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(backup, null, 2));
             const dlAnchorElem = document.createElement('a');
             dlAnchorElem.setAttribute("href", dataStr);
-            dlAnchorElem.setAttribute("download", `Plastensa_Respaldo_${new Date().toLocaleDateString().replace(/\//g,'-')}.json`);
+            dlAnchorElem.setAttribute("download", `Respaldo_JSON_ERP_${new Date().toISOString().slice(0,10)}.json`);
             document.body.appendChild(dlAnchorElem);
             dlAnchorElem.click();
             document.body.removeChild(dlAnchorElem);
-            showToast("Respaldo Total Descargado.");
+            showToast("Respaldo JSON de seguridad descargado.");
         }
 
         document.addEventListener('click', function(e) {
@@ -2428,7 +2564,28 @@ function save() {
             const t = document.getElementById('toast'); document.getElementById('toast-msg').innerText = msg; t.classList.remove('hidden'); setTimeout(() => t.classList.add('hidden'), 3000); 
         }
 
-        function showTab(id) {
+        function toggleMenu() {
+    const sidebar = document.getElementById('sidebar');
+    const overlay = document.getElementById('mobile-overlay');
+    if (sidebar.classList.contains('-translate-x-full')) {
+        sidebar.classList.remove('-translate-x-full');
+        overlay.classList.remove('hidden');
+    } else {
+        sidebar.classList.add('-translate-x-full');
+        overlay.classList.add('hidden');
+    }
+}
+
+function showTab(id) {
+    if (window.innerWidth < 768) {
+        const sidebar = document.getElementById('sidebar');
+        const overlay = document.getElementById('mobile-overlay');
+        if(sidebar && overlay) {
+            sidebar.classList.add('-translate-x-full');
+            overlay.classList.add('hidden');
+        }
+    }
+
     // 1. Ocultar todas las pestañas
     document.querySelectorAll('.tab-content').forEach(t => t.classList.add('hidden'));
     
