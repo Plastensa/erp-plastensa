@@ -7702,6 +7702,38 @@ function importarPreciosCSV(event) {
     reader.readAsText(file);
 }
 
+// ==========================================
+// SEGURO ANTI-CIERRE ACCIDENTAL (PARA CELULARES Y PC)
+// ==========================================
+
+// 1. Trampa para el botón físico "Atrás" del celular
+window.addEventListener('load', function() {
+    // Al cargar el sistema, creamos un "paso falso" en el historial
+    history.pushState({ plastensa: 'seguro' }, "ERP Plastensa", location.href);
+});
+
+window.addEventListener('popstate', function (event) {
+    // Si el usuario presiona "Atrás", cae en esta trampa en lugar de salir
+    const confirmacion = confirm("⚠️ ¿Estás seguro que deseas salir del sistema Plastensa?");
+    
+    if (confirmacion) {
+        // Si de verdad quería salir, lo dejamos ir (retrocedemos el paso real)
+        history.back(); 
+    } else {
+        // Si fue un accidente, creamos otro paso falso para mantenerlo adentro
+        history.pushState({ plastensa: 'seguro' }, "ERP Plastensa", location.href);
+    }
+});
+
+// 2. Alerta si intenta cerrar la pestaña del navegador o recargar la página (F5)
+window.addEventListener('beforeunload', function (e) {
+    // Los navegadores modernos muestran su propio mensaje de seguridad estándar
+    e.preventDefault();
+    e.returnValue = ''; 
+});
+
+// ==========================================
+
 renderAll();
     </script>
 </body>
