@@ -7739,12 +7739,7 @@ window.addEventListener('popstate', function (event) {
 });
 
 window.addEventListener('beforeunload', function (e) {
-    // TRUCO: Le damos 100 milisegundos al navegador. Si el usuario hace clic en "Cancelar" (quedarse), 
-    // forzamos al navegador a detener la animación de carga atascada.
-    setTimeout(function() {
-        window.stop();
-    }, 100);
-    
+    // Alerta nativa solo por si intenta presionar F5 o la "X" de la pestaña
     e.preventDefault();
     e.returnValue = ''; 
 });
