@@ -7707,39 +7707,34 @@ function importarPreciosCSV(event) {
 // ==========================================
 
 window.addEventListener('load', function() {
-    // 1. Ponemos el primer seguro al cargar
     history.pushState({ estado: 'dentro' }, "ERP Plastensa", location.href);
 });
 
 window.addEventListener('popstate', function (event) {
-    // 2. Cuando presiona "Atrás" en el celular o PC
     const salir = confirm("⚠️ ¿Estás seguro que deseas cerrar sesión y volver a la pantalla de inicio?");
     
     if (salir) {
-        // Si dice SÍ: Lo mantenemos en la misma página (evita que el navegador cierre la pestaña)
         history.pushState({ estado: 'login' }, "Login", location.href);
         
-        // Ejecutamos la salida al Login (Ocultamos la app y mostramos la pantalla de inicio)
         const mainApp = document.getElementById('main-app');
-        const loginScreen = document.querySelector('.login-screen') || document.getElementById('login-screen');
+        const loginScreen = document.getElementById('login-screen');
         
         if(mainApp) mainApp.classList.add('hidden');
         if(loginScreen) {
             loginScreen.classList.remove('hidden');
-            loginScreen.style.display = 'flex';
+            loginScreen.style.display = ''; // <-- SOLUCIÓN AL "CONGELAMIENTO" (Quitamos el bloqueo visual)
         }
         
-        // Borramos el usuario activo por seguridad
         currentUser = null; 
         
     } else {
-        // Si dice NO: Volvemos a poner el seguro para que se quede exactamente donde estaba sin recargar
         history.pushState({ estado: 'dentro' }, "ERP Plastensa", location.href);
     }
 });
 
 window.addEventListener('beforeunload', function (e) {
-    // Alerta nativa solo por si intenta presionar F5 o la "X" de la pestaña
+    // Alerta estándar limpia. Safari mantendrá su glitch visual de carga si cancelas, 
+    // pero es la forma más estable de proteger tu información.
     e.preventDefault();
     e.returnValue = ''; 
 });
