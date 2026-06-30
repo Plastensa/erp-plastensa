@@ -645,8 +645,21 @@
                         <input type="number" id="se-jarrita" required step="0.1" min="1" class="w-full bg-indigo-50 border border-indigo-200 p-3 rounded-xl font-black text-indigo-700 outline-none focus:ring-2 focus:ring-indigo-500">
                     </div>
                     <div>
-                        <label class="text-[10px] font-black uppercase text-orange-400 ml-2 block mb-1">Inyectar Reciclaje (M³)</label>
-                        <input type="number" id="se-reciclaje" required step="0.1" value="0" min="0" class="w-full bg-orange-50 border border-orange-200 p-3 rounded-xl font-black text-orange-600 outline-none focus:ring-2 focus:ring-orange-500">
+                        <label class="text-[10px] font-black uppercase text-orange-400 ml-2 block mb-1">% de Reciclaje a inyectar</label>
+                        <select id="se-reciclaje" class="w-full bg-orange-50 border border-orange-200 p-3 rounded-xl font-black text-orange-600 outline-none focus:ring-2 focus:ring-orange-500 cursor-pointer">
+                            <option value="0">0% (Puro Virgen)</option>
+                            <option value="5">5% de Reciclaje</option>
+                            <option value="10">10% de Reciclaje</option>
+                            <option value="15">15% de Reciclaje</option>
+                            <option value="20">20% de Reciclaje</option>
+                            <option value="25">25% de Reciclaje</option>
+                            <option value="30">30% de Reciclaje</option>
+                            <option value="35">35% de Reciclaje</option>
+                            <option value="40" selected>40% de Reciclaje</option>
+                            <option value="45">45% de Reciclaje</option>
+                            <option value="50">50% de Reciclaje</option>
+                            <option value="60">60% de Reciclaje</option>
+                        </select>
                     </div>
                 </div>
                 <div>
@@ -4727,10 +4740,13 @@ renderAll = function() {
                         <td class="p-4 text-[10px] font-black uppercase text-slate-500">${metodosStr}</td>
                         <td class="p-4 text-center">${payStatusBadge}</td>
                         <td class="p-4 text-center">
-                            <button onclick="printQuote('${o.id}')" class="bg-blue-600 hover:bg-blue-700 text-white px-3 py-1.5 rounded-lg text-[9px] font-black shadow-sm transition-colors inline-flex items-center gap-1">
-                                <i data-lucide="printer" class="w-3 h-3"></i> PDF
-                            </button>
-                        </td>
+                                    <div class="flex items-center justify-center gap-2">
+                                        <button onclick="printQuote('${o.id}')" class="bg-blue-600 hover:bg-blue-700 text-white px-3 py-1.5 rounded-lg text-[9px] font-black shadow-sm transition-colors inline-flex items-center gap-1">
+                                            <i data-lucide="printer" class="w-3 h-3"></i> PDF
+                                        </button>
+                                        ${(currentUser && currentUser.role === 'ADMIN') ? `<button onclick="anularPedido('${o.id}')" class="bg-red-50 hover:bg-red-100 text-red-600 border border-red-200 px-3 py-1.5 rounded-lg text-[9px] font-black shadow-sm transition-colors inline-flex items-center gap-1" title="Anular Pedido"><i data-lucide="trash-2" class="w-3 h-3"></i> Anular</button>` : ''}
+                                    </div>
+                                </td>
                     </tr>`;
             });
             tbody.innerHTML = html || `<tr><td colspan="16" class="p-10 text-center font-bold text-slate-400 italic">No hay ventas que coincidan con el filtro.</td></tr>`;
@@ -5388,58 +5404,65 @@ function processPrimeraExpansion(e) {
     
     showToast(`1ra Expansión Exitosa: ${volGenerado.toFixed(2)} M³ añadidos al Silo ${siloId}`);
 }
-// 4. Lógica de 2da Expansión (Auto-Ajuste Inteligente)
+// 4. Lógica de 2da Expansión (Mezcla y Traslado con Porcentaje)
+// 4. Lógica de 2da Expansión (Totalmente Automática y Matemática)
 function processSegundaExpansion(e) {
     e.preventDefault();
     const origenId = document.getElementById('se-silo-origen').value;
     const jarrita2 = parseFloat(document.getElementById('se-jarrita').value);
-    const volReciclaje = parseFloat(document.getElementById('se-reciclaje').value);
+    const porcentajeReciclaje = parseFloat(document.getElementById('se-reciclaje').value);
     const destinoId = document.getElementById('se-silo-destino').value;
     
     const siloOrigen = dbSilos.find(s => s.id === origenId);
     const siloDestino = dbSilos.find(s => s.id === destinoId);
     const siloReciclaje = dbSilos.find(s => s.id === 'REC');
     
-    if(volReciclaje > siloReciclaje.vol) return alert(`Silo de Reciclaje solo tiene ${siloReciclaje.vol.toFixed(2)} M³.`);
-    if(siloOrigen.dens <= 0 || siloOrigen.vol <= 0) return alert(`El Silo ${origenId} está vacío.`);
-    
-    // 1. CALCULADORA MATEMÁTICA AUTOMÁTICA
+    if(siloOrigen.dens <= 0 || siloOrigen.vol <= 0) return alert(`El Silo ${origenId} está vacío o tiene densidad cero.`);
+    if(jarrita2 <= 0) return alert("Jarrita 2 debe ser mayor a cero.");
+
     const espacioDisponible = siloDestino.cap - siloDestino.vol;
-    const volVirgenNecesario = espacioDisponible - volReciclaje;
+    if(espacioDisponible <= 0.1) return alert(`El Silo ${destinoId} ya está lleno (Capacidad máxima alcanzada).`);
+
+    // --- LA MAGIA: CÁLCULO MATEMÁTICO DEL VOLUMEN (Sin casilla del operador) ---
+    const p = porcentajeReciclaje / 100;
+    const factorExpansion = siloOrigen.dens / jarrita2; 
+    const factorTotalEntrante = factorExpansion + p; // M³ que entran al destino por cada 1 M³ virgen sacado
     
-    if(volVirgenNecesario <= 0) return alert(`¡El Silo ${destinoId} no tiene espacio suficiente! Espacio libre: ${espacioDisponible.toFixed(2)} M³.`);
+    // ¿Cuánto virgen podemos sacar como máximo para llenar el destino sin que rebalse?
+    const volMaxPermitido = espacioDisponible / factorTotalEntrante;
     
-    // Calculamos cuánto necesitaríamos extraer IDEALMENTE para llenar el destino
-    const kgVirgenNecesarioIdeal = volVirgenNecesario * jarrita2;
-    let volExtraer = kgVirgenNecesarioIdeal / siloOrigen.dens;
-    
-    // 2. AUTO-AJUSTE INTELIGENTE (La Magia)
-    // Si el silo origen no tiene suficiente para llenar el destino, sacamos todo lo que le queda sin chistar
-    let esVaciadoTotal = false;
-    if(volExtraer > siloOrigen.vol) {
-        volExtraer = siloOrigen.vol; 
-        esVaciadoTotal = true;
+    // El volumen a extraer será lo que hay en el silo origen, o el máximo permitido (lo que sea menor)
+    let volExtraer = Math.min(siloOrigen.vol, volMaxPermitido);
+    let esVaciadoTotal = (volExtraer === siloOrigen.vol);
+
+    // 1. LA MATEMÁTICA DEL RECICLAJE
+    const volReciclajeM3 = volExtraer * p;
+    if(volReciclajeM3 > siloReciclaje.vol) {
+        return alert(`Silo de Reciclaje solo tiene ${siloReciclaje.vol.toFixed(2)} M³ (necesitas ${volReciclajeM3.toFixed(2)} M³ para cubrir el ${porcentajeReciclaje}%).`);
     }
     
-    // 3. FÍSICA Y DENSIDAD: Con el volumen real definido, calculamos
+    // 2. FÍSICA REAL: Masa extraída y volumen generado (inflado a Jarrita 2)
     const kgExtraidos = volExtraer * siloOrigen.dens; 
-    const volGenerado = kgExtraidos / jarrita2; // Se infla a la nueva densidad
+    const volGenerado = kgExtraidos / jarrita2;
     
-    // ASIGNAR EL PESO OCULTO AL RECICLAJE (Mantiene la densidad intacta)
-    const kgReciclaje = volReciclaje * jarrita2; 
+    // 3. PESO OCULTO DEL RECICLAJE (Protege la densidad final)
+    const kgReciclaje = volReciclajeM3 * jarrita2;
     
+    // Sumas totales entrantes al Silo Destino
+    const volTotalEntrante = volGenerado + volReciclajeM3;
     const kgTotalesEntrantes = kgExtraidos + kgReciclaje;
-    const volTotalEntrante = volGenerado + volReciclaje;
     
-    // 4. Ejecutar descuentos en base de datos
+    // Descontar de los orígenes
     siloOrigen.kg -= kgExtraidos; 
     siloOrigen.vol -= volExtraer;
     if(siloOrigen.vol < 0.1 || siloOrigen.kg < 0.1) { siloOrigen.kg = 0; siloOrigen.vol = 0; siloOrigen.dens = 0; }
     
-    siloReciclaje.vol -= volReciclaje; 
-    if(siloReciclaje.vol < 0.1) siloReciclaje.vol = 0;
+    if(volReciclajeM3 > 0) {
+        siloReciclaje.vol -= volReciclajeM3; 
+        if(siloReciclaje.vol < 0.1) siloReciclaje.vol = 0;
+    }
     
-    // 5. Ejecutar ingreso y anclar densidad matemáticamente
+    // Ingresar al destino y sellar densidad matemáticamente exacta
     siloDestino.kg += kgTotalesEntrantes; 
     siloDestino.vol += volTotalEntrante; 
     siloDestino.dens = siloDestino.kg / siloDestino.vol;
@@ -5448,16 +5471,16 @@ function processSegundaExpansion(e) {
     const fh = getFechaHora();
     dbSilosHistory.unshift({ 
         id: Date.now(), fecha: fh.fecha, hora: fh.hora, 
-        op: esVaciadoTotal ? '2da Expansión (Saldo)' : '2da Expansión (Llenado)', 
+        op: esVaciadoTotal ? '2da Expansión (Vaciado Saldo)' : '2da Expansión (Llenado Auto)', 
         origen: siloOrigen.name, destino: siloDestino.name, 
-        lote: 'Mezcla', marca: '-', 
+        lote: `Mezcla ${porcentajeReciclaje}%`, marca: '-', 
         kg: kgTotalesEntrantes, jarrita: jarrita2, 
-        volEps: volGenerado, volRec: volReciclaje, volTotal: volTotalEntrante, 
+        volEps: volGenerado, volRec: volReciclajeM3, volTotal: volTotalEntrante, 
         operador: currentUser.name 
     });
 
     saveSilos(); e.target.reset(); renderAll();
-    showToast(`Éxito: Se procesaron ${volExtraer.toFixed(2)} M³ de virgen.`);
+    showToast(`Éxito: Procesados ${volExtraer.toFixed(2)} M³ de virgen con ${volReciclajeM3.toFixed(2)} M³ de reciclaje.`);
 }
 
 // 5. Moldeo / Vaciado a Bloquera
@@ -7522,6 +7545,49 @@ function generarCorrelativoPedido() {
     const correlativo = pedidos.length + 1;
     return `PED-${correlativo.toString().padStart(4, '0')}-${mes}/${anio}`;
 }
+
+// ==========================================
+// MÓDULO DE ANULACIÓN DE PEDIDOS (SOLO ADMIN)
+// ==========================================
+function anularPedido(id) {
+    // 1. Escudo Anti-Despachos
+    const despachosAsociados = dbDespachos.filter(d => d.orderId === id);
+    if (despachosAsociados.length > 0) {
+        alert(`🛑 ACCIÓN BLOQUEADA:\n\nEl pedido ${id} NO se puede anular porque ya tiene material despachado y entregado al cliente.\n\nSi necesitas hacer una devolución de algo ya entregado, debes coordinarlo físicamente y realizar el ajuste de forma manual en almacén.`);
+        return;
+    }
+
+    // 2. Confirmación de Seguridad Extrema
+    if (!confirm(`⚠️ ATENCIÓN ADMINISTRADOR:\n\n¿Estás completamente seguro de ANULAR y borrar el pedido ${id}?\n\nEsta acción eliminará el pedido de Ventas, vaciará los cortes programados en Producción, y borrará los ingresos asociados en Tesorería.\n\nEsta acción es IRREVERSIBLE.`)) {
+        return;
+    }
+
+    // 3. Limpieza Profunda en todas las Bases de Datos
+    // a. Eliminar de Ventas (Central)
+    orders = orders.filter(o => o.id !== id);
+
+    // b. Eliminar de Programación de Fábrica / Cortes
+    dbSchedules = dbSchedules.filter(s => s.orderId !== id);
+
+    // c. Eliminar de Verificaciones Pendientes de Tesorería (Si estaba a medias)
+    if (typeof dbPendingVerifications !== 'undefined') {
+        dbPendingVerifications = dbPendingVerifications.filter(p => p.orderId !== id);
+    }
+
+    // d. Eliminar de Caja General (Borramos cualquier movimiento que referencie a este pedido)
+    if (typeof dbMovimientosCaja !== 'undefined') {
+        dbMovimientosCaja = dbMovimientosCaja.filter(m => {
+            const dStr = (m.desc || '').toUpperCase();
+            return !dStr.includes(id.toUpperCase());
+        });
+    }
+
+    // 4. Guardar en Firebase/Local y refrescar pantalla
+    save();
+    renderAll();
+    showToast(`Pedido ${id} anulado y limpiado del sistema.`);
+}
+
 
 // ==========================================
 // MÓDULO DE VENDEDORES EXTERNOS
