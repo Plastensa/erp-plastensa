@@ -631,16 +631,12 @@
             <h3 class="font-black text-slate-800 uppercase mb-4 flex items-center gap-2"><i data-lucide="blend" class="text-indigo-600"></i> 2da Expansión (Olla 2)</h3>
             <form onsubmit="processSegundaExpansion(event)" class="space-y-4">
                 <div class="grid grid-cols-2 gap-3">
-                    <div>
-                        <label class="text-[10px] font-black uppercase text-slate-400 ml-2 block mb-1">Silo Origen</label>
+                    <div class="col-span-2">
+                        <label class="text-[10px] font-black uppercase text-slate-400 ml-2 block mb-1">Silo Origen (Material Virgen)</label>
                         <select id="se-silo-origen" class="w-full bg-slate-50 border border-slate-200 p-3 rounded-xl font-bold outline-none focus:ring-2 focus:ring-indigo-500">
                             <option value="1">Silo 1</option><option value="2">Silo 2</option><option value="3">Silo 3</option><option value="4">Silo 4</option>
                         </select>
-                    </div>
-                    <div>
-                        <label class="text-[10px] font-black uppercase text-slate-400 ml-2 block mb-1">Vol. a Extraer (M³)</label>
-                        <input type="number" id="se-volumen" required step="0.1" placeholder="Ej: 12.5" class="w-full bg-slate-50 border border-slate-200 p-3 rounded-xl font-black outline-none focus:ring-2 focus:ring-indigo-500">
-                        <p class="text-[9px] text-slate-400 mt-1 ml-2 italic">Capacidad de 1 silo lleno = 25 M³</p>
+                        <p class="text-[9px] text-slate-400 mt-1 ml-2 italic">El sistema calculará automáticamente la cantidad a procesar.</p>
                     </div>
                 </div>
                 <div class="grid grid-cols-2 gap-3">
@@ -654,12 +650,12 @@
                     </div>
                 </div>
                 <div>
-                    <label class="text-[10px] font-black uppercase text-slate-400 ml-2 block mb-1">Silo Destino Final (5 al 8)</label>
+                    <label class="text-[10px] font-black uppercase text-slate-400 ml-2 block mb-1">Silo Destino Final (LLENADO AUTO)</label>
                     <select id="se-silo-destino" class="w-full bg-slate-50 border border-slate-200 p-3 rounded-xl font-bold outline-none focus:ring-2 focus:ring-indigo-500">
                         <option value="5">Silo 5</option><option value="6">Silo 6</option><option value="7">Silo 7</option><option value="8">Silo 8</option>
                     </select>
                 </div>
-                <button type="submit" class="w-full bg-indigo-600 text-white font-black p-4 rounded-2xl hover:bg-indigo-700 shadow-lg mt-2 transition-colors">MEZCLAR Y TRASLADAR</button>
+                <button type="submit" class="w-full bg-indigo-600 text-white font-black p-4 rounded-2xl hover:bg-indigo-700 shadow-lg mt-2 transition-colors">PROCESAR MEZCLA AUTO</button>
             </form>
         </div>
 
@@ -684,6 +680,34 @@
         </div>
     </div>
 </div>
+
+
+<div class="bg-white rounded-[32px] border border-slate-200 shadow-sm mt-8 overflow-hidden">
+        <div class="p-6 bg-slate-50 border-b border-slate-100 flex justify-between items-center">
+            <div>
+                <h3 class="font-black text-slate-800 uppercase tracking-tighter text-lg flex items-center gap-2"><i data-lucide="history" class="text-cyan-600 w-5 h-5"></i> Historial de Movimientos de Silos</h3>
+                <p class="text-[10px] font-black text-slate-400 uppercase tracking-widest">Kardex interno de Planta y Mezclas</p>
+            </div>
+        </div>
+        <div class="overflow-x-auto max-h-[400px]">
+            <table class="w-full text-left text-xs whitespace-nowrap">
+                <thead class="bg-slate-100 border-b border-slate-200 text-[10px] font-black uppercase text-slate-500 tracking-widest sticky top-0 z-10">
+                    <tr>
+                        <th class="p-4">Fecha/Hora</th>
+                        <th class="p-4">Operación</th>
+                        <th class="p-4">Origen ➔ Destino</th>
+                        <th class="p-4 text-right">Vol. Mezcla Final</th>
+                        <th class="p-4 text-right">Masa (KG)</th>
+                        <th class="p-4 text-center">Jarrita / Dens</th>
+                        <th class="p-4">Operador</th>
+                        <th class="p-4 text-center">Acción</th>
+                    </tr>
+                </thead>
+                <tbody id="historial-silos-body" class="divide-y divide-slate-50"></tbody>
+            </table>
+        </div>
+    </div>
+
 
 <div class="bg-white p-8 rounded-[32px] border border-slate-200 shadow-sm mt-6">
     <div class="flex justify-between items-center mb-6 border-b border-slate-100 pb-4">
@@ -4191,6 +4215,7 @@ function renderSalidasEPS() {
 	renderSilos(); // <--- ESTA ES LA LÍNEA QUE DEBES AÑADIR
 	renderInventarioBloques();
 	renderVolumenMaquina();
+	renderHistorialSilos();
         renderPreciosBase();
         renderSalaCorte();
 	renderCajaGeneral();
@@ -5363,11 +5388,10 @@ function processPrimeraExpansion(e) {
     
     showToast(`1ra Expansión Exitosa: ${volGenerado.toFixed(2)} M³ añadidos al Silo ${siloId}`);
 }
-// 4. Lógica de 2da Expansión (Mezcla y Traslado)
+// 4. Lógica de 2da Expansión (Auto-Ajuste Inteligente)
 function processSegundaExpansion(e) {
     e.preventDefault();
     const origenId = document.getElementById('se-silo-origen').value;
-    const volExtraer = parseFloat(document.getElementById('se-volumen').value); 
     const jarrita2 = parseFloat(document.getElementById('se-jarrita').value);
     const volReciclaje = parseFloat(document.getElementById('se-reciclaje').value);
     const destinoId = document.getElementById('se-silo-destino').value;
@@ -5376,28 +5400,64 @@ function processSegundaExpansion(e) {
     const siloDestino = dbSilos.find(s => s.id === destinoId);
     const siloReciclaje = dbSilos.find(s => s.id === 'REC');
     
-    if(volExtraer > siloOrigen.vol) return alert(`El Silo ${origenId} solo tiene ${siloOrigen.vol.toFixed(2)} M³.`);
     if(volReciclaje > siloReciclaje.vol) return alert(`Silo de Reciclaje solo tiene ${siloReciclaje.vol.toFixed(2)} M³.`);
+    if(siloOrigen.dens <= 0 || siloOrigen.vol <= 0) return alert(`El Silo ${origenId} está vacío.`);
     
+    // 1. CALCULADORA MATEMÁTICA AUTOMÁTICA
+    const espacioDisponible = siloDestino.cap - siloDestino.vol;
+    const volVirgenNecesario = espacioDisponible - volReciclaje;
+    
+    if(volVirgenNecesario <= 0) return alert(`¡El Silo ${destinoId} no tiene espacio suficiente! Espacio libre: ${espacioDisponible.toFixed(2)} M³.`);
+    
+    // Calculamos cuánto necesitaríamos extraer IDEALMENTE para llenar el destino
+    const kgVirgenNecesarioIdeal = volVirgenNecesario * jarrita2;
+    let volExtraer = kgVirgenNecesarioIdeal / siloOrigen.dens;
+    
+    // 2. AUTO-AJUSTE INTELIGENTE (La Magia)
+    // Si el silo origen no tiene suficiente para llenar el destino, sacamos todo lo que le queda sin chistar
+    let esVaciadoTotal = false;
+    if(volExtraer > siloOrigen.vol) {
+        volExtraer = siloOrigen.vol; 
+        esVaciadoTotal = true;
+    }
+    
+    // 3. FÍSICA Y DENSIDAD: Con el volumen real definido, calculamos
     const kgExtraidos = volExtraer * siloOrigen.dens; 
-    const volGenerado = kgExtraidos / jarrita2;
+    const volGenerado = kgExtraidos / jarrita2; // Se infla a la nueva densidad
+    
+    // ASIGNAR EL PESO OCULTO AL RECICLAJE (Mantiene la densidad intacta)
+    const kgReciclaje = volReciclaje * jarrita2; 
+    
+    const kgTotalesEntrantes = kgExtraidos + kgReciclaje;
     const volTotalEntrante = volGenerado + volReciclaje;
     
-    if((siloDestino.vol + volTotalEntrante) > siloDestino.cap) return alert(`¡Rebalse! El Silo ${destinoId} solo tiene disponible ${(siloDestino.cap - siloDestino.vol).toFixed(2)} M³.`);
-    
-    siloOrigen.kg -= kgExtraidos; siloOrigen.vol -= volExtraer;
+    // 4. Ejecutar descuentos en base de datos
+    siloOrigen.kg -= kgExtraidos; 
+    siloOrigen.vol -= volExtraer;
     if(siloOrigen.vol < 0.1 || siloOrigen.kg < 0.1) { siloOrigen.kg = 0; siloOrigen.vol = 0; siloOrigen.dens = 0; }
     
-    siloReciclaje.vol -= volReciclaje; if(siloReciclaje.vol < 0.1) siloReciclaje.vol = 0;
+    siloReciclaje.vol -= volReciclaje; 
+    if(siloReciclaje.vol < 0.1) siloReciclaje.vol = 0;
     
-    siloDestino.kg += kgExtraidos; siloDestino.vol += volTotalEntrante; siloDestino.dens = siloDestino.kg / siloDestino.vol;
+    // 5. Ejecutar ingreso y anclar densidad matemáticamente
+    siloDestino.kg += kgTotalesEntrantes; 
+    siloDestino.vol += volTotalEntrante; 
+    siloDestino.dens = siloDestino.kg / siloDestino.vol;
     
     // GUARDAR EN HISTORIAL KARDEX
     const fh = getFechaHora();
-    dbSilosHistory.unshift({ id: Date.now(), fecha: fh.fecha, hora: fh.hora, op: '2da Expansión', origen: siloOrigen.name, destino: siloDestino.name, lote: 'Mezcla', marca: '-', kg: kgExtraidos, jarrita: jarrita2, volEps: volGenerado, volRec: volReciclaje, volTotal: volTotalEntrante, operador: currentUser.name });
+    dbSilosHistory.unshift({ 
+        id: Date.now(), fecha: fh.fecha, hora: fh.hora, 
+        op: esVaciadoTotal ? '2da Expansión (Saldo)' : '2da Expansión (Llenado)', 
+        origen: siloOrigen.name, destino: siloDestino.name, 
+        lote: 'Mezcla', marca: '-', 
+        kg: kgTotalesEntrantes, jarrita: jarrita2, 
+        volEps: volGenerado, volRec: volReciclaje, volTotal: volTotalEntrante, 
+        operador: currentUser.name 
+    });
 
     saveSilos(); e.target.reset(); renderAll();
-    showToast(`2da Expansión completada.`);
+    showToast(`Éxito: Se procesaron ${volExtraer.toFixed(2)} M³ de virgen.`);
 }
 
 // 5. Moldeo / Vaciado a Bloquera
@@ -7331,6 +7391,123 @@ function ingresoInicialBloques() {
     localStorage.setItem('plast_bloques', JSON.stringify(dbBloques)); save();
     renderInventarioBloques();
     showToast(`${cantidad} bloques inyectados al inventario físico.`);
+}
+
+// ==========================================
+// RENDERIZADO DE HISTORIAL DE SILOS (KARDEX)
+// ==========================================
+
+function renderHistorialSilos() {
+    const tbody = document.getElementById('historial-silos-body');
+    if(!tbody) return;
+    
+    tbody.innerHTML = dbSilosHistory.map(h => `
+        <tr class="hover:bg-slate-50 transition-colors border-b border-slate-50">
+            <td class="p-4 text-[10px] font-black text-slate-500 leading-tight">${h.fecha} <br> ${h.hora}</td>
+            <td class="p-4 font-bold text-slate-700 text-xs">${h.op}</td>
+            <td class="p-4 text-xs uppercase tracking-wider"><span class="text-indigo-600 font-black">${h.origen}</span> <i data-lucide="arrow-right" class="w-3 h-3 inline text-slate-300 mx-1"></i> <span class="text-emerald-600 font-black">${h.destino}</span></td>
+            <td class="p-4 text-right font-black text-slate-800">${(Number(h.volTotal)||0).toFixed(2)} M³</td>
+            <td class="p-4 text-right font-black text-orange-600">${(Number(h.kg)||0).toFixed(1)} KG</td>
+            <td class="p-4 text-center font-bold text-slate-500">${h.jarrita ? h.jarrita.toFixed(1) : '-'}</td>
+            <td class="p-4 text-[10px] font-black uppercase text-slate-400">${h.operador}</td>
+            <td class="p-4 text-center">
+                ${currentUser && currentUser.role === 'ADMIN' ? `<button onclick="eliminarRegistroKardexSilo(${h.id})" class="text-red-400 hover:text-red-600 p-2 bg-white rounded-lg shadow-sm border border-red-100 transition-all" title="Eliminar Registro"><i data-lucide="trash-2" class="w-4 h-4"></i></button>` : `<span class="text-[9px] font-black text-slate-300">N/A</span>`}
+            </td>
+        </tr>
+    `).join('');
+    lucide.createIcons();
+}
+
+function eliminarRegistroKardexSilo(id) {
+    const h = dbSilosHistory.find(x => x.id === id);
+    if(!h) return;
+
+    if(h.op === 'Ajuste Saldo Inicial') {
+        alert("⚠️ No se puede revertir un 'Ajuste de Saldo Inicial' automáticamente porque este sobrescribió los valores de golpe.\n\nPara corregirlo, simplemente vuelva a realizar un 'Saldo Inicial' con los valores correctos en el silo afectado.");
+        return;
+    }
+
+    if(!confirm(`⚠️ ATENCIÓN ADMINISTRADOR:\n\n¿Desea ELIMINAR la operación "${h.op}" y REVERTIR matemáticamente sus efectos en todo el sistema (Ctrl+Z)?`)) return;
+
+    const siloDestino = dbSilos.find(s => s.name === h.destino);
+    const siloOrigen = dbSilos.find(s => s.name === h.origen);
+    const siloReciclaje = dbSilos.find(s => s.id === 'REC');
+
+    // 1. REVERTIR 1ra EXPANSIÓN (Quitar del destino y Devolver Resina Virgen al Almacén)
+    if(h.op === '1ra Expansión') {
+        if(siloDestino) {
+            siloDestino.kg -= h.kg;
+            siloDestino.vol -= h.volTotal;
+            if(siloDestino.vol < 0.1 || siloDestino.kg < 0.1) { siloDestino.kg = 0; siloDestino.vol = 0; siloDestino.dens = 0; }
+            else { siloDestino.dens = siloDestino.kg / siloDestino.vol; }
+        }
+        
+        // ANULAR CONSUMO DE MATERIA PRIMA AUTOMÁTICAMENTE
+        const idxConsumo = dbExpansion.consumos.findIndex(c => c.lote === h.lote && c.peso === h.kg);
+        if(idxConsumo !== -1) {
+            dbExpansion.consumos.splice(idxConsumo, 1);
+        }
+    }
+    // 2. REVERTIR 2da EXPANSIÓN (Devolver a 3 lugares distintos)
+    else if(h.op.includes('2da Expansión')) {
+        // A) Restar al destino
+        if(siloDestino) {
+            siloDestino.kg -= h.kg; 
+            siloDestino.vol -= h.volTotal;
+            if(siloDestino.vol < 0.1 || siloDestino.kg < 0.1) { siloDestino.kg = 0; siloDestino.vol = 0; siloDestino.dens = 0; }
+            else { siloDestino.dens = siloDestino.kg / siloDestino.vol; }
+        }
+        
+        // B) Devolver al Reciclaje
+        if(siloReciclaje && h.volRec > 0) {
+            siloReciclaje.vol += h.volRec;
+        }
+
+        // C) Devolver al Origen
+        if(siloOrigen) {
+            const kgReciclaje = h.volRec * h.jarrita;
+            const kgExtraidos = h.kg - kgReciclaje;
+            
+            let densOrigen = siloOrigen.dens;
+            if(densOrigen <= 0) {
+                // Si el silo origen está en cero, busca la densidad con la que trabajaba antes
+                const lastIngreso = dbSilosHistory.find(x => x.destino === siloOrigen.name && x.op === '1ra Expansión' && x.id < h.id);
+                densOrigen = lastIngreso && lastIngreso.jarrita > 0 ? lastIngreso.jarrita : 13.5;
+            }
+            
+            const volExtraer = kgExtraidos / densOrigen;
+            
+            siloOrigen.kg += kgExtraidos;
+            siloOrigen.vol += volExtraer;
+            siloOrigen.dens = siloOrigen.kg / siloOrigen.vol;
+        }
+    }
+    // 3. REVERTIR VACIADO A BLOQUERA (Devolver al silo y quitar de la máquina)
+    else if(h.op === 'Vaciado a Bloquera') {
+        if(siloOrigen) {
+            siloOrigen.kg += h.kg;
+            siloOrigen.vol += h.volTotal;
+            siloOrigen.dens = siloOrigen.kg / siloOrigen.vol;
+        }
+        let volMaquina = parseFloat(localStorage.getItem('plast_vol_maquina')) || 0;
+        volMaquina -= h.volTotal;
+        if(volMaquina < 0) volMaquina = 0;
+        localStorage.setItem('plast_vol_maquina', volMaquina);
+        if(typeof renderVolumenMaquina === 'function') renderVolumenMaquina();
+    }
+    // 4. REVERTIR INGRESO RECICLAJE (Quitar del silo REC)
+    else if(h.op === 'Ingreso Reciclaje') {
+        if(siloReciclaje) {
+            siloReciclaje.vol -= h.volTotal;
+            if(siloReciclaje.vol < 0.1) siloReciclaje.vol = 0;
+        }
+    }
+
+    // Finalmente, borrar el registro y refrescar la pantalla completa
+    dbSilosHistory = dbSilosHistory.filter(x => x.id !== id);
+    saveSilos();
+    renderAll();
+    showToast("Operación revertida (Ctrl+Z) exitosamente.");
 }
 
 // --- DISPARADOR INICIAL ---
