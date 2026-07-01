@@ -5073,19 +5073,87 @@ renderAll = function() {
             
             // Datos de cierre (Solo en la primera fila)
             if(esPrimeraFila) {
+                const btnAnular = (currentUser && currentUser.role === 'ADMIN') 
+                    ? `<button onclick="anularDespacho('${t.idTicket}')" class="mt-2 text-red-500 hover:text-red-700 bg-red-50 hover:bg-red-100 px-3 py-1.5 rounded-lg text-[9px] font-black uppercase tracking-widest block mx-auto transition-colors border border-red-100 shadow-sm"><i data-lucide="trash-2" class="w-3 h-3 inline"></i> Anular Despacho</button>`
+                    : '';
+
                 html += `
                 <td ${rowSpanStr} class="p-4 text-right font-black text-slate-800 text-sm border-l border-slate-100 align-middle">${t.volM3.toFixed(2)} M³</td>
                 <td ${rowSpanStr} class="p-4 text-center border-l border-slate-100 align-middle">
                     <span class="inline-flex items-center gap-1 bg-green-100 text-green-700 px-3 py-1 rounded-lg text-[9px] font-black uppercase tracking-widest"><i data-lucide="check-circle-2" class="w-3 h-3"></i> Entregado</span>
+                    ${btnAnular}
                 </td>`;
             }
-            
             html += `</tr>`;
         });
     });
 
     tbody.innerHTML = html;
     lucide.createIcons();
+}
+
+function anularDespacho(idTicket) {
+    if (!confirm(`¿Estás seguro de que deseas ANULAR el despacho ${idTicket}?\n\nEsta acción devolverá el material al inventario físico, reabrirá el saldo de entrega en el pedido y descontará el flete al chofer. ESTA ACCIÓN NO SE PUEDE DESHACER.`)) return;
+
+    const tIndex = dbDespachos.findIndex(x => x.idTicket === idTicket);
+    if (tIndex === -1) return alert("Ticket no encontrado.");
+    const t = dbDespachos[tIndex];
+
+    const o = orders.find(x => x.id === t.orderId);
+    
+    if (o) {
+        // 1. Revertir el estado de la orden y el inventario
+        t.items.forEach(it => {
+            // Revertir entregado en la orden
+            const orderItemIdx = o.items.findIndex(x => x.name === it.name);
+            if (orderItemIdx !== -1) {
+                const orderItem = o.items[orderItemIdx];
+                orderItem.entregado = (orderItem.entregado || 0) - it.qtyDespachada;
+                if (orderItem.entregado < 0) orderItem.entregado = 0;
+
+                // Revertir Backflushing (Auto-Limpieza de Producción) si el sistema la había generado
+                let aRevertir = it.qtyDespachada;
+                for (let i = dbSchedules.length - 1; i >= 0; i--) {
+                    let s = dbSchedules[i];
+                    if (s.orderId === o.id && s.itemIdx === orderItemIdx && s.auto === true) {
+                        if (s.qty <= aRevertir) {
+                            aRevertir -= s.qty;
+                            dbSchedules.splice(i, 1); // Borramos el corte automático
+                        } else {
+                            s.qty -= aRevertir;
+                            s.volTotal = s.qty * (orderItem.volTotal / orderItem.qty);
+                            aRevertir = 0;
+                        }
+                        if (aRevertir <= 0) break;
+                    }
+                }
+            }
+
+            // 2. Revertir Inventario Físico (Volver a sumar el stock a la bodega)
+            const prodCat = products.find(p => normalizarNombre(p.name) === normalizarNombre(it.name));
+            if (prodCat) {
+                prodCat.stock = (parseInt(prodCat.stock) || 0) + it.qtyDespachada;
+            }
+        });
+
+        // 3. Revisar si la orden debe volver al panel de "Por Programar" (Si al revertir resulta que faltan cortes)
+        let todoCortado = true;
+        o.items.forEach((item, idx) => {
+            const sumSched = dbSchedules.filter(sx => sx.orderId === o.id && sx.itemIdx === idx).reduce((sum, sx) => sum + sx.qty, 0);
+            if (sumSched < item.qty) todoCortado = false;
+        });
+        if (!todoCortado && o.status === 'INVENTARIO') {
+            o.status = 'PRODUCCION';
+        }
+    }
+
+    // 4. Eliminar el ticket de la base de datos de despachos
+    dbDespachos.splice(tIndex, 1);
+
+    // 5. Guardar en la nube y actualizar la vista de inmediato
+    save();
+    renderAll();
+    showToast(`Despacho ${idTicket} anulado con éxito. Inventario restaurado.`);
 }
 
 function exportarDespachosCSV() {
