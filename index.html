@@ -2948,35 +2948,59 @@ function showTab(id) {
             } 
         }
 
-        function handleFileUpload(e) {
-            const file = e.target.files[0]; if(!file) return; 
-            const reader = new FileReader();
-            reader.onload = (event) => {
-                const lines = event.target.result.split(/\r?\n/); 
-                let np = [];
-                for(let i=0; i<lines.length; i++){
-                    const line = lines[i].trim(); if(!line) continue;
-                    let cols = []; let inQuotes = false; let current = '';
-                    for (let c=0; c<line.length; c++) { 
-                        let char = line[c]; 
-                        if(char==='"') inQuotes = !inQuotes; 
-                        else if((char===';'||char===',') && !inQuotes) { cols.push(current); current=''; } 
-                        else current+=char; 
-                    } 
-                    cols.push(current);
-                    if(cols.length >= 10 && cols[0].toUpperCase() !== 'CODIGO' && !cols[0].toUpperCase().includes('TARIFA')){
-                        const cl = (s) => parseFloat((s||'0').toString().replace(/["\s]/g,'').replace(',','.')) || 0;
-                        np.push({ 
-                            id: Date.now()+i, code: cols[0].trim(), name: cols[1].trim(), vol: cl(cols[2]), density: cols[4]?cols[4].trim():'-', 
-                            pCF1: cl(cols[5]), pSF1: cl(cols[6]), pCF2: cl(cols[7]), pSF2: cl(cols[8]), pCF3: cl(cols[9]), pSF3: cl(cols[10]) 
-                        });
+function handleFileUpload(e) {
+    const file = e.target.files[0]; if(!file) return; 
+    const reader = new FileReader();
+    reader.onload = (event) => {
+        const lines = event.target.result.split(/\r?\n/); 
+        let np = [];
+        for(let i=0; i<lines.length; i++){
+            const line = lines[i].trim(); if(!line) continue;
+            let cols = []; let inQuotes = false; let current = '';
+            for (let c=0; c<line.length; c++) { 
+                let char = line[c]; 
+                if(char==='"') inQuotes = !inQuotes; 
+                else if((char===';'||char===',') && !inQuotes) { cols.push(current); current=''; } 
+                else current+=char; 
+            } 
+            cols.push(current);
+            if(cols.length >= 10 && cols[0].toUpperCase() !== 'CODIGO' && !cols[0].toUpperCase().includes('TARIFA')){
+                const cl = (s) => parseFloat((s||'0').toString().replace(/["\s]/g,'').replace(',','.')) || 0;
+                
+                // --- LÓGICA DE DENSIDAD CON PREFIJO "D" ---
+                let nombreItem = cols[1].trim();
+                let densidadCalculada = '-';
+                
+                // Busca letras al principio seguidas inmediatamente de un número
+                let match = nombreItem.match(/^[a-zA-Z]+(\d+)/);
+                if (match) {
+                    densidadCalculada = 'D' + match[1]; // <-- Aquí le agregamos la "D" al número extraído
+                } else if (cols[4] && cols[4].trim() !== '') {
+                    let fallbackDens = cols[4].trim();
+                    // Si en la columna 4 viene solo el número (ej: "10"), le ponemos la "D" también
+                    if (!isNaN(fallbackDens)) {
+                        densidadCalculada = 'D' + fallbackDens;
+                    } else {
+                        densidadCalculada = fallbackDens;
                     }
                 }
-                if (np.length > 0) { products = np; save(); renderAll(); showToast("Catálogo Importado Exitosamente."); } 
-                else alert("Error: Formato incorrecto.");
-            }; 
-            reader.readAsText(file); e.target.value = ''; 
+                // ---------------------------------------
+
+                np.push({ 
+                    id: Date.now()+i, 
+                    code: cols[0].trim(), 
+                    name: nombreItem, 
+                    vol: cl(cols[2]), 
+                    density: densidadCalculada, 
+                    pCF1: cl(cols[5]), pSF1: cl(cols[6]), pCF2: cl(cols[7]), pSF2: cl(cols[8]), pCF3: cl(cols[9]), pSF3: cl(cols[10]) 
+                });
+            }
         }
+        if (np.length > 0) { products = np; save(); renderAll(); showToast("Catálogo Importado Exitosamente."); } 
+        else alert("Error: Formato incorrecto.");
+    }; 
+    reader.readAsText(file); e.target.value = ''; 
+}
 
         function setInvoiceType(t) {
             if (t === 'SF') { 
