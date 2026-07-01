@@ -5136,14 +5136,18 @@ function anularDespacho(idTicket) {
             }
         });
 
-        // 3. Revisar si la orden debe volver al panel de "Por Programar" (Si al revertir resulta que faltan cortes)
+        // 3. Reevaluar y retroceder el estado de la orden (Sacarla de "ENTREGADO")
         let todoCortado = true;
         o.items.forEach((item, idx) => {
             const sumSched = dbSchedules.filter(sx => sx.orderId === o.id && sx.itemIdx === idx).reduce((sum, sx) => sum + sx.qty, 0);
             if (sumSched < item.qty) todoCortado = false;
         });
-        if (!todoCortado && o.status === 'INVENTARIO') {
-            o.status = 'PRODUCCION';
+        
+        // Al anular, forzamos su regreso a los módulos operativos
+        if (todoCortado) {
+            o.status = 'INVENTARIO'; // Si el material ya está todo fabricado, vuelve a listos para despacho
+        } else {
+            o.status = 'PRODUCCION'; // Si le falta material por fabricar, reaparece en "Por Programar"
         }
     }
 
