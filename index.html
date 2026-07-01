@@ -1860,8 +1860,12 @@
                         </div>
                     </div>
                     
-                    <h3 class="font-black text-blue-500 uppercase tracking-widest text-xs mb-4 border-b border-slate-200 pb-2">2. Stock Físico Disponible (Venta Libre / Mostrador)</h3>
+                   <h3 class="font-black text-blue-500 uppercase tracking-widest text-xs mb-4 border-b border-slate-200 pb-2">2. Stock Físico Disponible (Venta Libre / Mostrador)</h3>
                     <div class="bg-white rounded-[32px] border border-slate-200 overflow-hidden shadow-sm">
+                        <div class="p-4 bg-slate-50 border-b border-slate-100 flex items-center gap-2">
+                            <i data-lucide="search" class="w-5 h-5 text-slate-400"></i>
+                            <input type="text" id="buscar-stock-input" onkeyup="renderAll()" placeholder="Buscar ítem por nombre o medida..." class="w-full bg-transparent border-none outline-none font-bold text-sm text-slate-700">
+                        </div>
                         <div class="overflow-x-auto">
                             <table class="w-full text-left text-xs whitespace-nowrap">
                                 <thead class="bg-slate-50 border-b border-slate-100 text-[10px] font-black text-slate-400 uppercase tracking-widest">
@@ -6624,7 +6628,7 @@ function crearProductoManual(e) {
     
     products.unshift({
         id: Date.now(), code: `PROD-${Date.now().toString().slice(-4)}`,
-        name: name, vol: volUnit, density: 'D' + densStr, stock: 0
+        name: name, vol: volUnit, density: '' + densStr, stock: 0
     });
     
     sincronizarPreciosCatalogo(); save(); e.target.reset(); aplicarReglasProducto(); renderCatalogList();
@@ -6758,18 +6762,31 @@ function exportarReporteCorteCSV() {
 const originalRenderAll = renderAll;
 renderAll = function() {
     originalRenderAll();
-    
+
     // 1. Renderizar Stock Físico (Con alertas de Desviación en Rojo)
     const stockBody = document.getElementById('stock-fisico-body');
     if(stockBody) {
         // Filtrar TODOS los productos que tengan un stock distinto de 0 (Positivos y Negativos)
-        const prodConStock = products.filter(p => p.stock !== 0 && p.stock !== undefined);
-        
+        let prodConStock = products.filter(p => p.stock !== 0 && p.stock !== undefined);
+
+        // --- NUEVA LÓGICA DE BÚSQUEDA ---
+        const searchInput = document.getElementById('buscar-stock-input');
+        if (searchInput && searchInput.value) {
+            const term = searchInput.value.toLowerCase();
+            prodConStock = prodConStock.filter(p => p.name.toLowerCase().includes(term));
+        }
+
         if(prodConStock.length === 0) {
-            stockBody.innerHTML = `<tr><td colspan="5" class="p-8 text-center text-slate-400 font-bold italic">Inventario físico en cero.</td></tr>`;
+            stockBody.innerHTML = `<tr><td colspan="5" class="p-8 text-center text-slate-400 font-bold italic">Inventario físico en cero o sin resultados de búsqueda.</td></tr>`;
         } else {
-            // Ordenamos para que las alertas (negativos) aparezcan siempre arriba
-            prodConStock.sort((a, b) => a.stock - b.stock);
+            // --- NUEVO ORDENAMIENTO (Alfabético + Alertas Negativas Arriba) ---
+            prodConStock.sort((a, b) => {
+                // 1º Prioridad: Si uno es negativo (alerta) y el otro no, el negativo va primero
+                if (a.stock < 0 && b.stock >= 0) return -1;
+                if (b.stock < 0 && a.stock >= 0) return 1;
+                // 2º Prioridad: Si ambos son normales o ambos son alerta, ordenamos alfabéticamente
+                return a.name.localeCompare(b.name);
+            });
             
             stockBody.innerHTML = prodConStock.map(p => {
                 const esNegativo = p.stock < 0;
