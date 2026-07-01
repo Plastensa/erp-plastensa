@@ -6552,7 +6552,7 @@ function crearProductoManual(e) {
     
     products.unshift({
         id: Date.now(), code: `PROD-${Date.now().toString().slice(-4)}`,
-        name: name, vol: volUnit, density: densStr, stock: 0
+        name: name, vol: volUnit, density: 'D' + densStr, stock: 0
     });
     
     sincronizarPreciosCatalogo(); save(); e.target.reset(); aplicarReglasProducto(); renderCatalogList();
