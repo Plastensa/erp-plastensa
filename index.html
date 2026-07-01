@@ -5136,7 +5136,7 @@ function anularDespacho(idTicket) {
             // 2. Revertir Inventario Físico (Volver a sumar el stock a la bodega)
             const prodCat = products.find(p => normalizarNombre(p.name) === normalizarNombre(it.name));
             if (prodCat) {
-                prodCat.stock = (parseInt(prodCat.stock) || 0) + it.qtyDespachada;
+                prodCat.stock = (parseFloat(prodCat.stock) || 0) + it.qtyDespachada; // CORRECCIÓN: parseFloat
             }
         });
 
@@ -7151,8 +7151,8 @@ function renderFormularioDespacho() {
             <td class="p-3 text-center font-bold text-blue-600">${entregado}</td>
             <td class="p-3 text-center font-black text-red-500">${saldoPzas}</td>
             <td class="p-3 text-center bg-green-50">
-                <input type="number" id="desp-input-${idx}" max="${saldoPzas}" min="0" value="0" class="w-20 bg-white border border-green-300 p-2 rounded-lg font-black text-green-700 text-center outline-none focus:ring-2 focus:ring-green-500">
-            </td>
+            <input type="number" id="desp-input-${idx}" max="${saldoPzas}" min="0" step="0.01" value="0" class="w-20 bg-white border border-green-300 p-2 rounded-lg font-black text-green-700 text-center outline-none focus:ring-2 focus:ring-green-500">
+        </td>
         </tr>`;
     }).join('');
     lucide.createIcons();
@@ -7190,11 +7190,11 @@ function ejecutarDespacho() {
     o.items.forEach((it, idx) => {
         const input = document.getElementById(`desp-input-${idx}`);
         if(input) {
-            const aDespachar = parseInt(input.value) || 0;
+            const aDespachar = parseFloat(input.value) || 0; // CORRECCIÓN: parseFloat permite decimales
             const entregadoPrevio = it.entregado || 0;
             
             if (aDespachar > (it.qty - entregadoPrevio)) errorCantidad = true;
-            
+
             if (aDespachar > 0) {
                 const volUnit = (it.volTotal / it.qty);
                 it.entregado = entregadoPrevio + aDespachar;
@@ -7205,7 +7205,7 @@ function ejecutarDespacho() {
                 // 1. INVENTARIO NEGATIVO: Descontar permitiendo números rojos
                 const prodCat = products.find(p => normalizarNombre(p.name) === normalizarNombre(it.name));
                 if(prodCat) {
-                    prodCat.stock = (parseInt(prodCat.stock) || 0) - aDespachar;
+                    prodCat.stock = (parseFloat(prodCat.stock) || 0) - aDespachar; // CORRECCIÓN: parseFloat en stock
                 }
 
                 // 2. BACKFLUSHING (Auto-Limpieza): Generar corte virtual si se despacha sin estar programado
