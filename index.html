@@ -2306,7 +2306,8 @@
         let dbExtSellers = []; let dbIntSellers = []; let dbPendingVerifications = [];
         let dbSchedules = []; let dbReportesCorte = []; let dbDespachos = []; let dbBloques = [];
         let dbKardex = []; // NUEVO: Historial de Inventario PT
-        let dbMateriaPrima = { historial: [], saldoActual: 0 };
+        let dbTolva = 0; // Tolva en la Nube (Sin límite de llenado)
+	let dbMateriaPrima = { historial: [], saldoActual: 0 };
         let dbMpTipos = [
             { marca: 'STYROPEK BF195', peso: 800 }, { marca: 'STYROPEK BF295', peso: 800 },
             { marca: 'STYROPEK BF395', peso: 800 }, { marca: 'TAITACELL 321T', peso: 25 },
@@ -2363,7 +2364,8 @@ function save() {
         dbBloques: JSON.stringify(dbBloques),
         dbKardex: JSON.stringify(dbKardex),
         dbSilos: JSON.stringify(dbSilos),
-        dbSilosHistory: JSON.stringify(dbSilosHistory)
+        dbSilosHistory: JSON.stringify(dbSilosHistory),
+        dbTolva: dbTolva
     }, { merge: true }) 
     .then(() => {
         console.log("Guardado en la nube exitoso.");
@@ -2719,6 +2721,7 @@ function iniciarRadar(userEmail) {
             dbKardex = data.dbKardex ? JSON.parse(data.dbKardex) : [];
             dbSilos = data.dbSilos ? JSON.parse(data.dbSilos) : [];
             dbSilosHistory = data.dbSilosHistory ? JSON.parse(data.dbSilosHistory) : [];
+	    dbTolva = data.dbTolva !== undefined ? parseFloat(data.dbTolva) : (parseFloat(localStorage.getItem('plast_vol_maquina')) || 0);
             
             erpDataLoaded = true;
             radarActivo = true;
@@ -5598,11 +5601,8 @@ function processVaciadoBloquera(e) {
     const fh = getFechaHora();
     dbSilosHistory.unshift({ id: Date.now(), fecha: fh.fecha, hora: fh.hora, op: 'Vaciado a Bloquera', origen: silo.name, destino: 'Bloquera', lote: '-', marca: '-', kg: kgExtraidos, jarrita: silo.dens, volEps: volExtraer, volRec: 0, volTotal: volExtraer, operador: currentUser.name });
 
-    // === ENVIAR VOLUMEN A TOLVA DE LA BLOQUERA ===
-    let volMaquina = parseFloat(localStorage.getItem('plast_vol_maquina')) || 0;
-    volMaquina += volExtraer;
-    localStorage.setItem('plast_vol_maquina', volMaquina);
-    // =============================================
+    // === ENVIAR VOLUMEN A TOLVA DE LA BLOQUERA EN LA NUBE ===
+    dbTolva += volExtraer;
 
     saveSilos(); e.target.reset(); renderAll();
     showToast(`Vaciado correcto. ${volExtraer.toFixed(2)} M³ añadidos a la Bloquera.`);
@@ -5788,11 +5788,12 @@ setTimeout(cargarTiposBloque, 500);
 function renderVolumenMaquina() {
     const display = document.getElementById('volumen-maquina-display');
     if(!display) return;
-    let vol = parseFloat(localStorage.getItem('plast_vol_maquina')) || 0;
-    display.innerText = `${vol.toFixed(2)} M³`;
     
-    // Mejora Visual: Cambiar a rojo si está vacío o no alcanza para 1 bloque grande
-    if (vol < 2.0) {
+    // Leemos la nube directamente
+    display.innerText = `${dbTolva.toFixed(2)} M³`;
+    
+    // Cambiar a rojo si está vacío o no alcanza para 1 bloque grande
+    if (dbTolva < 2.0) {
         display.classList.remove('text-white');
         display.classList.add('text-red-400');
     } else {
@@ -5826,18 +5827,16 @@ function registrarBloque() {
     const peso = parseFloat(document.getElementById('blq-peso').value);
     if(isNaN(peso) || !produccionActiva) return;
 
-    let volMaquina = parseFloat(localStorage.getItem('plast_vol_maquina')) || 0;
+    let volMaquina = dbTolva;
 
     // === 1. CANDADO FÍSICO ESTRICTO ===
-    // Añadimos una mínima tolerancia de 0.05 por variaciones de redondeo matemático
     if (volMaquina < (produccionActiva.volReal - 0.05)) {
-        return alert(`❌ TOLVA VACÍA O INSUFICIENTE:\n\nIntenta producir un bloque de ${produccionActiva.volReal} M³, pero la tolva solo tiene ${volMaquina.toFixed(2)} M³ disponibles.\n\nPor favor, vaya a "Expansión" y vacíe material desde los silos hacia la bloquera para poder continuar.`);
+        return alert(`❌ TOLVA VACÍA O INSUFICIENTE:\n\nIntenta producir un bloque de ${produccionActiva.volReal} M³, pero la tolva solo tiene ${volMaquina.toFixed(2)} M³ disponibles.\n\nPor favor, vaya a "Expansión" y vacíe material hacia la bloquera para poder continuar.`);
     }
 
-    // === 2. Descontar Volumen de la Tolva ===
-    volMaquina -= produccionActiva.volReal;
-    if(volMaquina < 0) volMaquina = 0; 
-    localStorage.setItem('plast_vol_maquina', volMaquina);
+    // === 2. Descontar Volumen de la Nube ===
+    dbTolva -= produccionActiva.volReal;
+    if(dbTolva < 0) dbTolva = 0;
 
     const densReal = peso / produccionActiva.volReal;
     let estado = "APROBADO"; let colorEstado = "text-green-500"; let densFinal = produccionActiva.densidad;
@@ -5879,7 +5878,8 @@ function registrarBloque() {
     dbBloques.push(nuevoBloque);
     produccionActiva.listaSesion.unshift(nuevoBloque); 
     
-    localStorage.setItem('plast_bloques', JSON.stringify(dbBloques)); save();
+    localStorage.setItem('plast_bloques', JSON.stringify(dbBloques)); 
+    save();
     
     document.getElementById('blq-peso').value = '';
     document.getElementById('blq-ultimo-registro').classList.remove('hidden');
@@ -5990,10 +5990,8 @@ function eliminarBloque(id) {
     
     const bloqueInfo = dbBloques.find(b => b.id === id);
     if(bloqueInfo) {
-        let volMaquina = parseFloat(localStorage.getItem('plast_vol_maquina')) || 0;
         const infoCatalogo = dbTiposBloque.find(t => t.tipo === bloqueInfo.tipo);
-        if(infoCatalogo) volMaquina += infoCatalogo.volReal;
-        localStorage.setItem('plast_vol_maquina', volMaquina);
+        if(infoCatalogo) dbTolva += infoCatalogo.volReal;
     }
 
     dbBloques = dbBloques.filter(b => b.id !== id);
