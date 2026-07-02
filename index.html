@@ -2710,152 +2710,158 @@ function showTab(id) {
     e.preventDefault();
     const email = document.getElementById('login-email').value;
     const pass = document.getElementById('login-pass').value;
-    const user = dbIntSellers.find(u => u.email === email && u.pass === pass);
     
-    if(user) {
-        currentUser = user; 
-        document.getElementById('login-screen').classList.add('hidden'); 
-        document.getElementById('main-app').classList.remove('hidden');
-        document.getElementById('display-user-name').innerText = user.name; 
-        document.getElementById('display-user-role').innerText = user.role; 
-        document.getElementById('cot-interno').innerHTML = dbIntSellers.filter(u => u.role === 'ADMIN' || u.role === 'VENDEDOR').map(u => `<option value="${u.name}">${u.name}</option>`).join('');
-        document.getElementById('cot-interno').value = user.name; 
+    // 1. Firebase verifica la seguridad directamente con Google
+    firebase.auth().signInWithEmailAndPassword(email, pass)
+    .then(() => {
+        // 2. Si Google da el OK, el sistema busca al usuario en tu lista exactamente como antes
+        const user = dbIntSellers.find(u => u.email === email);
         
-// ==========================================
-        // MATRIZ ESTRICTA DE ACCESOS POR ROL
-        // ==========================================
-        const role = user.role; 
-        
-        // Agrupamos los menús (data-tabs) por áreas
-        const adminTabs = ['dashboard-gerencial', 'directorio', 'tesoreria-admin', 'salidas-eps', 'log-maestro', 'historial-admin', 'precios-admin', 'transporte','caja-general', 'seguridad'];
-        const comercialTabs = ['catalogo', 'ventas', 'cotizaciones', 'registro-ventas'];
-        const produccionTabs = ['materia-prima', 'expansion', 'bloquera', 'inventario-bloques', 'corte', 'reporte-corte', 'produccion', 'plan-diario', 'inventario'];
-        const finanzasTabs = ['tesoreria'];
-
-        const backupContainer = document.getElementById('admin-backup-container');
-        const adminInventoryTools = document.getElementById('admin-inventory-tools');
-
-        // Ocultar visualmente los botones de Saldo Inicial a todos los que NO sean ADMIN
-        const btnSaldoSilos = document.querySelector('button[onclick="ingresoInicialSilos()"]');
-        const btnSaldoBloques = document.querySelector('button[onclick="ingresoInicialBloques()"]');
-        if(btnSaldoSilos) btnSaldoSilos.classList.toggle('hidden', role !== 'ADMIN');
-        if(btnSaldoBloques) btnSaldoBloques.classList.toggle('hidden', role !== 'ADMIN');
-
-        // Reset visual: Mostrar todo primero (previene errores si se cambia de cuenta)
-        document.querySelectorAll('.nav-btn, nav p').forEach(el => el.classList.remove('hidden'));
-
-        if (role === 'ADMIN') {
-            if(backupContainer) backupContainer.classList.remove('hidden');
-            if(adminInventoryTools) adminInventoryTools.classList.remove('hidden');
-            showTab('ventas');
-        } 
-        else if (role === 'OPERADOR') {
-            // Desglosamos las pestañas comerciales para dejar libre 'catalogo' (Productos)
-            const ocultarTabs = [...adminTabs, 'ventas', 'cotizaciones', 'registro-ventas', ...finanzasTabs];
+        if(user) {
+            currentUser = user; 
+            document.getElementById('login-screen').classList.add('hidden'); 
+            document.getElementById('main-app').classList.remove('hidden');
+            document.getElementById('display-user-name').innerText = user.name; 
+            document.getElementById('display-user-role').innerText = user.role; 
+            document.getElementById('cot-interno').innerHTML = dbIntSellers.filter(u => u.role === 'ADMIN' || u.role === 'VENDEDOR').map(u => `<option value="${u.name}">${u.name}</option>`).join('');
+            document.getElementById('cot-interno').value = user.name; 
             
-            ocultarTabs.forEach(tab => {
-                const btn = document.querySelector(`[data-tab="${tab}"]`);
-                if(btn) btn.classList.add('hidden');
-            });
+            // ==========================================
+            // MATRIZ ESTRICTA DE ACCESOS POR ROL (INTACTA)
+            // ==========================================
+            const role = user.role; 
             
-            if(backupContainer) backupContainer.classList.add('hidden');
-            if(adminInventoryTools) adminInventoryTools.classList.add('hidden');
+            const adminTabs = ['dashboard-gerencial', 'directorio', 'tesoreria-admin', 'salidas-eps', 'log-maestro', 'historial-admin', 'precios-admin', 'transporte','caja-general', 'seguridad'];
+            const comercialTabs = ['catalogo', 'ventas', 'cotizaciones', 'registro-ventas'];
+            const produccionTabs = ['materia-prima', 'expansion', 'bloquera', 'inventario-bloques', 'corte', 'reporte-corte', 'produccion', 'plan-diario', 'inventario'];
+            const finanzasTabs = ['tesoreria'];
 
-            document.querySelectorAll('nav p').forEach(p => {
-                const text = p.innerText.toUpperCase().trim();
-                // Ya NO ocultamos 'COMERCIAL' para que el operador pueda ver el título encima de Productos
-                if(['FINANZAS', 'ADMINISTRACIÓN'].includes(text)) {
-                    p.classList.add('hidden');
-                }
-            });
+            const backupContainer = document.getElementById('admin-backup-container');
+            const adminInventoryTools = document.getElementById('admin-inventory-tools');
 
-            showTab('corte');
-        } 
-       else if (role === 'VENDEDOR') {
-            // RESTAURAMOS FINANZAS Y PROGRAMACIÓN AL VENDEDOR
-            // Solo ocultamos los módulos de Administración y la "Fábrica Física"
-            const fabricaFisicaTabs = ['materia-prima', 'expansion', 'bloquera', 'inventario-bloques', 'corte', 'reporte-corte']; 
-            const ocultarTabs = [...adminTabs, ...fabricaFisicaTabs];
-            
-            ocultarTabs.forEach(tab => {
-                const btn = document.querySelector(`[data-tab="${tab}"]`);
-                if(btn) btn.classList.add('hidden');
-            });
+            const btnSaldoSilos = document.querySelector('button[onclick="ingresoInicialSilos()"]');
+            const btnSaldoBloques = document.querySelector('button[onclick="ingresoInicialBloques()"]');
+            if(btnSaldoSilos) btnSaldoSilos.classList.toggle('hidden', role !== 'ADMIN');
+            if(btnSaldoBloques) btnSaldoBloques.classList.toggle('hidden', role !== 'ADMIN');
 
-            if(backupContainer) backupContainer.classList.add('hidden');
-            if(adminInventoryTools) adminInventoryTools.classList.add('hidden');
-            
-            // La pestaña Despachos (Inventario) queda en modo "Solo Lectura" para que no creen envíos no autorizados
-            const despCreator = document.getElementById('buscador-despacho')?.closest('.grid');
-            if(despCreator) despCreator.classList.add('hidden');
+            document.querySelectorAll('.nav-btn, nav p').forEach(el => el.classList.remove('hidden'));
 
-            // Solo ocultamos los títulos grises de Producción Física y Administración
-            document.querySelectorAll('nav p').forEach(p => {
-                const text = p.innerText.toUpperCase().trim();
-                if(['PRODUCCIÓN', 'ADMINISTRACIÓN'].includes(text)) {
-                    p.classList.add('hidden');
-                }
-            });
-
-            showTab('ventas');
-        }
-        showToast(`Bienvenido: ${user.name}`);
-
-        // ASISTENTE VIRTUAL DE VENTAS (Bandeja Visual)
-        setTimeout(() => {
-            if(currentUser.role !== 'ADMIN' && currentUser.role !== 'VENDEDOR') return; 
-            
-            const hoy = new Date();
-            hoy.setHours(0,0,0,0);
-
-            const llamadas = quotes.filter(q => {
-                // Si NO es admin, muestra solo sus cotizaciones
-                if(q.status !== 'SEGUIMIENTO' || (currentUser.role !== 'ADMIN' && q.vendedorInterno !== currentUser.name) || !q.nextContactDate) return false;
-                const [y, m, d] = q.nextContactDate.split('-');
-                const contactDate = new Date(y, m-1, d);
-                contactDate.setHours(0,0,0,0);
-                return contactDate <= hoy;
-            });
-
-            const radar = orders.filter(o => {
-                if(currentUser.role !== 'ADMIN' && o.vendedorInterno !== currentUser.name) return false;
-                const p = o.date.split('/');
-                const saleDate = p.length === 3 ? new Date(p[2], p[1]-1, p[0]) : new Date(o.date);
-                saleDate.setHours(0,0,0,0);
-                const dias = Math.floor((hoy - saleDate) / (1000 * 60 * 60 * 24));
-                return dias >= 28 && dias <= 35; 
-            });
-
-            if(llamadas.length > 0 || radar.length > 0) {
-                const astLlamadas = document.getElementById('ast-llamadas');
-                const astRadar = document.getElementById('ast-radar');
+            if (role === 'ADMIN') {
+                if(backupContainer) backupContainer.classList.remove('hidden');
+                if(adminInventoryTools) adminInventoryTools.classList.remove('hidden');
+                showTab('ventas');
+            } 
+            else if (role === 'OPERADOR') {
+                const ocultarTabs = [...adminTabs, 'ventas', 'cotizaciones', 'registro-ventas', ...finanzasTabs];
                 
-                astLlamadas.innerHTML = llamadas.length === 0 ? '<p class="text-xs text-slate-400 italic">No hay llamadas agendadas para hoy.</p>' : llamadas.map(q => `
-                    <div class="bg-orange-50 border border-orange-100 p-4 rounded-xl flex justify-between items-center shadow-sm">
-                        <div>
-                            <p class="font-black text-slate-800 text-sm">${q.client} <span class="text-[9px] bg-white border border-orange-200 text-orange-600 px-1.5 py-0.5 rounded ml-1 tracking-widest">${q.id}</span></p>
-                            <p class="text-xs font-bold text-slate-500 mt-1"><i data-lucide="phone" class="w-3 h-3 inline mr-1 text-orange-400"></i> Cel: <span class="font-black">${q.phone || 'N/A'}</span></p>
-                        </div>
-                    </div>`).join('');
+                ocultarTabs.forEach(tab => {
+                    const btn = document.querySelector(`[data-tab="${tab}"]`);
+                    if(btn) btn.classList.add('hidden');
+                });
+                
+                if(backupContainer) backupContainer.classList.add('hidden');
+                if(adminInventoryTools) adminInventoryTools.classList.add('hidden');
 
-                astRadar.innerHTML = radar.length === 0 ? '<p class="text-xs text-slate-400 italic">No hay clientes para reactivar hoy.</p>' : radar.map(o => `
-                    <div class="bg-blue-50 border border-blue-100 p-4 rounded-xl flex justify-between items-center shadow-sm">
-                        <div>
-                            <p class="font-black text-slate-800 text-sm">${o.client}</p>
-                            <p class="text-xs font-bold text-slate-500 mt-1"><i data-lucide="history" class="w-3 h-3 inline mr-1 text-blue-400"></i> Última compra: Pedido ${o.id}</p>
-                        </div>
-                    </div>`).join('');
+                document.querySelectorAll('nav p').forEach(p => {
+                    const text = p.innerText.toUpperCase().trim();
+                    if(['FINANZAS', 'ADMINISTRACIÓN'].includes(text)) {
+                        p.classList.add('hidden');
+                    }
+                });
 
-                document.getElementById('assistant-modal').classList.remove('hidden');
-                lucide.createIcons();
+                showTab('corte');
+            } 
+            else if (role === 'VENDEDOR') {
+                const fabricaFisicaTabs = ['materia-prima', 'expansion', 'bloquera', 'inventario-bloques', 'corte', 'reporte-corte']; 
+                const ocultarTabs = [...adminTabs, ...fabricaFisicaTabs];
+                
+                ocultarTabs.forEach(tab => {
+                    const btn = document.querySelector(`[data-tab="${tab}"]`);
+                    if(btn) btn.classList.add('hidden');
+                });
+
+                if(backupContainer) backupContainer.classList.add('hidden');
+                if(adminInventoryTools) adminInventoryTools.classList.add('hidden');
+                
+                const despCreator = document.getElementById('buscador-despacho')?.closest('.grid');
+                if(despCreator) despCreator.classList.add('hidden');
+
+                document.querySelectorAll('nav p').forEach(p => {
+                    const text = p.innerText.toUpperCase().trim();
+                    if(['PRODUCCIÓN', 'ADMINISTRACIÓN'].includes(text)) {
+                        p.classList.add('hidden');
+                    }
+                });
+
+                showTab('ventas');
             }
-        }, 1500);
+            showToast(`Bienvenido: ${user.name}`);
 
-    } else { alert("Acceso incorrecto."); }
+            setTimeout(() => {
+                if(currentUser.role !== 'ADMIN' && currentUser.role !== 'VENDEDOR') return; 
+                
+                const hoy = new Date();
+                hoy.setHours(0,0,0,0);
+
+                const llamadas = quotes.filter(q => {
+                    if(q.status !== 'SEGUIMIENTO' || (currentUser.role !== 'ADMIN' && q.vendedorInterno !== currentUser.name) || !q.nextContactDate) return false;
+                    const [y, m, d] = q.nextContactDate.split('-');
+                    const contactDate = new Date(y, m-1, d);
+                    contactDate.setHours(0,0,0,0);
+                    return contactDate <= hoy;
+                });
+
+                const radar = orders.filter(o => {
+                    if(currentUser.role !== 'ADMIN' && o.vendedorInterno !== currentUser.name) return false;
+                    const p = o.date.split('/');
+                    const saleDate = p.length === 3 ? new Date(p[2], p[1]-1, p[0]) : new Date(o.date);
+                    saleDate.setHours(0,0,0,0);
+                    const dias = Math.floor((hoy - saleDate) / (1000 * 60 * 60 * 24));
+                    return dias >= 28 && dias <= 35; 
+                });
+
+                if(llamadas.length > 0 || radar.length > 0) {
+                    const astLlamadas = document.getElementById('ast-llamadas');
+                    const astRadar = document.getElementById('ast-radar');
+                    
+                    astLlamadas.innerHTML = llamadas.length === 0 ? '<p class="text-xs text-slate-400 italic">No hay llamadas agendadas para hoy.</p>' : llamadas.map(q => `
+                        <div class="bg-orange-50 border border-orange-100 p-4 rounded-xl flex justify-between items-center shadow-sm">
+                            <div>
+                                <p class="font-black text-slate-800 text-sm">${q.client} <span class="text-[9px] bg-white border border-orange-200 text-orange-600 px-1.5 py-0.5 rounded ml-1 tracking-widest">${q.id}</span></p>
+                                <p class="text-xs font-bold text-slate-500 mt-1"><i data-lucide="phone" class="w-3 h-3 inline mr-1 text-orange-400"></i> Cel: <span class="font-black">${q.phone || 'N/A'}</span></p>
+                            </div>
+                        </div>`).join('');
+
+                    astRadar.innerHTML = radar.length === 0 ? '<p class="text-xs text-slate-400 italic">No hay clientes para reactivar hoy.</p>' : radar.map(o => `
+                        <div class="bg-blue-50 border border-blue-100 p-4 rounded-xl flex justify-between items-center shadow-sm">
+                            <div>
+                                <p class="font-black text-slate-800 text-sm">${o.client}</p>
+                                <p class="text-xs font-bold text-slate-500 mt-1"><i data-lucide="history" class="w-3 h-3 inline mr-1 text-blue-400"></i> Última compra: Pedido ${o.id}</p>
+                            </div>
+                        </div>`).join('');
+
+                    document.getElementById('assistant-modal').classList.remove('hidden');
+                    lucide.createIcons();
+                }
+            }, 1500);
+
+        } else { 
+            alert("Acceso incorrecto. Usuario autenticado pero sin rol asignado."); 
+        }
+    })
+    .catch((error) => {
+        console.error(error);
+        alert("Acceso denegado. Correo o contraseña incorrectos.");
+    });
 }
 
-        function logout() { location.reload(); }
 
+function logout() { 
+    // Asegura que se cierre la sesión en la bóveda de Google también
+    firebase.auth().signOut().then(() => {
+        location.reload(); 
+    });
+}
         let editingUserEmail = null;
         function addIntSeller(e) {
             e.preventDefault();
