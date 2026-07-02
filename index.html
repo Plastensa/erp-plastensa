@@ -762,21 +762,18 @@
                 <p class="text-[10px] font-black text-slate-400 uppercase tracking-widest">Modo Continuo y Descuento de Material</p>
             </div>
         </div>
-        <div class="bg-slate-900 px-6 py-3 rounded-2xl text-center shadow-lg min-w-[200px]">
+        <div class="bg-slate-900 px-6 py-3 rounded-2xl text-center shadow-lg min-w-[200px] relative">
             <p class="text-[9px] font-black uppercase tracking-widest text-green-400">Material Disponible en Tolva</p>
             <p id="volumen-maquina-display" class="text-2xl font-black text-white">0.00 M³</p>
+            <button onclick="ajustarTolvaAdmin()" id="btn-ajuste-tolva" class="absolute -top-2 -right-2 bg-blue-600 hover:bg-blue-500 text-white rounded-full p-1.5 shadow-lg hidden" title="Ajuste Manual (Solo Admin)">
+                <i data-lucide="settings-2" class="w-3 h-3"></i>
+            </button>
         </div>
     </div>
     
     <div id="panel-configuracion" class="bg-white p-8 rounded-[32px] border border-slate-200 shadow-sm flex flex-col w-full lg:w-1/2 mx-auto">
         <h3 class="font-black text-slate-800 uppercase mb-6 text-xl">1. Configurar Lote</h3>
         <div class="space-y-5 flex-1">
-            <div>
-                <label class="text-[10px] font-black uppercase text-slate-400 ml-2 block mb-1">Silo de Origen</label>
-                <select id="blq-silo" class="w-full p-4 bg-slate-50 border border-slate-200 rounded-xl font-bold outline-none focus:ring-2 focus:ring-green-500">
-                    <option value="Silo 5">Silo 5</option><option value="Silo 6">Silo 6</option><option value="Silo 7">Silo 7</option><option value="Silo 8">Silo 8</option>
-                </select>
-            </div>
             <div>
                 <label class="text-[10px] font-black uppercase text-slate-400 ml-2 block mb-1">Tipo de Bloque</label>
                 <select id="blq-tipo" class="w-full p-4 bg-slate-50 border border-slate-200 rounded-xl font-bold outline-none focus:ring-2 focus:ring-green-500"></select>
@@ -864,6 +861,25 @@
                 <p class="text-xs font-bold text-slate-400 mb-2">Bloques despuntados (Filtrados)</p>
                 <p id="inv-vol-neto-total" class="text-3xl font-black text-green-700 tracking-tighter">0.00 M³</p>
             </div>
+        </div>
+    </div>
+
+<!-- RESUMEN DE BLOQUES POR TIPO -->
+    <div class="bg-slate-900 p-6 rounded-[32px] shadow-xl text-white mt-2">
+        <h3 class="font-black uppercase tracking-widest text-xs mb-4 text-blue-400 border-b border-slate-700 pb-2 flex items-center gap-2"><i data-lucide="bar-chart-2" class="w-4 h-4"></i> Resumen del Periodo por Tipos</h3>
+        <div class="overflow-x-auto">
+            <table class="w-full text-left text-xs whitespace-nowrap">
+                <thead class="bg-slate-800 text-[9px] font-black uppercase text-slate-400 tracking-widest">
+                    <tr>
+                        <th class="p-3 rounded-tl-xl border-r border-slate-700">Tipo de Bloque</th>
+                        <th class="p-3 text-center border-r border-slate-700">Saldo Inicial</th>
+                        <th class="p-3 text-center text-green-400 border-r border-slate-700">Producidos</th>
+                        <th class="p-3 text-center text-red-400 border-r border-slate-700">Cortados</th>
+                        <th class="p-3 text-right text-blue-400 rounded-tr-xl">Saldo Total en Planta</th>
+                    </tr>
+                </thead>
+                <tbody id="resumen-bloques-body" class="divide-y divide-slate-700"></tbody>
+            </table>
         </div>
     </div>
     
@@ -2678,9 +2694,14 @@ function handleLogin(e) {
     const email = document.getElementById('login-email').value;
     const pass = document.getElementById('login-pass').value;
     
-    // Google verifica la clave secreta
-    firebase.auth().signInWithEmailAndPassword(email, pass)
+    // 1. Le ordenamos a Google que la sesión muera al cerrar la pestaña
+    firebase.auth().setPersistence(firebase.auth.Auth.Persistence.SESSION)
+    .then(() => {
+        // 2. Si acepta la regla, recién verifica la clave secreta
+        return firebase.auth().signInWithEmailAndPassword(email, pass);
+    })
     .catch((error) => {
+        console.error(error);
         alert("❌ Acceso Denegado. Correo o contraseña incorrectos.");
     });
 }
@@ -2775,6 +2796,8 @@ function aplicarPermisosVisuales(role) {
     const btnSaldoBloques = document.querySelector('button[onclick="ingresoInicialBloques()"]');
     if(btnSaldoSilos) btnSaldoSilos.classList.toggle('hidden', role !== 'ADMIN');
     if(btnSaldoBloques) btnSaldoBloques.classList.toggle('hidden', role !== 'ADMIN');
+    const btnAjusteTolva = document.getElementById('btn-ajuste-tolva');
+    if(btnAjusteTolva) btnAjusteTolva.classList.toggle('hidden', role !== 'ADMIN');
 
     document.querySelectorAll('.nav-btn, nav p').forEach(el => el.classList.remove('hidden'));
 
@@ -5803,7 +5826,7 @@ function renderVolumenMaquina() {
 }
 
 function iniciarLoteProduccion() {
-    const silo = document.getElementById('blq-silo').value;
+    const silo = 'Tolva Central';
     const tipo = document.getElementById('blq-tipo').value;
     const densidad = document.getElementById('blq-densidad').value;
     const datosBloque = dbTiposBloque.find(b => b.tipo === tipo);
@@ -5937,6 +5960,43 @@ function renderInventarioBloques() {
     
     let timeDesde = dateDesdeStr ? new Date(dateDesdeStr + "T00:00:00").getTime() : 0;
     let timeHasta = dateHastaStr ? new Date(dateHastaStr + "T23:59:59").getTime() : Infinity;
+
+    // --- NUEVO: CÁLCULO DE RESUMEN POR TIPOS ---
+    const resumen = {};
+    dbBloques.forEach(b => {
+        let bTime = getFilterableDate(b.fecha);
+        // Filtro de fecha para el resumen
+        if (bTime < timeDesde || bTime > timeHasta) return;
+
+        if (!resumen[b.tipo]) resumen[b.tipo] = { inicial: 0, producidos: 0, cortados: 0, total: 0 };
+        
+        const isInicial = (b.operador === 'Sistema' || (b.estado && b.estado.toUpperCase().includes('INICIAL')));
+        
+        if (isInicial) resumen[b.tipo].inicial++;
+        else resumen[b.tipo].producidos++;
+
+        if (b.ubicacion === 'CORTADO') resumen[b.tipo].cortados++;
+        else if (b.ubicacion === 'PLANTA') resumen[b.tipo].total++;
+    });
+
+    let htmlResumen = '';
+    Object.keys(resumen).sort().forEach(tipo => {
+        const r = resumen[tipo];
+        if (r.inicial === 0 && r.producidos === 0 && r.cortados === 0 && r.total === 0) return;
+        htmlResumen += `
+        <tr class="hover:bg-slate-800 transition-colors">
+            <td class="p-3 font-black text-slate-200 border-r border-slate-700/50">Bloque ${tipo}</td>
+            <td class="p-3 text-center font-bold text-slate-400 border-r border-slate-700/50">${r.inicial}</td>
+            <td class="p-3 text-center font-black text-green-400 border-r border-slate-700/50">+ ${r.producidos}</td>
+            <td class="p-3 text-center font-black text-red-400 border-r border-slate-700/50">- ${r.cortados}</td>
+            <td class="p-3 text-right font-black text-blue-400 text-sm">${r.total} Pzas</td>
+        </tr>`;
+    });
+    
+    if(htmlResumen === '') htmlResumen = `<tr><td colspan="5" class="p-4 text-center text-slate-500 italic">No hay actividad de bloques en este periodo.</td></tr>`;
+    const tbodyResumen = document.getElementById('resumen-bloques-body');
+    if(tbodyResumen) tbodyResumen.innerHTML = htmlResumen;
+    // ------------------------------------------
     
     let sumVolReal = 0;
     let sumVolNeto = 0;
@@ -5946,18 +6006,15 @@ function renderInventarioBloques() {
         if(!b.codigo.toLowerCase().includes(search) && !b.tipo.toLowerCase().includes(search)) return false;
         if(filtroDensidad !== 'ALL' && b.densFinal !== filtroDensidad) return false;
         
-        // Filtro Estricto de Fechas
         let bTime = getFilterableDate(b.fecha);
         if(bTime < timeDesde || bTime > timeHasta) return false;
         
-        // Sumatorias para los marcadores
         sumVolReal += (Number(b.volReal) || (Number(b.peso) / Number(b.densReal)) || 0);
         sumVolNeto += (Number(b.volNeto) || 0);
         
         return true;
     });
     
-    // Actualizar marcadores gigantes en pantalla
     document.getElementById('inv-vol-real-total').innerText = sumVolReal.toFixed(2) + ' M³';
     document.getElementById('inv-vol-neto-total').innerText = sumVolNeto.toFixed(2) + ' M³';
 
@@ -7639,6 +7696,46 @@ function eliminarRegistroKardexSilo(id) {
     saveSilos();
     renderAll();
     showToast("Operación revertida (Ctrl+Z) exitosamente.");
+}
+
+// ==========================================
+// AUDITORÍA Y AJUSTE DE TOLVA (SOLO ADMIN)
+// ==========================================
+function ajustarTolvaAdmin() {
+    if(!currentUser || currentUser.role !== 'ADMIN') return alert("Solo el Administrador puede ajustar la tolva.");
+    
+    // --- MOTOR DE RASTREO HISTÓRICO ---
+    // 1. Sumar TODO el material enviado a la bloquera en la historia
+    const totalIngresado = dbSilosHistory
+        .filter(h => h.op === 'Vaciado a Bloquera')
+        .reduce((sum, h) => sum + (Number(h.volTotal) || 0), 0);
+        
+    // 2. Sumar TODO el material consumido en bloques fabricados
+    const totalConsumido = dbBloques
+        .reduce((sum, b) => sum + (Number(b.volReal) || 0), 0);
+        
+    // 3. El saldo matemáticamente perfecto que debe tener la tolva:
+    let saldoRecuperado = totalIngresado - totalConsumido;
+    if (saldoRecuperado < 0) saldoRecuperado = 0; // Por si hay desfases muy antiguos
+    
+    const mensaje = `⚙️ AUDITORÍA DE TOLVA\n\n` +
+                    `Ingresos Históricos: + ${totalIngresado.toFixed(2)} M³\n` +
+                    `Consumo Histórico:  - ${totalConsumido.toFixed(2)} M³\n` +
+                    `----------------------------------------\n` +
+                    `VOLUMEN RECUPERADO:   ${saldoRecuperado.toFixed(2)} M³\n\n` +
+                    `El sistema ha rastreado el historial para recuperar el volumen en el limbo. Confirme este valor para inyectarlo a la nube:`;
+
+    const nuevoVol = prompt(mensaje, saldoRecuperado.toFixed(2));
+    
+    if(nuevoVol === null || nuevoVol.trim() === '') return;
+    
+    const v = parseFloat(nuevoVol);
+    if(isNaN(v)) return alert("Volumen inválido.");
+    
+    dbTolva = v;
+    save(); // Sube el valor corregido a la nube
+    renderVolumenMaquina();
+    showToast(`Tolva recuperada y ajustada a ${v.toFixed(2)} M³`);
 }
 
 // --- DISPARADOR INICIAL ---
