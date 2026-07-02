@@ -2327,48 +2327,6 @@
 	// INTERRUPTOR CRÍTICO DE SEGURIDAD
 	let erpDataLoaded = false;
 
-        // 2. SINCRONIZADOR EN TIEMPO REAL (El "Radar" de Firebase)
-        db.collection("plastensa_erp").doc("datos_centrales").onSnapshot((doc) => {
-            if (doc.exists) {
-                const data = doc.data();
-                products = data.products ? JSON.parse(data.products) : products;
-                quotes = data.quotes ? JSON.parse(data.quotes) : quotes;
-                orders = data.orders ? JSON.parse(data.orders) : orders;
-                dbMovimientosCaja = data.dbMovimientosCaja ? JSON.parse(data.dbMovimientosCaja) : [];
-                dbClients = data.dbClients ? JSON.parse(data.dbClients) : dbClients;
-                dbExtSellers = data.dbExtSellers ? JSON.parse(data.dbExtSellers) : dbExtSellers;
-                dbIntSellers = data.dbIntSellers ? JSON.parse(data.dbIntSellers) : dbIntSellers;
-                dbPendingVerifications = data.dbPendingVerifications ? JSON.parse(data.dbPendingVerifications) : dbPendingVerifications;
-                dbSchedules = data.dbSchedules ? JSON.parse(data.dbSchedules) : dbSchedules;
-                dbMateriaPrima = data.dbMateriaPrima ? JSON.parse(data.dbMateriaPrima) : dbMateriaPrima;
-                dbMpTipos = data.dbMpTipos ? JSON.parse(data.dbMpTipos) : dbMpTipos;
-                dbExpansion = data.dbExpansion ? JSON.parse(data.dbExpansion) : dbExpansion;
-                dbPreciosBase = data.dbPreciosBase ? JSON.parse(data.dbPreciosBase) : dbPreciosBase;
-                dbBancoRetazos = data.dbBancoRetazos ? JSON.parse(data.dbBancoRetazos) : dbBancoRetazos;
-                dbReportesCorte = data.dbReportesCorte ? JSON.parse(data.dbReportesCorte) : dbReportesCorte;
-                dbDespachos = data.dbDespachos ? JSON.parse(data.dbDespachos) : dbDespachos;
-                dbBloques = data.dbBloques ? JSON.parse(data.dbBloques) : dbBloques;
-                dbKardex = data.dbKardex ? JSON.parse(data.dbKardex) : dbKardex;
-                dbSilos = data.dbSilos ? JSON.parse(data.dbSilos) : dbSilos;
-                dbSilosHistory = data.dbSilosHistory ? JSON.parse(data.dbSilosHistory) : dbSilosHistory;
-                
-                // ¡CANDADO ABIERTO!: Los datos se descargaron con éxito de la nube, es seguro guardar.
-                erpDataLoaded = true; 
-                
-                // Actualizar la pantalla al instante si alguien más hizo un cambio
-                if(currentUser) renderAll();
-            } else {
-                // Si la base de datos está totalmente virgen, creamos el usuario Admin por defecto
-                dbIntSellers = [{name: 'Administrador Planta', email: 'admin@plastensa.com', pass: '1234', ci:'0', phone:'0', role: 'ADMIN'}];
-                erpDataLoaded = true; // Permitimos guardar solo por ser inicialización virgen
-                save();
-            }
-        }, (error) => {
-            console.error("Error crítico en el radar de Firebase: ", error);
-            // Si hay error de red o permisos, bloqueamos el guardado de inmediato
-            erpDataLoaded = false; 
-        });
-
 // 3. FUNCIÓN DE GUARDADO EN LA NUBE (VERSION CON BLINDAJE ANTI-BORRADO)
 function save() {
     // CONDICION 1: Si el sistema no ha terminado de descargar los datos de Google, NO se guarda nada.
@@ -2706,158 +2664,190 @@ function showTab(id) {
     renderAll();
 }
 
-        function handleLogin(e) {
+// ==========================================
+// 2. SISTEMA DE LOGIN Y RADAR BLINDADO
+// ==========================================
+let radarActivo = false;
+
+// Al hacer clic en "INGRESAR", le tocamos la puerta a Google
+function handleLogin(e) {
     e.preventDefault();
     const email = document.getElementById('login-email').value;
     const pass = document.getElementById('login-pass').value;
     
-    // 1. Firebase verifica la seguridad directamente con Google
+    // Google verifica la clave secreta
     firebase.auth().signInWithEmailAndPassword(email, pass)
-    .then(() => {
-        // 2. Si Google da el OK, el sistema busca al usuario en tu lista exactamente como antes
-        const user = dbIntSellers.find(u => u.email === email);
-        
-        if(user) {
-            currentUser = user; 
-            document.getElementById('login-screen').classList.add('hidden'); 
-            document.getElementById('main-app').classList.remove('hidden');
-            document.getElementById('display-user-name').innerText = user.name; 
-            document.getElementById('display-user-role').innerText = user.role; 
-            document.getElementById('cot-interno').innerHTML = dbIntSellers.filter(u => u.role === 'ADMIN' || u.role === 'VENDEDOR').map(u => `<option value="${u.name}">${u.name}</option>`).join('');
-            document.getElementById('cot-interno').value = user.name; 
-            
-            // ==========================================
-            // MATRIZ ESTRICTA DE ACCESOS POR ROL (INTACTA)
-            // ==========================================
-            const role = user.role; 
-            
-            const adminTabs = ['dashboard-gerencial', 'directorio', 'tesoreria-admin', 'salidas-eps', 'log-maestro', 'historial-admin', 'precios-admin', 'transporte','caja-general', 'seguridad'];
-            const comercialTabs = ['catalogo', 'ventas', 'cotizaciones', 'registro-ventas'];
-            const produccionTabs = ['materia-prima', 'expansion', 'bloquera', 'inventario-bloques', 'corte', 'reporte-corte', 'produccion', 'plan-diario', 'inventario'];
-            const finanzasTabs = ['tesoreria'];
-
-            const backupContainer = document.getElementById('admin-backup-container');
-            const adminInventoryTools = document.getElementById('admin-inventory-tools');
-
-            const btnSaldoSilos = document.querySelector('button[onclick="ingresoInicialSilos()"]');
-            const btnSaldoBloques = document.querySelector('button[onclick="ingresoInicialBloques()"]');
-            if(btnSaldoSilos) btnSaldoSilos.classList.toggle('hidden', role !== 'ADMIN');
-            if(btnSaldoBloques) btnSaldoBloques.classList.toggle('hidden', role !== 'ADMIN');
-
-            document.querySelectorAll('.nav-btn, nav p').forEach(el => el.classList.remove('hidden'));
-
-            if (role === 'ADMIN') {
-                if(backupContainer) backupContainer.classList.remove('hidden');
-                if(adminInventoryTools) adminInventoryTools.classList.remove('hidden');
-                showTab('ventas');
-            } 
-            else if (role === 'OPERADOR') {
-                const ocultarTabs = [...adminTabs, 'ventas', 'cotizaciones', 'registro-ventas', ...finanzasTabs];
-                
-                ocultarTabs.forEach(tab => {
-                    const btn = document.querySelector(`[data-tab="${tab}"]`);
-                    if(btn) btn.classList.add('hidden');
-                });
-                
-                if(backupContainer) backupContainer.classList.add('hidden');
-                if(adminInventoryTools) adminInventoryTools.classList.add('hidden');
-
-                document.querySelectorAll('nav p').forEach(p => {
-                    const text = p.innerText.toUpperCase().trim();
-                    if(['FINANZAS', 'ADMINISTRACIÓN'].includes(text)) {
-                        p.classList.add('hidden');
-                    }
-                });
-
-                showTab('corte');
-            } 
-            else if (role === 'VENDEDOR') {
-                const fabricaFisicaTabs = ['materia-prima', 'expansion', 'bloquera', 'inventario-bloques', 'corte', 'reporte-corte']; 
-                const ocultarTabs = [...adminTabs, ...fabricaFisicaTabs];
-                
-                ocultarTabs.forEach(tab => {
-                    const btn = document.querySelector(`[data-tab="${tab}"]`);
-                    if(btn) btn.classList.add('hidden');
-                });
-
-                if(backupContainer) backupContainer.classList.add('hidden');
-                if(adminInventoryTools) adminInventoryTools.classList.add('hidden');
-                
-                const despCreator = document.getElementById('buscador-despacho')?.closest('.grid');
-                if(despCreator) despCreator.classList.add('hidden');
-
-                document.querySelectorAll('nav p').forEach(p => {
-                    const text = p.innerText.toUpperCase().trim();
-                    if(['PRODUCCIÓN', 'ADMINISTRACIÓN'].includes(text)) {
-                        p.classList.add('hidden');
-                    }
-                });
-
-                showTab('ventas');
-            }
-            showToast(`Bienvenido: ${user.name}`);
-
-            setTimeout(() => {
-                if(currentUser.role !== 'ADMIN' && currentUser.role !== 'VENDEDOR') return; 
-                
-                const hoy = new Date();
-                hoy.setHours(0,0,0,0);
-
-                const llamadas = quotes.filter(q => {
-                    if(q.status !== 'SEGUIMIENTO' || (currentUser.role !== 'ADMIN' && q.vendedorInterno !== currentUser.name) || !q.nextContactDate) return false;
-                    const [y, m, d] = q.nextContactDate.split('-');
-                    const contactDate = new Date(y, m-1, d);
-                    contactDate.setHours(0,0,0,0);
-                    return contactDate <= hoy;
-                });
-
-                const radar = orders.filter(o => {
-                    if(currentUser.role !== 'ADMIN' && o.vendedorInterno !== currentUser.name) return false;
-                    const p = o.date.split('/');
-                    const saleDate = p.length === 3 ? new Date(p[2], p[1]-1, p[0]) : new Date(o.date);
-                    saleDate.setHours(0,0,0,0);
-                    const dias = Math.floor((hoy - saleDate) / (1000 * 60 * 60 * 24));
-                    return dias >= 28 && dias <= 35; 
-                });
-
-                if(llamadas.length > 0 || radar.length > 0) {
-                    const astLlamadas = document.getElementById('ast-llamadas');
-                    const astRadar = document.getElementById('ast-radar');
-                    
-                    astLlamadas.innerHTML = llamadas.length === 0 ? '<p class="text-xs text-slate-400 italic">No hay llamadas agendadas para hoy.</p>' : llamadas.map(q => `
-                        <div class="bg-orange-50 border border-orange-100 p-4 rounded-xl flex justify-between items-center shadow-sm">
-                            <div>
-                                <p class="font-black text-slate-800 text-sm">${q.client} <span class="text-[9px] bg-white border border-orange-200 text-orange-600 px-1.5 py-0.5 rounded ml-1 tracking-widest">${q.id}</span></p>
-                                <p class="text-xs font-bold text-slate-500 mt-1"><i data-lucide="phone" class="w-3 h-3 inline mr-1 text-orange-400"></i> Cel: <span class="font-black">${q.phone || 'N/A'}</span></p>
-                            </div>
-                        </div>`).join('');
-
-                    astRadar.innerHTML = radar.length === 0 ? '<p class="text-xs text-slate-400 italic">No hay clientes para reactivar hoy.</p>' : radar.map(o => `
-                        <div class="bg-blue-50 border border-blue-100 p-4 rounded-xl flex justify-between items-center shadow-sm">
-                            <div>
-                                <p class="font-black text-slate-800 text-sm">${o.client}</p>
-                                <p class="text-xs font-bold text-slate-500 mt-1"><i data-lucide="history" class="w-3 h-3 inline mr-1 text-blue-400"></i> Última compra: Pedido ${o.id}</p>
-                            </div>
-                        </div>`).join('');
-
-                    document.getElementById('assistant-modal').classList.remove('hidden');
-                    lucide.createIcons();
-                }
-            }, 1500);
-
-        } else { 
-            alert("Acceso incorrecto. Usuario autenticado pero sin rol asignado."); 
-        }
-    })
     .catch((error) => {
-        console.error(error);
-        alert("Acceso denegado. Correo o contraseña incorrectos.");
+        alert("❌ Acceso Denegado. Correo o contraseña incorrectos.");
     });
 }
 
+// Google nos avisa si el acceso fue correcto o si la sesión ya estaba abierta
+firebase.auth().onAuthStateChanged((user) => {
+    if (user) {
+        if (!radarActivo) iniciarRadar(user.email);
+    } else {
+        document.getElementById('login-screen').classList.remove('hidden');
+        document.getElementById('main-app').classList.add('hidden');
+        radarActivo = false;
+    }
+});
+
+// El Radar SÓLO se prende cuando Google nos ha dado permiso de entrar a la bóveda
+function iniciarRadar(userEmail) {
+    db.collection("plastensa_erp").doc("datos_centrales").onSnapshot((doc) => {
+        if (doc.exists) {
+            const data = doc.data();
+            products = data.products ? JSON.parse(data.products) : products;
+            quotes = data.quotes ? JSON.parse(data.quotes) : quotes;
+            orders = data.orders ? JSON.parse(data.orders) : orders;
+            dbMovimientosCaja = data.dbMovimientosCaja ? JSON.parse(data.dbMovimientosCaja) : [];
+            dbClients = data.dbClients ? JSON.parse(data.dbClients) : dbClients;
+            dbExtSellers = data.dbExtSellers ? JSON.parse(data.dbExtSellers) : [];
+            dbIntSellers = data.dbIntSellers ? JSON.parse(data.dbIntSellers) : [];
+            dbPendingVerifications = data.dbPendingVerifications ? JSON.parse(data.dbPendingVerifications) : [];
+            dbSchedules = data.dbSchedules ? JSON.parse(data.dbSchedules) : [];
+            dbMateriaPrima = data.dbMateriaPrima ? JSON.parse(data.dbMateriaPrima) : { historial: [], saldoActual: 0 };
+            dbMpTipos = data.dbMpTipos ? JSON.parse(data.dbMpTipos) : [];
+            dbExpansion = data.dbExpansion ? JSON.parse(data.dbExpansion) : { jarritas: [], consumos: [] };
+            dbPreciosBase = data.dbPreciosBase ? JSON.parse(data.dbPreciosBase) : { ajusteGlobal: 0, matriz: [] };
+            dbBancoRetazos = data.dbBancoRetazos ? JSON.parse(data.dbBancoRetazos) : { D8: 0, D10: 0, D13: 0, D15: 0, D20: 0 };
+            dbReportesCorte = data.dbReportesCorte ? JSON.parse(data.dbReportesCorte) : [];
+            dbDespachos = data.dbDespachos ? JSON.parse(data.dbDespachos) : [];
+            dbBloques = data.dbBloques ? JSON.parse(data.dbBloques) : [];
+            dbKardex = data.dbKardex ? JSON.parse(data.dbKardex) : [];
+            dbSilos = data.dbSilos ? JSON.parse(data.dbSilos) : [];
+            dbSilosHistory = data.dbSilosHistory ? JSON.parse(data.dbSilosHistory) : [];
+            
+            erpDataLoaded = true;
+            radarActivo = true;
+
+            // Verificamos si apenas está entrando (Pantalla Azul visible)
+            if (!document.getElementById('login-screen').classList.contains('hidden')) {
+                const localUser = dbIntSellers.find(u => u.email === userEmail);
+                if(localUser) {
+                    currentUser = localUser; 
+                    document.getElementById('login-screen').classList.add('hidden'); 
+                    document.getElementById('main-app').classList.remove('hidden');
+                    document.getElementById('display-user-name').innerText = localUser.name; 
+                    document.getElementById('display-user-role').innerText = localUser.role; 
+                    document.getElementById('cot-interno').innerHTML = dbIntSellers.filter(u => u.role === 'ADMIN' || u.role === 'VENDEDOR').map(u => `<option value="${u.name}">${u.name}</option>`).join('');
+                    document.getElementById('cot-interno').value = localUser.name; 
+                    
+                    aplicarPermisosVisuales(localUser.role);
+                    showToast(`Bienvenido: ${localUser.name}`);
+                    iniciarAsistente();
+                } else {
+                    alert("⚠️ Tu cuenta existe en Google, pero no tienes rol asignado en el Directorio.");
+                    firebase.auth().signOut();
+                }
+            } else {
+                // Si ya estaba logueado y alguien hizo un cambio, solo actualiza la vista
+                if(currentUser) renderAll();
+            }
+        } else {
+            // Base de datos virgen
+            dbIntSellers = [{name: 'Administrador Planta', email: 'admin@plastensa.com', pass: '1234', ci:'0', phone:'0', role: 'ADMIN'}];
+            erpDataLoaded = true;
+            save();
+        }
+    }, (error) => {
+        console.error("Error en el radar de Firebase: ", error);
+        erpDataLoaded = false; 
+    });
+}
+
+// 3. Matriz Estricta de Roles y Permisos (Intacta)
+function aplicarPermisosVisuales(role) {
+    const adminTabs = ['dashboard-gerencial', 'directorio', 'tesoreria-admin', 'salidas-eps', 'log-maestro', 'historial-admin', 'precios-admin', 'transporte','caja-general', 'seguridad'];
+    const comercialTabs = ['catalogo', 'ventas', 'cotizaciones', 'registro-ventas'];
+    const produccionTabs = ['materia-prima', 'expansion', 'bloquera', 'inventario-bloques', 'corte', 'reporte-corte', 'produccion', 'plan-diario', 'inventario'];
+    const finanzasTabs = ['tesoreria'];
+
+    const backupContainer = document.getElementById('admin-backup-container');
+    const adminInventoryTools = document.getElementById('admin-inventory-tools');
+
+    const btnSaldoSilos = document.querySelector('button[onclick="ingresoInicialSilos()"]');
+    const btnSaldoBloques = document.querySelector('button[onclick="ingresoInicialBloques()"]');
+    if(btnSaldoSilos) btnSaldoSilos.classList.toggle('hidden', role !== 'ADMIN');
+    if(btnSaldoBloques) btnSaldoBloques.classList.toggle('hidden', role !== 'ADMIN');
+
+    document.querySelectorAll('.nav-btn, nav p').forEach(el => el.classList.remove('hidden'));
+
+    if (role === 'ADMIN') {
+        if(backupContainer) backupContainer.classList.remove('hidden');
+        if(adminInventoryTools) adminInventoryTools.classList.remove('hidden');
+        showTab('ventas');
+    } 
+    else if (role === 'OPERADOR') {
+        const ocultarTabs = [...adminTabs, 'ventas', 'cotizaciones', 'registro-ventas', ...finanzasTabs];
+        ocultarTabs.forEach(tab => {
+            const btn = document.querySelector(`[data-tab="${tab}"]`);
+            if(btn) btn.classList.add('hidden');
+        });
+        if(backupContainer) backupContainer.classList.add('hidden');
+        if(adminInventoryTools) adminInventoryTools.classList.add('hidden');
+        document.querySelectorAll('nav p').forEach(p => {
+            const text = p.innerText.toUpperCase().trim();
+            if(['FINANZAS', 'ADMINISTRACIÓN'].includes(text)) p.classList.add('hidden');
+        });
+        showTab('corte');
+    } 
+    else if (role === 'VENDEDOR') {
+        const fabricaFisicaTabs = ['materia-prima', 'expansion', 'bloquera', 'inventario-bloques', 'corte', 'reporte-corte']; 
+        const ocultarTabs = [...adminTabs, ...fabricaFisicaTabs];
+        ocultarTabs.forEach(tab => {
+            const btn = document.querySelector(`[data-tab="${tab}"]`);
+            if(btn) btn.classList.add('hidden');
+        });
+        if(backupContainer) backupContainer.classList.add('hidden');
+        if(adminInventoryTools) adminInventoryTools.classList.add('hidden');
+        const despCreator = document.getElementById('buscador-despacho')?.closest('.grid');
+        if(despCreator) despCreator.classList.add('hidden');
+        document.querySelectorAll('nav p').forEach(p => {
+            const text = p.innerText.toUpperCase().trim();
+            if(['PRODUCCIÓN', 'ADMINISTRACIÓN'].includes(text)) p.classList.add('hidden');
+        });
+        showTab('ventas');
+    }
+}
+
+function iniciarAsistente() {
+    setTimeout(() => {
+        if(currentUser.role !== 'ADMIN' && currentUser.role !== 'VENDEDOR') return; 
+        const hoy = new Date(); hoy.setHours(0,0,0,0);
+        const llamadas = quotes.filter(q => {
+            if(q.status !== 'SEGUIMIENTO' || (currentUser.role !== 'ADMIN' && q.vendedorInterno !== currentUser.name) || !q.nextContactDate) return false;
+            const [y, m, d] = q.nextContactDate.split('-');
+            const contactDate = new Date(y, m-1, d); contactDate.setHours(0,0,0,0);
+            return contactDate <= hoy;
+        });
+        const radar = orders.filter(o => {
+            if(currentUser.role !== 'ADMIN' && o.vendedorInterno !== currentUser.name) return false;
+            const p = o.date.split('/');
+            const saleDate = p.length === 3 ? new Date(p[2], p[1]-1, p[0]) : new Date(o.date);
+            saleDate.setHours(0,0,0,0);
+            const dias = Math.floor((hoy - saleDate) / (1000 * 60 * 60 * 24));
+            return dias >= 28 && dias <= 35; 
+        });
+        if(llamadas.length > 0 || radar.length > 0) {
+            const astLlamadas = document.getElementById('ast-llamadas');
+            const astRadar = document.getElementById('ast-radar');
+            astLlamadas.innerHTML = llamadas.length === 0 ? '<p class="text-xs text-slate-400 italic">No hay llamadas agendadas para hoy.</p>' : llamadas.map(q => `
+                <div class="bg-orange-50 border border-orange-100 p-4 rounded-xl flex justify-between items-center shadow-sm">
+                    <div><p class="font-black text-slate-800 text-sm">${q.client} <span class="text-[9px] bg-white border border-orange-200 text-orange-600 px-1.5 py-0.5 rounded ml-1 tracking-widest">${q.id}</span></p><p class="text-xs font-bold text-slate-500 mt-1"><i data-lucide="phone" class="w-3 h-3 inline mr-1 text-orange-400"></i> Cel: <span class="font-black">${q.phone || 'N/A'}</span></p></div>
+                </div>`).join('');
+            astRadar.innerHTML = radar.length === 0 ? '<p class="text-xs text-slate-400 italic">No hay clientes para reactivar hoy.</p>' : radar.map(o => `
+                <div class="bg-blue-50 border border-blue-100 p-4 rounded-xl flex justify-between items-center shadow-sm">
+                    <div><p class="font-black text-slate-800 text-sm">${o.client}</p><p class="text-xs font-bold text-slate-500 mt-1"><i data-lucide="history" class="w-3 h-3 inline mr-1 text-blue-400"></i> Última compra: Pedido ${o.id}</p></div>
+                </div>`).join('');
+            document.getElementById('assistant-modal').classList.remove('hidden');
+            lucide.createIcons();
+        }
+    }, 1500);
+}
 
 function logout() { 
-    // Asegura que se cierre la sesión en la bóveda de Google también
     firebase.auth().signOut().then(() => {
         location.reload(); 
     });
