@@ -10,6 +10,7 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-auth-compat.js"></script>
     <style>
         @media print {
             .no-print { display: none !important; }
@@ -2747,7 +2748,7 @@ function iniciarRadar(userEmail) {
             }
         } else {
             // Base de datos virgen
-            dbIntSellers = [{name: 'Administrador Planta', email: 'admin@plastensa.com', pass: '1234', ci:'0', phone:'0', role: 'ADMIN'}];
+            dbIntSellers = [{name: 'Administrador Planta', email: 'admin@plastensa.com', pass: '1234nando', ci:'0', phone:'0', role: 'ADMIN'}];
             erpDataLoaded = true;
             save();
         }
