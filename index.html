@@ -2291,6 +2291,13 @@
                                 <i data-lucide="alert-triangle" class="w-8 h-8"></i> 
                                 <span>RESET DE FÁBRICA</span>
                             </button>
+
+                            <!-- BOTÓN TEMPORAL MIGRACIÓN A COLECCIONES -->
+                            <button onclick="robotMigrador()" class="col-span-1 md:col-span-2 w-full bg-purple-600 text-white px-8 py-6 rounded-xl font-black hover:bg-purple-700 transition-colors flex flex-col items-center justify-center gap-3 shadow-lg border-2 border-purple-400 border-dashed mt-4">
+                                <i data-lucide="bot" class="w-8 h-8 animate-bounce"></i> 
+                                <span>ROBOT: MIGRAR A CARPETAS INDIVIDUALES (FASE 1)</span>
+                            </button>
+
                         </div>
                     </div>
                 </div>
@@ -2499,6 +2506,35 @@ function restaurarDesdeJSON(event) {
     };
     reader.readAsText(file);
 }	
+
+// ==========================================
+// ROBOT DE MIGRACIÓN A COLECCIONES (FASE 1)
+// ==========================================
+async function robotMigrador() {
+    const confirmacion = confirm("🤖 ROBOT MIGRADOR LISTO\n\n¿Deseas iniciar la clonación de tus Cotizaciones y Pedidos a sus nuevas carpetas individuales en la nube?\n\nTranquilo: Esto NO borrará tu archivo original, solo creará copias exactas organizadas.");
+    if(!confirmacion) return;
+    
+    try {
+        showToast("Iniciando clonación de Cotizaciones. Por favor espera...");
+        let cotCount = 0;
+        for (let q of quotes) {
+            await db.collection("cotizaciones").doc(String(q.id)).set(q);
+            cotCount++;
+        }
+        
+        showToast(`Cotizaciones listas (${cotCount}). Iniciando Pedidos...`);
+        let pedCount = 0;
+        for (let o of orders) {
+            await db.collection("pedidos").doc(String(o.id)).set(o);
+            pedCount++;
+        }
+        
+        alert(`✅ MIGRACIÓN 100% EXITOSA\n\nSe copiaron:\n- ${cotCount} Cotizaciones\n- ${pedCount} Pedidos\n\nTu base de datos ahora tiene carpetas individuales. Ve a tu consola de Firebase Firestore a revisar.`);
+    } catch (error) {
+        console.error(error);
+        alert("❌ Hubo un error de conexión durante la migración. Revisa tu internet y vuelve a intentarlo.");
+    }
+}
 
         // ==========================================
         // MÓDULO: KARDEX E INVENTARIO INICIAL (PT)
