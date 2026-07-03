@@ -2354,23 +2354,18 @@
 
 // 3. FUNCIÓN DE GUARDADO EN LA NUBE (VERSION CON BLINDAJE ANTI-BORRADO)
 function save() {
-    // CONDICION 1: Si el sistema no ha terminado de descargar los datos de Google, NO se guarda nada.
     if (!erpDataLoaded) {
         console.error("🛑 BLOQUEO DE SEGURIDAD: Guardado rechazado. Los datos no han terminado de cargar del servidor o hay un problema de conexión.");
         return;
     }
 
-    // CONDICION 2: Si por un error grave las listas vitales se vacían repentinamente, abortamos la escritura.
     if (products.length === 0 && dbIntSellers.length <= 1 && dbBloques.length === 0) {
         console.error("🛑 BLOQUEO DE SEGURIDAD: Se detectó un intento de sobreescribir la nube con listas vacías. Operación abortada.");
         return;
     }
 
-    // 1. Guardamos en Firebase con merge: true (Esto evita que se borren datos si algo falta)
     db.collection("plastensa_erp").doc("datos_centrales").set({
         products: JSON.stringify(products),
-        quotes: JSON.stringify(quotes),
-        orders: JSON.stringify(orders),
         dbMovimientosCaja: JSON.stringify(dbMovimientosCaja),
         dbClients: JSON.stringify(dbClients),
         dbExtSellers: JSON.stringify(dbExtSellers),
@@ -2390,14 +2385,10 @@ function save() {
         dbSilosHistory: JSON.stringify(dbSilosHistory),
         dbTolva: dbTolva
     }, { merge: true }) 
-    .then(() => {
-        console.log("Guardado en la nube exitoso.");
-    })
+    .then(() => { console.log("Guardado central en la nube exitoso."); })
     .catch(error => console.error("Error guardando en la nube: ", error));
 
-    // 2. Respaldo de contingencia local
     localStorage.setItem('plast_products', JSON.stringify(products));
-    localStorage.setItem('plast_orders', JSON.stringify(orders));
     localStorage.setItem('plast_bloques', JSON.stringify(dbBloques));
 }
 
@@ -2768,8 +2759,6 @@ function iniciarRadar(userEmail) {
         if (doc.exists) {
             const data = doc.data();
             products = data.products ? JSON.parse(data.products) : products;
-            quotes = data.quotes ? JSON.parse(data.quotes) : quotes;
-            orders = data.orders ? JSON.parse(data.orders) : orders;
             dbMovimientosCaja = data.dbMovimientosCaja ? JSON.parse(data.dbMovimientosCaja) : [];
             dbClients = data.dbClients ? JSON.parse(data.dbClients) : dbClients;
             dbExtSellers = data.dbExtSellers ? JSON.parse(data.dbExtSellers) : [];
@@ -2787,12 +2776,11 @@ function iniciarRadar(userEmail) {
             dbKardex = data.dbKardex ? JSON.parse(data.dbKardex) : [];
             dbSilos = data.dbSilos ? JSON.parse(data.dbSilos) : [];
             dbSilosHistory = data.dbSilosHistory ? JSON.parse(data.dbSilosHistory) : [];
-	    dbTolva = data.dbTolva !== undefined ? parseFloat(data.dbTolva) : (parseFloat(localStorage.getItem('plast_vol_maquina')) || 0);
+	        dbTolva = data.dbTolva !== undefined ? parseFloat(data.dbTolva) : (parseFloat(localStorage.getItem('plast_vol_maquina')) || 0);
             
             erpDataLoaded = true;
             radarActivo = true;
 
-            // Verificamos si apenas está entrando (Pantalla Azul visible)
             if (!document.getElementById('login-screen').classList.contains('hidden')) {
                 const localUser = dbIntSellers.find(u => u.email === userEmail);
                 if(localUser) {
@@ -2812,11 +2800,9 @@ function iniciarRadar(userEmail) {
                     firebase.auth().signOut();
                 }
             } else {
-                // Si ya estaba logueado y alguien hizo un cambio, solo actualiza la vista
                 if(currentUser) renderAll();
             }
         } else {
-            // Base de datos virgen
             dbIntSellers = [{name: 'Administrador Planta', email: 'admin@plastensa.com', pass: '1234nando', ci:'0', phone:'0', role: 'ADMIN'}];
             erpDataLoaded = true;
             save();
@@ -2824,6 +2810,23 @@ function iniciarRadar(userEmail) {
     }, (error) => {
         console.error("Error en el radar de Firebase: ", error);
         erpDataLoaded = false; 
+    });
+
+    // 2. RADAR DE CARPETAS INDIVIDUALES (NUEVO)
+    db.collection("cotizaciones").onSnapshot((snapshot) => {
+        let tempQ = [];
+        snapshot.forEach(doc => tempQ.push(doc.data()));
+        quotes = tempQ.sort((a,b) => String(b.id).localeCompare(String(a.id)));
+        if(erpDataLoaded && currentUser) { renderQuotes(); iniciarAsistente(); }
+    });
+
+    db.collection("pedidos").onSnapshot((snapshot) => {
+        let tempO = [];
+        snapshot.forEach(doc => tempO.push(doc.data()));
+        orders = tempO.sort((a,b) => String(b.id).localeCompare(String(a.id)));
+        if(erpDataLoaded && currentUser) { 
+            renderTesoreria(); renderRegistroVentas(); renderProduction(); renderInventory(); renderHistorialAdmin();
+        }
     });
 }
 
@@ -3284,122 +3287,112 @@ function handleFileUpload(e) {
             recalculateCart(); 
         }
 
-        function saveQuote() { 
-            if(cart.length === 0) { alert("Debes añadir al menos un producto al carrito."); return; }
-            
-            const cName = document.getElementById('cot-client').value.trim() || 'Cliente Mostrador';
-            const cNit = document.getElementById('cot-nit').value.trim();
-            const cPhone = document.getElementById('cot-phone').value.trim();
-            
-            if (cNit === '' || cPhone === '') {
-                alert("OBLIGATORIO: Por favor ingresa el NIT/CI y el Celular del cliente antes de guardar la cotización.");
-                return;
-            }
-            
-            const cNext = document.getElementById('cot-next-contact')?.value;
-            if (!cNext) {
-                alert("OBLIGATORIO: Como vendedor, debes agendar una fecha de 'Próxima Llamada' para hacer seguimiento.");
-                return;
-            }
-            
-            const cMapa = document.getElementById('cot-mapa') ? document.getElementById('cot-mapa').value.trim() : '';
-            
-            // Candado: Busca si el cliente existe por Nombre o por NIT
-            const vendedorSeleccionado = document.getElementById('cot-interno').value;
-
-            // CANDADO: Busca si el cliente existe por Nombre o por NIT
-            const existingClientIndex = dbClients.findIndex(x => x.name.toLowerCase() === cName.toLowerCase() || (x.nit && x.nit === cNit));
-            
-            if(existingClientIndex === -1) {
-                // CLIENTE NUEVO: Se adjudica al vendedor seleccionado
-                dbClients.push({ id: Date.now(), name: cName, nit: cNit, phone: cPhone, propietario: vendedorSeleccionado });
-            } else {
-                // CLIENTE EXISTENTE: Verificamos a quién le pertenece
-                const clienteDB = dbClients[existingClientIndex];
-                
-                // Si el vendedor actual NO es Admin, y el cliente pertenece a alguien distinto al seleccionado
-                if(currentUser.role !== 'ADMIN' && clienteDB.propietario && clienteDB.propietario !== vendedorSeleccionado) {
-                    alert(`⚠️ ALTO: Este cliente (${clienteDB.name}) pertenece a la cartera de ${clienteDB.propietario.toUpperCase()}.\n\nNo puedes cotizarle usando tu nombre. Por favor, selecciona a ${clienteDB.propietario.toUpperCase()} en el campo "Vendedor Interno" para cotizar en su nombre, o habla con Administración.`);
-                    return; // Aborta el guardado
-                }
-                
-                // Si pasa el candado, actualizamos datos
-                dbClients[existingClientIndex].nit = cNit;
-                dbClients[existingClientIndex].phone = cPhone;
-                if(!dbClients[existingClientIndex].propietario) dbClients[existingClientIndex].propietario = vendedorSeleccionado;
-            }
-
-            const extSellerName = document.getElementById('cot-vendedor').value;
-
-            const dPct = parseFloat(document.getElementById('inp-desc').value)||0;
-            const limiteMax = (dbPreciosBase && dbPreciosBase.limiteDescuento !== undefined) ? dbPreciosBase.limiteDescuento : 3;
-            const requiereAprobacion = dPct > limiteMax;
-            const justificacionTexto = document.getElementById('inp-justificacion') ? document.getElementById('inp-justificacion').value.trim() : '';
-            const notasTexto = document.getElementById('inp-notas') ? document.getElementById('inp-notas').value.trim() : '';
-
-            if (requiereAprobacion && justificacionTexto === '') {
-                alert("Por favor, escriba una justificación para que el administrador evalúe este descuento.");
-                return;
-            }
-
-            const totalFinal = parseFloat(document.getElementById('lbl-final').innerText.replace('Bs ',''));
-            const globalCartVol = cart.reduce((s, i) => s + i.volTotal, 0);
-            
-            // CÁLCULO DE RETENCIÓN PARA GUARDAR
-            const baseTotal = cart.reduce((s, i) => s + i.subtotal, 0);
-            const grossComm = parseFloat(document.getElementById('inp-comm').value) || 0;
-            let retencionCalculada = 0;
-            if(currentType === 'CF' && grossComm > (baseTotal * 0.08)) {
-                retencionCalculada = grossComm * 0.17;
-            }
-
-            const q = {
-                id: editingQuoteId ? editingQuoteId : generarCorrelativoMensual(),
-                status: 'SEGUIMIENTO', // <-- NUEVA LÍNEA: Inicia en seguimiento
-                descuentoPorcentaje: dPct,
-                requiereAprobacion: requiereAprobacion, // <-- NUEVA BANDERA DE SEGURIDAD
-		justificacionDesc: justificacionTexto, // NUEVO
-                notasComerciales: notasTexto, // NUEVO
-                client: cName, nit: cNit, phone: cPhone, mapa: cMapa,
-                vendedorExterno: extSellerName, vendedorInterno: document.getElementById('cot-interno').value,
-                validezDias: document.getElementById('cot-validez').value || 15,
-		nextContactDate: document.getElementById('cot-next-contact').value,
-                type: currentType, items: JSON.parse(JSON.stringify(cart)), 
-                volGlobalCotizacion: globalCartVol,
-                trans: parseFloat(document.getElementById('inp-trans').value)||0, 
-                comm: grossComm, // Comision Bruta
-                retencion: retencionCalculada, // NUEVO: Guardamos la retención aplicada
-                total: totalFinal, date: new Date().toLocaleDateString()
-            };
-            
-            // Lógica para guardar o editar
-            if (editingQuoteId) {
-                const idx = quotes.findIndex(x => x.id === editingQuoteId);
-                quotes[idx] = q; // SOBRESCRIBE la cotización original
-                editingQuoteId = null; // Limpia la variable de edición
-                showToast("Cotización actualizada correctamente.");
-            } else {
-                quotes.unshift(q); // Crea una nueva
-                showToast("Cotización guardada exitosamente.");
-            }
-            
-            save(); cart = []; 
-            document.getElementById('cot-client').value = ''; 
-            document.getElementById('cot-nit').value = '';
-            document.getElementById('cot-phone').value = ''; 
-            if(document.getElementById('cot-mapa')) document.getElementById('cot-mapa').value = '';
-            document.getElementById('cot-vendedor').value = '';
-            document.getElementById('inp-trans').value = 0; 
-            document.getElementById('inp-comm').value = 0;
-            document.getElementById('inp-desc').value = 0;
-            if(document.getElementById('inp-justificacion')) document.getElementById('inp-justificacion').value = '';
-            if(document.getElementById('inp-notas')) document.getElementById('inp-notas').value = '';
-            document.getElementById('lbl-total-vol').innerText = '0.00 M3';
-            
-            recalculateCart(); 
-            showTab('cotizaciones'); 
-            showToast("Cotización guardada exitosamente");
+       function saveQuote() { 
+    if(cart.length === 0) { alert("Debes añadir al menos un producto al carrito."); return; }
+    
+    const cName = document.getElementById('cot-client').value.trim() || 'Cliente Mostrador';
+    const cNit = document.getElementById('cot-nit').value.trim();
+    const cPhone = document.getElementById('cot-phone').value.trim();
+    
+    if (cNit === '' || cPhone === '') {
+        alert("OBLIGATORIO: Por favor ingresa el NIT/CI y el Celular del cliente antes de guardar la cotización.");
+        return;
+    }
+    
+    const cNext = document.getElementById('cot-next-contact')?.value;
+    if (!cNext) {
+        alert("OBLIGATORIO: Como vendedor, debes agendar una fecha de 'Próxima Llamada' para hacer seguimiento.");
+        return;
+    }
+    
+    const cMapa = document.getElementById('cot-mapa') ? document.getElementById('cot-mapa').value.trim() : '';
+    const vendedorSeleccionado = document.getElementById('cot-interno').value;
+    const existingClientIndex = dbClients.findIndex(x => x.name.toLowerCase() === cName.toLowerCase() || (x.nit && x.nit === cNit));
+    
+    if(existingClientIndex === -1) {
+        dbClients.push({ id: Date.now(), name: cName, nit: cNit, phone: cPhone, propietario: vendedorSeleccionado });
+    } else {
+        const clienteDB = dbClients[existingClientIndex];
+        if(currentUser.role !== 'ADMIN' && clienteDB.propietario && clienteDB.propietario !== vendedorSeleccionado) {
+            alert(`⚠️ ALTO: Este cliente (${clienteDB.name}) pertenece a la cartera de ${clienteDB.propietario.toUpperCase()}.\n\nNo puedes cotizarle usando tu nombre.`);
+            return; 
         }
+        dbClients[existingClientIndex].nit = cNit;
+        dbClients[existingClientIndex].phone = cPhone;
+        if(!dbClients[existingClientIndex].propietario) dbClients[existingClientIndex].propietario = vendedorSeleccionado;
+    }
+
+    const extSellerName = document.getElementById('cot-vendedor').value;
+    const dPct = parseFloat(document.getElementById('inp-desc').value)||0;
+    const limiteMax = (dbPreciosBase && dbPreciosBase.limiteDescuento !== undefined) ? dbPreciosBase.limiteDescuento : 3;
+    const requiereAprobacion = dPct > limiteMax;
+    const justificacionTexto = document.getElementById('inp-justificacion') ? document.getElementById('inp-justificacion').value.trim() : '';
+    const notasTexto = document.getElementById('inp-notas') ? document.getElementById('inp-notas').value.trim() : '';
+
+    if (requiereAprobacion && justificacionTexto === '') {
+        alert("Por favor, escriba una justificación para que el administrador evalúe este descuento.");
+        return;
+    }
+
+    const totalFinal = parseFloat(document.getElementById('lbl-final').innerText.replace('Bs ',''));
+    const globalCartVol = cart.reduce((s, i) => s + i.volTotal, 0);
+    const baseTotal = cart.reduce((s, i) => s + i.subtotal, 0);
+    const grossComm = parseFloat(document.getElementById('inp-comm').value) || 0;
+    
+    let retencionCalculada = 0;
+    if(currentType === 'CF' && grossComm > (baseTotal * 0.08)) {
+        retencionCalculada = grossComm * 0.17;
+    }
+
+    const q = {
+        id: editingQuoteId ? editingQuoteId : generarCorrelativoMensual(),
+        status: 'SEGUIMIENTO', 
+        descuentoPorcentaje: dPct,
+        requiereAprobacion: requiereAprobacion, 
+        justificacionDesc: justificacionTexto, 
+        notasComerciales: notasTexto, 
+        client: cName, nit: cNit, phone: cPhone, mapa: cMapa,
+        vendedorExterno: extSellerName, vendedorInterno: document.getElementById('cot-interno').value,
+        validezDias: document.getElementById('cot-validez').value || 15,
+        nextContactDate: document.getElementById('cot-next-contact').value,
+        type: currentType, items: JSON.parse(JSON.stringify(cart)), 
+        volGlobalCotizacion: globalCartVol,
+        trans: parseFloat(document.getElementById('inp-trans').value)||0, 
+        comm: grossComm, 
+        retencion: retencionCalculada, 
+        total: totalFinal, date: new Date().toLocaleDateString()
+    };
+    
+    if (editingQuoteId) {
+        const idx = quotes.findIndex(x => x.id === editingQuoteId);
+        quotes[idx] = q; 
+        editingQuoteId = null; 
+    } else {
+        quotes.unshift(q); 
+    }
+    
+    // GUARDADO DIRECTO A CARPETA INDIVIDUAL
+    db.collection("cotizaciones").doc(String(q.id).replace(/\//g, '-')).set(q)
+        .then(() => showToast("Cotización guardada en la nube."))
+        .catch(err => alert("Error de conexión al guardar. Revisa tu internet."));
+    
+    save(); // Para guardar el nuevo cliente
+    cart = []; 
+    document.getElementById('cot-client').value = ''; 
+    document.getElementById('cot-nit').value = '';
+    document.getElementById('cot-phone').value = ''; 
+    if(document.getElementById('cot-mapa')) document.getElementById('cot-mapa').value = '';
+    document.getElementById('cot-vendedor').value = '';
+    document.getElementById('inp-trans').value = 0; 
+    document.getElementById('inp-comm').value = 0;
+    document.getElementById('inp-desc').value = 0;
+    if(document.getElementById('inp-justificacion')) document.getElementById('inp-justificacion').value = '';
+    if(document.getElementById('inp-notas')) document.getElementById('inp-notas').value = '';
+    document.getElementById('lbl-total-vol').innerText = '0.00 M3';
+    
+    recalculateCart(); 
+    showTab('cotizaciones'); 
+}
 
         // ==========================================
         // EDICIÓN ESTRICTA DE ÍTEMS EN CALIENTE
@@ -3487,35 +3480,38 @@ function handleFileUpload(e) {
         function closeEditItemModal() { document.getElementById('edit-item-modal').classList.add('hidden'); }
 
         function submitEditItem(e) {
-            e.preventDefault();
-            const id = document.getElementById('edit-item-order-id').value;
-            const idx = parseInt(document.getElementById('edit-item-idx').value);
-            const source = document.getElementById('edit-item-source').value;
-            const list = source === 'orders' ? orders : quotes;
-            const target = list.find(x => x.id === id);
+    e.preventDefault();
+    const id = document.getElementById('edit-item-order-id').value;
+    const idx = parseInt(document.getElementById('edit-item-idx').value);
+    const source = document.getElementById('edit-item-source').value;
+    const list = source === 'orders' ? orders : quotes;
+    const target = list.find(x => x.id === id);
 
-            const newQty = parseFloat(document.getElementById('edit-item-qty-input').value);
-            const newVolUnit = parseFloat(document.getElementById('edit-item-vol-unit-input').value);
-            
-            target.items[idx].name = document.getElementById('edit-item-name-input').value;
-            target.items[idx].obs = document.getElementById('edit-item-obs-input').value.trim();
-            target.items[idx].qty = newQty;
-            target.items[idx].volUnit = newVolUnit;
-            target.items[idx].volTotal = newQty * newVolUnit;
-            
-            target.items[idx].subtotal = parseFloat(document.getElementById('edit-item-subtotal-input').value);
+    const newQty = parseFloat(document.getElementById('edit-item-qty-input').value);
+    const newVolUnit = parseFloat(document.getElementById('edit-item-vol-unit-input').value);
+    
+    target.items[idx].name = document.getElementById('edit-item-name-input').value;
+    target.items[idx].obs = document.getElementById('edit-item-obs-input').value.trim();
+    target.items[idx].qty = newQty;
+    target.items[idx].volUnit = newVolUnit;
+    target.items[idx].volTotal = newQty * newVolUnit;
+    
+    target.items[idx].subtotal = parseFloat(document.getElementById('edit-item-subtotal-input').value);
 
-            const baseItemsTotal = target.items.reduce((s, i) => s + i.subtotal, 0);
-            target.total = baseItemsTotal + (target.trans || 0) + (target.comm || 0);
-            target.volGlobalCotizacion = target.items.reduce((s, i) => s + i.volTotal, 0);
+    const baseItemsTotal = target.items.reduce((s, i) => s + i.subtotal, 0);
+    target.total = baseItemsTotal + (target.trans || 0) + (target.comm || 0);
+    target.volGlobalCotizacion = target.items.reduce((s, i) => s + i.volTotal, 0);
 
-            if(source === 'orders') {
-                target.saldo = target.total - (target.montoPagado || 0);
-                target.estadoPago = target.saldo <= 0 ? 'COMPLETO' : 'PARCIAL';
-            }
+    if(source === 'orders') {
+        target.saldo = target.total - (target.montoPagado || 0);
+        target.estadoPago = target.saldo <= 0 ? 'COMPLETO' : 'PARCIAL';
+        db.collection("pedidos").doc(String(target.id).replace(/\//g, '-')).set(target);
+    } else {
+        db.collection("cotizaciones").doc(String(target.id).replace(/\//g, '-')).set(target);
+    }
 
-            save(); closeEditItemModal(); renderAll(); showToast("Pedido actualizado estrictamente.");
-        }
+    closeEditItemModal(); showToast("Pedido actualizado estrictamente.");
+}
 
         // ==========================================
         // SISTEMA FINANCIERO Y PAGOS
@@ -3551,33 +3547,41 @@ function handleFileUpload(e) {
             save(); closePaymentModal(); renderAll(); showToast('Pago enviado para verificación.');
         }
 
-        function verifyPayment(pId, approve) {
-            const p = dbPendingVerifications.find(x => x.id === pId);
-            if(approve) {
-                if(!p.isAbono) {
-                    const q = quotes.find(x => x.id === p.orderId);
-                    const nuevoPedidoId = generarCorrelativoPedido(); // <-- GENERAMOS EL NUEVO NUMERO
-                    const newOrder = { 
-                        ...q, 
-                        id: nuevoPedidoId, // <-- REEMPLAZA EL ID VIEJO
-                        quoteReference: q.id, // <-- GUARDA LA COTIZACIÓN COMO HISTORIAL
-                        date: new Date().toLocaleDateString(), // <-- ACTUALIZA A LA FECHA DE HOY (VENTA REAL)
-                        status: 'PRODUCCION', montoPagado: p.amount, saldo: q.total - p.amount, 
-                        pagos: [{ fecha: p.date, monto: p.amount, cuenta: p.account, verificado: true, tesorero: currentUser.name }], 
-                        estadoPago: (q.total-p.amount) <= 0 ? 'COMPLETO' : 'PARCIAL' 
-                    };
-                    orders.unshift(newOrder); quotes = quotes.filter(x => x.id !== p.orderId);
-                } else {
-                    const o = orders.find(x => x.id === p.orderId);
-                    o.pagos.push({ fecha: p.date, monto: p.amount, cuenta: p.account, verificado: true, tesorero: currentUser.name });
-                    o.montoPagado += p.amount; o.saldo = o.total - o.montoPagado; 
-                    o.estadoPago = o.saldo <= 0 ? 'COMPLETO' : 'PARCIAL';
-                }
-                showToast('Ingreso aprobado.');
-            } else { showToast('Ingreso rechazado.'); }
-            dbPendingVerifications = dbPendingVerifications.filter(x => x.id !== pId);
-            save(); renderAll();
+       function verifyPayment(pId, approve) {
+    const p = dbPendingVerifications.find(x => x.id === pId);
+    if(!p) return;
+    
+    if(approve) {
+        if(!p.isAbono) {
+            const q = quotes.find(x => x.id === p.orderId);
+            const nuevoPedidoId = generarCorrelativoPedido(); 
+            const newOrder = { 
+                ...q, 
+                id: nuevoPedidoId, 
+                quoteReference: q.id, 
+                date: new Date().toLocaleDateString(), 
+                status: 'PRODUCCION', montoPagado: p.amount, saldo: q.total - p.amount, 
+                pagos: [{ fecha: p.date, monto: p.amount, cuenta: p.account, verificado: true, tesorero: currentUser.name }], 
+                estadoPago: (q.total-p.amount) <= 0 ? 'COMPLETO' : 'PARCIAL' 
+            };
+            
+            db.collection("pedidos").doc(String(newOrder.id).replace(/\//g, '-')).set(newOrder);
+            db.collection("cotizaciones").doc(String(q.id).replace(/\//g, '-')).delete();
+            
+        } else {
+            const o = orders.find(x => x.id === p.orderId);
+            o.pagos.push({ fecha: p.date, monto: p.amount, cuenta: p.account, verificado: true, tesorero: currentUser.name });
+            o.montoPagado += p.amount; o.saldo = o.total - o.montoPagado; 
+            o.estadoPago = o.saldo <= 0 ? 'COMPLETO' : 'PARCIAL';
+            
+            db.collection("pedidos").doc(String(o.id).replace(/\//g, '-')).set(o);
         }
+        showToast('Ingreso aprobado y convertido a pedido real.');
+    } else { showToast('Ingreso rechazado.'); }
+    
+    dbPendingVerifications = dbPendingVerifications.filter(x => x.id !== pId);
+    save(); // Guarda el rechazo/aprobacion en pendiente
+}
 
         // ==========================================
         // SISTEMA DE PROGRAMACIÓN DE CORTES
@@ -3666,30 +3670,30 @@ function handleFileUpload(e) {
         }
 
         function finishSchedule(schedId) {
-            const s = dbSchedules.find(x => x.id === schedId);
-            if(s) {
-                s.status = 'FINALIZADO';
-                const o = orders.find(x => x.id === s.orderId);
-                
-                let allFinished = true;
-                if(o && o.items) {
-                    o.items.forEach((item, idx) => {
-                        const scheduledQty = dbSchedules.filter(sx => sx.orderId === o.id && sx.itemIdx === idx && sx.status === 'FINALIZADO').reduce((sum, sx) => sum + sx.qty, 0);
-                        if(scheduledQty < item.qty) allFinished = false;
-                    });
-                }
-                
-                if(allFinished && o.status === 'PRODUCCION') {
-                    o.status = 'INVENTARIO';
-                    showToast("Corte finalizado. Orden enviada a Inventario.");
-                } else {
-                    showToast("Corte parcial finalizado.");
-                }
-                
-                save();
-                renderAll(); 
-            }
+    const s = dbSchedules.find(x => x.id === schedId);
+    if(s) {
+        s.status = 'FINALIZADO';
+        const o = orders.find(x => x.id === s.orderId);
+        
+        let allFinished = true;
+        if(o && o.items) {
+            o.items.forEach((item, idx) => {
+                const scheduledQty = dbSchedules.filter(sx => sx.orderId === o.id && sx.itemIdx === idx && sx.status === 'FINALIZADO').reduce((sum, sx) => sum + sx.qty, 0);
+                if(scheduledQty < item.qty) allFinished = false;
+            });
         }
+        
+        if(allFinished && o && o.status === 'PRODUCCION') {
+            o.status = 'INVENTARIO';
+            showToast("Corte finalizado. Orden enviada a Inventario.");
+        } else {
+            showToast("Corte parcial finalizado.");
+        }
+        
+        if(o) db.collection("pedidos").doc(String(o.id).replace(/\//g, '-')).set(o);
+        save();
+    }
+}
 
         // ==========================================
         // COTIZACIÓN PDF (Formato Completo)
@@ -4544,8 +4548,7 @@ function confirmarCierreVenta() {
     if(q) { 
         q.status = 'PERDIDA'; 
         q.motivoCierre = reason; 
-        save(); 
-        renderAll(); 
+        db.collection("cotizaciones").doc(String(q.id).replace(/\//g, '-')).set(q);
         showToast("Cotización marcada como perdida."); 
     }
     document.getElementById('close-quote-modal').classList.add('hidden');
@@ -4637,51 +4640,46 @@ renderAll = function() {
 
         // Función para que el admin apruebe con un click
         function aprobarCotizacion(id) {
-            if(confirm("¿Estás seguro de autorizar este descuento especial? El vendedor podrá imprimirla y venderla.")) {
-                let q = quotes.find(x => x.id === id);
-                if(q) {
-                    q.requiereAprobacion = false;
-                    save(); 
-                    renderQuotes(); 
-                    showToast("Cotización autorizada correctamente.");
-                }
-            }
+    if(confirm("¿Estás seguro de autorizar este descuento especial? El vendedor podrá imprimirla y venderla.")) {
+        let q = quotes.find(x => x.id === id);
+        if(q) {
+            q.requiereAprobacion = false;
+            db.collection("cotizaciones").doc(String(q.id).replace(/\//g, '-')).set(q);
+            showToast("Cotización autorizada correctamente.");
         }
+    }
+}
 
         function aprobarCredito(id) {
-            const justificacion = prompt("Justificación Obligatoria para Crédito 0 (Ej: Cliente corporativo a 30 días, Aprobado por Gerencia):");
-            if (justificacion === null) return; 
-            if (justificacion.trim() === '') {
-                alert("Operación cancelada. Es obligatorio ingresar una justificación para aprobar ventas sin anticipo.");
-                return;
-            }
+    const justificacion = prompt("Justificación Obligatoria para Crédito 0 (Ej: Cliente corporativo a 30 días, Aprobado por Gerencia):");
+    if (justificacion === null) return; 
+    if (justificacion.trim() === '') {
+        alert("Operación cancelada. Es obligatorio ingresar una justificación.");
+        return;
+    }
 
-            const q = quotes.find(x => x.id === id);
-            if (!q) return alert("Cotización no encontrada");
+    const q = quotes.find(x => x.id === id);
+    if (!q) return alert("Cotización no encontrada");
 
-            const nuevoPedidoId = generarCorrelativoPedido();
-
-            // Convertimos la cotización en Orden, saltando verificación de pago
-            const newOrder = { 
-                ...q, 
-                id: nuevoPedidoId, // <-- REEMPLAZA EL ID VIEJO DE FORMA ESTRICTA
-                quoteReference: q.id, // <-- GUARDA LA COTIZACIÓN COMO HISTORIAL
-                date: new Date().toLocaleDateString(), // <-- ACTUALIZA A LA FECHA DE HOY (VENTA REAL)
-                status: 'PRODUCCION', 
-                montoPagado: 0, 
-                saldo: q.total, 
-                pagos: [], 
-                estadoPago: 'PARCIAL', 
-                justificacionCredito: justificacion.trim() 
-            };
-            
-            orders.unshift(newOrder); 
-            quotes = quotes.filter(x => x.id !== id);
-            
-            save(); 
-            renderAll();
-            showToast('Aprobado a crédito. Nuevo pedido: ' + nuevoPedidoId);
-        }
+    const nuevoPedidoId = generarCorrelativoPedido();
+    const newOrder = { 
+        ...q, 
+        id: nuevoPedidoId, 
+        quoteReference: q.id, 
+        date: new Date().toLocaleDateString(), 
+        status: 'PRODUCCION', 
+        montoPagado: 0, 
+        saldo: q.total, 
+        pagos: [], 
+        estadoPago: 'PARCIAL', 
+        justificacionCredito: justificacion.trim() 
+    };
+    
+    db.collection("pedidos").doc(String(newOrder.id).replace(/\//g, '-')).set(newOrder);
+    db.collection("cotizaciones").doc(String(q.id).replace(/\//g, '-')).delete();
+    
+    showToast('Aprobado a crédito. Nuevo pedido en producción: ' + nuevoPedidoId);
+}
 
         function renderTesoreriaAdmin() {
             const container = document.getElementById('verificacion-list');
@@ -4944,6 +4942,7 @@ renderAll = function() {
                     if(todoCompletado) {
                         o.status = 'INVENTARIO';
                         cambioEstado = true;
+                        db.collection("pedidos").doc(String(o.id).replace(/\//g, '-')).set(o);
                     }
                 }
             });
@@ -5174,23 +5173,20 @@ function anularDespacho(idTicket) {
     const o = orders.find(x => x.id === t.orderId);
     
     if (o) {
-        // 1. Revertir el estado de la orden y el inventario
         t.items.forEach(it => {
-            // Revertir entregado en la orden
             const orderItemIdx = o.items.findIndex(x => x.name === it.name);
             if (orderItemIdx !== -1) {
                 const orderItem = o.items[orderItemIdx];
                 orderItem.entregado = (orderItem.entregado || 0) - it.qtyDespachada;
                 if (orderItem.entregado < 0) orderItem.entregado = 0;
 
-                // Revertir Backflushing (Auto-Limpieza de Producción) si el sistema la había generado
                 let aRevertir = it.qtyDespachada;
                 for (let i = dbSchedules.length - 1; i >= 0; i--) {
                     let s = dbSchedules[i];
                     if (s.orderId === o.id && s.itemIdx === orderItemIdx && s.auto === true) {
                         if (s.qty <= aRevertir) {
                             aRevertir -= s.qty;
-                            dbSchedules.splice(i, 1); // Borramos el corte automático
+                            dbSchedules.splice(i, 1); 
                         } else {
                             s.qty -= aRevertir;
                             s.volTotal = s.qty * (orderItem.volTotal / orderItem.qty);
@@ -5201,34 +5197,25 @@ function anularDespacho(idTicket) {
                 }
             }
 
-            // 2. Revertir Inventario Físico (Volver a sumar el stock a la bodega)
-            const prodCat = products.find(p => normalizarNombre(p.name) === normalizarNombre(it.name));
+            const prodCat = products.find(p => p.name.trim().toLowerCase() === it.name.trim().toLowerCase());
             if (prodCat) {
-                prodCat.stock = (parseFloat(prodCat.stock) || 0) + it.qtyDespachada; // CORRECCIÓN: parseFloat
+                prodCat.stock = (parseFloat(prodCat.stock) || 0) + it.qtyDespachada; 
             }
         });
 
-        // 3. Reevaluar y retroceder el estado de la orden (Sacarla de "ENTREGADO")
         let todoCortado = true;
         o.items.forEach((item, idx) => {
             const sumSched = dbSchedules.filter(sx => sx.orderId === o.id && sx.itemIdx === idx).reduce((sum, sx) => sum + sx.qty, 0);
             if (sumSched < item.qty) todoCortado = false;
         });
         
-        // Al anular, forzamos su regreso a los módulos operativos
-        if (todoCortado) {
-            o.status = 'INVENTARIO'; // Si el material ya está todo fabricado, vuelve a listos para despacho
-        } else {
-            o.status = 'PRODUCCION'; // Si le falta material por fabricar, reaparece en "Por Programar"
-        }
+        if (todoCortado) { o.status = 'INVENTARIO'; } else { o.status = 'PRODUCCION'; }
+        
+        db.collection("pedidos").doc(String(o.id).replace(/\//g, '-')).set(o);
     }
 
-    // 4. Eliminar el ticket de la base de datos de despachos
     dbDespachos.splice(tIndex, 1);
-
-    // 5. Guardar en la nube y actualizar la vista de inmediato
     save();
-    renderAll();
     showToast(`Despacho ${idTicket} anulado con éxito. Inventario restaurado.`);
 }
 
@@ -8545,7 +8532,6 @@ renderProduction = function() {
     originalRenderProduction();
     orders.forEach(o => { if(o.status === 'INVENTARIO' && enProdAntes.includes(o.id)) syncPedido(o); });
 };
-
     </script>
 </body>
 </html>
