@@ -3548,12 +3548,13 @@ function handleFileUpload(e) {
         }
 
       function verifyPayment(pId, approve) {
-    const p = dbPendingVerifications.find(x => x.id === pId);
+    const p = dbPendingVerifications.find(x => String(x.id).trim() === String(pId).trim());
     if(!p) return;
     
     if(approve) {
         if(!p.isAbono) {
-            const q = quotes.find(x => x.id === p.orderId);
+            // Escudo: Convertimos todo a String para que no haya conflictos de tipos
+            const q = quotes.find(x => String(x.id).trim() === String(p.orderId).trim());
             if(!q) return alert("❌ Error: La cotización original ya no existe o fue procesada por otro administrador.");
             
             const nuevoPedidoId = generarCorrelativoPedido(); 
@@ -3571,7 +3572,7 @@ function handleFileUpload(e) {
             db.collection("cotizaciones").doc(String(q.id).replace(/\//g, '-')).delete();
             
         } else {
-            const o = orders.find(x => x.id === p.orderId);
+            const o = orders.find(x => String(x.id).trim() === String(p.orderId).trim());
             if(!o) return alert("❌ Error: El pedido original ya no existe.");
             
             o.pagos.push({ fecha: p.date, monto: p.amount, cuenta: p.account, verificado: true, tesorero: currentUser.name });
@@ -3585,9 +3586,9 @@ function handleFileUpload(e) {
         showToast('Ingreso rechazado.'); 
     }
     
-    dbPendingVerifications = dbPendingVerifications.filter(x => x.id !== pId);
+    dbPendingVerifications = dbPendingVerifications.filter(x => String(x.id) !== String(pId));
     save(); 
-    renderAll(); // <-- EL MOTOR DE ACTUALIZACIÓN VISUAL QUE FALTABA
+    renderAll();
 }
 
 
@@ -4667,7 +4668,8 @@ renderAll = function() {
         return;
     }
 
-    const q = quotes.find(x => x.id === id);
+    // Escudo de strings
+    const q = quotes.find(x => String(x.id).trim() === String(id).trim());
     if (!q) return alert("Cotización no encontrada");
 
     const nuevoPedidoId = generarCorrelativoPedido();
@@ -4688,7 +4690,7 @@ renderAll = function() {
     db.collection("cotizaciones").doc(String(q.id).replace(/\//g, '-')).delete();
     
     showToast('Aprobado a crédito. Nuevo pedido en producción: ' + nuevoPedidoId);
-    renderAll(); // <-- EL MOTOR DE ACTUALIZACIÓN VISUAL QUE FALTABA
+    renderAll();
 }
         function renderTesoreriaAdmin() {
             const container = document.getElementById('verificacion-list');
@@ -7797,7 +7799,7 @@ function generarCorrelativoPedido() {
 // ==========================================
 function anularPedido(id) {
     // 1. Escudo Anti-Despachos
-    const despachosAsociados = dbDespachos.filter(d => d.orderId === id);
+    const despachosAsociados = dbDespachos.filter(d => String(d.orderId).trim() === String(id).trim());
     if (despachosAsociados.length > 0) {
         alert(`🛑 ACCIÓN BLOQUEADA:\n\nEl pedido ${id} NO se puede anular porque ya tiene material despachado y entregado al cliente.\n\nSi necesitas hacer una devolución de algo ya entregado, debes coordinarlo físicamente y realizar el ajuste de forma manual en almacén.`);
         return;
@@ -7811,23 +7813,18 @@ function anularPedido(id) {
     // INYECCIÓN FASE 2: Francotirador directo a la carpeta de Google
     db.collection("pedidos").doc(String(id).replace(/\//g, '-')).delete()
     .then(() => {
-        // 3. Limpieza Profunda en todas las Bases de Datos
-        // a. Eliminar de Ventas (Central)
-        orders = orders.filter(o => o.id !== id);
+        // 3. Limpieza Profunda con Escudo de Strings
+        orders = orders.filter(o => String(o.id).trim() !== String(id).trim());
+        dbSchedules = dbSchedules.filter(s => String(s.orderId).trim() !== String(id).trim());
 
-        // b. Eliminar de Programación de Fábrica / Cortes
-        dbSchedules = dbSchedules.filter(s => s.orderId !== id);
-
-        // c. Eliminar de Verificaciones Pendientes de Tesorería (Si estaba a medias)
         if (typeof dbPendingVerifications !== 'undefined') {
-            dbPendingVerifications = dbPendingVerifications.filter(p => p.orderId !== id);
+            dbPendingVerifications = dbPendingVerifications.filter(p => String(p.orderId).trim() !== String(id).trim());
         }
 
-        // d. Eliminar de Caja General (Borramos cualquier movimiento que referencie a este pedido)
         if (typeof dbMovimientosCaja !== 'undefined') {
             dbMovimientosCaja = dbMovimientosCaja.filter(m => {
                 const dStr = (m.desc || '').toUpperCase();
-                return !dStr.includes(id.toUpperCase());
+                return !dStr.includes(String(id).toUpperCase());
             });
         }
 
