@@ -7799,32 +7799,39 @@ function anularPedido(id) {
         return;
     }
 
-    // 3. Limpieza Profunda en todas las Bases de Datos
-    // a. Eliminar de Ventas (Central)
-    orders = orders.filter(o => o.id !== id);
+    // INYECCIÓN FASE 2: Francotirador directo a la carpeta de Google
+    db.collection("pedidos").doc(String(id).replace(/\//g, '-')).delete()
+    .then(() => {
+        // 3. Limpieza Profunda en todas las Bases de Datos
+        // a. Eliminar de Ventas (Central)
+        orders = orders.filter(o => o.id !== id);
 
-    // b. Eliminar de Programación de Fábrica / Cortes
-    dbSchedules = dbSchedules.filter(s => s.orderId !== id);
+        // b. Eliminar de Programación de Fábrica / Cortes
+        dbSchedules = dbSchedules.filter(s => s.orderId !== id);
 
-    // c. Eliminar de Verificaciones Pendientes de Tesorería (Si estaba a medias)
-    if (typeof dbPendingVerifications !== 'undefined') {
-        dbPendingVerifications = dbPendingVerifications.filter(p => p.orderId !== id);
-    }
+        // c. Eliminar de Verificaciones Pendientes de Tesorería (Si estaba a medias)
+        if (typeof dbPendingVerifications !== 'undefined') {
+            dbPendingVerifications = dbPendingVerifications.filter(p => p.orderId !== id);
+        }
 
-    // d. Eliminar de Caja General (Borramos cualquier movimiento que referencie a este pedido)
-    if (typeof dbMovimientosCaja !== 'undefined') {
-        dbMovimientosCaja = dbMovimientosCaja.filter(m => {
-            const dStr = (m.desc || '').toUpperCase();
-            return !dStr.includes(id.toUpperCase());
-        });
-    }
+        // d. Eliminar de Caja General (Borramos cualquier movimiento que referencie a este pedido)
+        if (typeof dbMovimientosCaja !== 'undefined') {
+            dbMovimientosCaja = dbMovimientosCaja.filter(m => {
+                const dStr = (m.desc || '').toUpperCase();
+                return !dStr.includes(id.toUpperCase());
+            });
+        }
 
-    // 4. Guardar en Firebase/Local y refrescar pantalla
-    save();
-    renderAll();
-    showToast(`Pedido ${id} anulado y limpiado del sistema.`);
+        // 4. Guardar en Firebase/Local y refrescar pantalla
+        save();
+        renderAll();
+        showToast(`Pedido ${id} anulado y borrado de la nube exitosamente.`);
+    })
+    .catch((err) => {
+        console.error("Error al borrar en la nube:", err);
+        alert("❌ Hubo un error de conexión al intentar borrar el pedido en Google. Revisa tu internet.");
+    });
 }
-
 
 // ==========================================
 // MÓDULO DE VENDEDORES EXTERNOS
