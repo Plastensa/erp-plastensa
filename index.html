@@ -2511,28 +2511,37 @@ function restaurarDesdeJSON(event) {
 // ROBOT DE MIGRACIÓN A COLECCIONES (FASE 1)
 // ==========================================
 async function robotMigrador() {
-    const confirmacion = confirm("🤖 ROBOT MIGRADOR LISTO\n\n¿Deseas iniciar la clonación de tus Cotizaciones y Pedidos a sus nuevas carpetas individuales en la nube?\n\nTranquilo: Esto NO borrará tu archivo original, solo creará copias exactas organizadas.");
+    const confirmacion = confirm("🤖 ROBOT MIGRADOR LISTO\n\n¿Deseas iniciar la clonación de tus Cotizaciones y Pedidos a sus nuevas carpetas individuales en la nube?");
     if(!confirmacion) return;
     
     try {
         showToast("Iniciando clonación de Cotizaciones. Por favor espera...");
         let cotCount = 0;
         for (let q of quotes) {
-            await db.collection("cotizaciones").doc(String(q.id)).set(q);
+            // 1. Clonar el objeto para purificar datos "undefined" y evitar fallos
+            let cleanQ = JSON.parse(JSON.stringify(q));
+            // 2. Reemplazar barras diagonales (/) en los IDs por guiones medios (-)
+            let safeId = String(cleanQ.id).replace(/\//g, '-'); 
+            
+            await db.collection("cotizaciones").doc(safeId).set(cleanQ);
             cotCount++;
         }
         
         showToast(`Cotizaciones listas (${cotCount}). Iniciando Pedidos...`);
         let pedCount = 0;
         for (let o of orders) {
-            await db.collection("pedidos").doc(String(o.id)).set(o);
+            let cleanO = JSON.parse(JSON.stringify(o));
+            let safeId = String(cleanO.id).replace(/\//g, '-');
+            
+            await db.collection("pedidos").doc(safeId).set(cleanO);
             pedCount++;
         }
         
-        alert(`✅ MIGRACIÓN 100% EXITOSA\n\nSe copiaron:\n- ${cotCount} Cotizaciones\n- ${pedCount} Pedidos\n\nTu base de datos ahora tiene carpetas individuales. Ve a tu consola de Firebase Firestore a revisar.`);
+        alert(`✅ MIGRACIÓN 100% EXITOSA\n\nSe copiaron:\n- ${cotCount} Cotizaciones\n- ${pedCount} Pedidos\n\nTu base de datos ahora tiene carpetas individuales. Ve a tu consola de Firebase a revisar.`);
     } catch (error) {
-        console.error(error);
-        alert("❌ Hubo un error de conexión durante la migración. Revisa tu internet y vuelve a intentarlo.");
+        console.error("Error real de Firebase:", error);
+        // 3. Mostrar el VERDADERO error de Google en la pantalla si algo falla
+        alert("❌ GOOGLE RECHAZÓ LA OPERACIÓN.\n\nMotivo exacto:\n" + error.message + "\n\nPor favor, tómale una foto a este mensaje y envíamela.");
     }
 }
 
