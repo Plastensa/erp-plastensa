@@ -8351,6 +8351,201 @@ function resetDeFabrica() {
 }
 
 renderAll();
+
+// =========================================================
+// PARCHE FASE 2: MOTOR DE COLECCIONES INDIVIDUALES (CRM)
+// =========================================================
+
+// 1. Ayudantes de Conexión Nube (Redirigen las ventas a las carpetas)
+function syncCotizacion(q) { db.collection("cotizaciones").doc(String(q.id).replace(/\//g, '-')).set(q); }
+function deleteCotizacion(id) { db.collection("cotizaciones").doc(String(id).replace(/\//g, '-')).delete(); }
+function syncPedido(o) { db.collection("pedidos").doc(String(o.id).replace(/\//g, '-')).set(o); }
+
+// 2. Nuevo Radar Central (Descarga la fábrica por un lado, y las ventas por otro)
+const oldIniciarRadar = iniciarRadar;
+iniciarRadar = function(userEmail) {
+    db.collection("plastensa_erp").doc("datos_centrales").onSnapshot((doc) => {
+        if (doc.exists) {
+            const data = doc.data();
+            products = data.products ? JSON.parse(data.products) : products;
+            dbMovimientosCaja = data.dbMovimientosCaja ? JSON.parse(data.dbMovimientosCaja) : [];
+            dbClients = data.dbClients ? JSON.parse(data.dbClients) : dbClients;
+            dbExtSellers = data.dbExtSellers ? JSON.parse(data.dbExtSellers) : [];
+            dbIntSellers = data.dbIntSellers ? JSON.parse(data.dbIntSellers) : [];
+            dbPendingVerifications = data.dbPendingVerifications ? JSON.parse(data.dbPendingVerifications) : [];
+            dbSchedules = data.dbSchedules ? JSON.parse(data.dbSchedules) : [];
+            dbMateriaPrima = data.dbMateriaPrima ? JSON.parse(data.dbMateriaPrima) : { historial: [], saldoActual: 0 };
+            dbMpTipos = data.dbMpTipos ? JSON.parse(data.dbMpTipos) : [];
+            dbExpansion = data.dbExpansion ? JSON.parse(data.dbExpansion) : { jarritas: [], consumos: [] };
+            dbPreciosBase = data.dbPreciosBase ? JSON.parse(data.dbPreciosBase) : { ajusteGlobal: 0, matriz: [] };
+            dbBancoRetazos = data.dbBancoRetazos ? JSON.parse(data.dbBancoRetazos) : { D8: 0, D10: 0, D13: 0, D15: 0, D20: 0 };
+            dbReportesCorte = data.dbReportesCorte ? JSON.parse(data.dbReportesCorte) : [];
+            dbDespachos = data.dbDespachos ? JSON.parse(data.dbDespachos) : [];
+            dbBloques = data.dbBloques ? JSON.parse(data.dbBloques) : [];
+            dbKardex = data.dbKardex ? JSON.parse(data.dbKardex) : [];
+            dbSilos = data.dbSilos ? JSON.parse(data.dbSilos) : [];
+            dbSilosHistory = data.dbSilosHistory ? JSON.parse(data.dbSilosHistory) : [];
+            dbTolva = data.dbTolva !== undefined ? parseFloat(data.dbTolva) : (parseFloat(localStorage.getItem('plast_vol_maquina')) || 0);
+            
+            erpDataLoaded = true; radarActivo = true;
+
+            if (!document.getElementById('login-screen').classList.contains('hidden')) {
+                const localUser = dbIntSellers.find(u => u.email === userEmail);
+                if(localUser) {
+                    currentUser = localUser; 
+                    document.getElementById('login-screen').classList.add('hidden'); 
+                    document.getElementById('main-app').classList.remove('hidden');
+                    document.getElementById('display-user-name').innerText = localUser.name; 
+                    document.getElementById('display-user-role').innerText = localUser.role; 
+                    document.getElementById('cot-interno').innerHTML = dbIntSellers.filter(u => u.role === 'ADMIN' || u.role === 'VENDEDOR').map(u => `<option value="${u.name}">${u.name}</option>`).join('');
+                    document.getElementById('cot-interno').value = localUser.name; 
+                    aplicarPermisosVisuales(localUser.role);
+                    showToast(`Bienvenido: ${localUser.name}`);
+                    iniciarAsistente();
+                } else { firebase.auth().signOut(); }
+            } else { if(currentUser) renderAll(); }
+        } else {
+            dbIntSellers = [{name: 'Admin', email: 'admin@plastensa.com', pass: '1234', ci:'0', phone:'0', role: 'ADMIN'}];
+            erpDataLoaded = true; save();
+        }
+    });
+
+    db.collection("cotizaciones").onSnapshot((snapshot) => {
+        let tempQ = []; snapshot.forEach(doc => tempQ.push(doc.data()));
+        quotes = tempQ.sort((a,b) => String(b.id).localeCompare(String(a.id)));
+        if(erpDataLoaded && currentUser) { renderQuotes(); iniciarAsistente(); }
+    });
+
+    db.collection("pedidos").onSnapshot((snapshot) => {
+        let tempO = []; snapshot.forEach(doc => tempO.push(doc.data()));
+        orders = tempO.sort((a,b) => String(b.id).localeCompare(String(a.id)));
+        if(erpDataLoaded && currentUser) { 
+            renderTesoreria(); renderRegistroVentas(); renderProduction(); renderInventory(); renderHistorialAdmin();
+        }
+    });
+};
+
+// 3. Nuevo Guardado General (Le quita el peso de las ventas a la caja fuerte)
+save = function() {
+    if (!erpDataLoaded) return;
+    if (products.length === 0 && dbIntSellers.length <= 1 && dbBloques.length === 0) return;
+
+    db.collection("plastensa_erp").doc("datos_centrales").set({
+        products: JSON.stringify(products),
+        dbMovimientosCaja: JSON.stringify(dbMovimientosCaja),
+        dbClients: JSON.stringify(dbClients),
+        dbExtSellers: JSON.stringify(dbExtSellers),
+        dbIntSellers: JSON.stringify(dbIntSellers),
+        dbPendingVerifications: JSON.stringify(dbPendingVerifications),
+        dbSchedules: JSON.stringify(dbSchedules),
+        dbMateriaPrima: JSON.stringify(dbMateriaPrima),
+        dbMpTipos: JSON.stringify(dbMpTipos),
+        dbExpansion: JSON.stringify(dbExpansion),
+        dbPreciosBase: JSON.stringify(dbPreciosBase),
+        dbBancoRetazos: JSON.stringify(dbBancoRetazos),
+        dbReportesCorte: JSON.stringify(dbReportesCorte),
+        dbDespachos: JSON.stringify(dbDespachos),
+        dbBloques: JSON.stringify(dbBloques),
+        dbKardex: JSON.stringify(dbKardex),
+        dbSilos: JSON.stringify(dbSilos),
+        dbSilosHistory: JSON.stringify(dbSilosHistory),
+        dbTolva: dbTolva
+    }, { merge: true }).catch(e => console.error(e));
+
+    localStorage.setItem('plast_products', JSON.stringify(products));
+    localStorage.setItem('plast_bloques', JSON.stringify(dbBloques));
+};
+
+// 4. Interceptores Quirúrgicos (Envían las ventas a la nube sin tocar tu código original)
+const originalSaveQuote = saveQuote;
+saveQuote = function(e) {
+    const qIdToEdit = typeof editingQuoteId !== 'undefined' ? editingQuoteId : null;
+    const oldQuotesLength = quotes.length;
+    
+    originalSaveQuote(e);
+    
+    if (qIdToEdit) {
+        const q = quotes.find(x => x.id === qIdToEdit);
+        if(q) syncCotizacion(q);
+    } else if (quotes.length > oldQuotesLength) {
+        syncCotizacion(quotes[0]);
+    }
+};
+
+const originalConfirmarCierre = confirmarCierreVenta;
+confirmarCierreVenta = function() {
+    const qId = typeof quoteToClose !== 'undefined' ? quoteToClose : null;
+    originalConfirmarCierre();
+    if(qId) { const q = quotes.find(x => x.id === qId); if(q) syncCotizacion(q); }
+};
+
+const originalAprobarCotizacion = aprobarCotizacion;
+aprobarCotizacion = function(id) {
+    originalAprobarCotizacion(id);
+    const q = quotes.find(x => x.id === id); if(q) syncCotizacion(q);
+};
+
+const originalAprobarCredito = aprobarCredito;
+aprobarCredito = function(id) {
+    const oldOrderLen = orders.length;
+    originalAprobarCredito(id);
+    if(orders.length > oldOrderLen) {
+        syncPedido(orders[0]); 
+        deleteCotizacion(id);
+    }
+};
+
+const originalVerifyPayment = verifyPayment;
+verifyPayment = function(pId, approve) {
+    const p = dbPendingVerifications.find(x => x.id === pId);
+    if(!p) return;
+    const isAbono = p.isAbono; const qId = p.orderId;
+    const oldOrderLen = orders.length;
+    
+    originalVerifyPayment(pId, approve);
+    
+    if(approve) {
+        if(!isAbono && orders.length > oldOrderLen) {
+            syncPedido(orders[0]); deleteCotizacion(qId);
+        } else {
+            const o = orders.find(x => x.id === qId); if(o) syncPedido(o);
+        }
+    }
+};
+
+const originalSubmitEdit = submitEditItem;
+submitEditItem = function(e) {
+    const source = document.getElementById('edit-item-source').value;
+    const id = document.getElementById('edit-item-order-id').value;
+    originalSubmitEdit(e);
+    
+    if(source === 'orders') { const o = orders.find(x => x.id === id); if(o) syncPedido(o); } 
+    else { const q = quotes.find(x => x.id === id); if(q) syncCotizacion(q); }
+};
+
+const originalFinishSchedule = finishSchedule;
+finishSchedule = function(schedId) {
+    const s = dbSchedules.find(x => x.id === schedId);
+    const oId = s ? s.orderId : null;
+    originalFinishSchedule(schedId);
+    if(oId) { const o = orders.find(x => x.id === oId); if(o) syncPedido(o); }
+};
+
+const originalAnularDespacho = anularDespacho;
+anularDespacho = function(idTicket) {
+    const t = dbDespachos.find(x => x.idTicket === idTicket);
+    const oId = t ? t.orderId : null;
+    originalAnularDespacho(idTicket);
+    if(oId) { const o = orders.find(x => x.id === oId); if(o) syncPedido(o); }
+};
+
+const originalRenderProduction = renderProduction;
+renderProduction = function() {
+    const enProdAntes = orders.filter(o => o.status === 'PRODUCCION').map(o => o.id);
+    originalRenderProduction();
+    orders.forEach(o => { if(o.status === 'INVENTARIO' && enProdAntes.includes(o.id)) syncPedido(o); });
+};
+
     </script>
 </body>
 </html>
