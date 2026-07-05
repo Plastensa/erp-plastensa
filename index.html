@@ -1827,7 +1827,7 @@
                         <div class="overflow-x-auto">
                             <table class="w-full text-left text-xs whitespace-nowrap">
                                 <thead class="bg-slate-50 border-b border-slate-100 text-[9px] font-black text-slate-400 uppercase tracking-widest">
-                                    <tr><th class="p-4">Fecha/Hora</th><th class="p-4">Bloques Físicos Usados</th><th class="p-4">Ítem Producido</th><th class="p-4 text-center">Pzas Obtenidas</th><th class="p-4 text-right">Vol Útil</th><th class="p-4 text-right text-red-500">A Reciclaje</th><th class="p-4 text-right text-orange-500">A Retazos</th><th class="p-4 text-right text-slate-400">Merma Máquina</th><th class="p-4">Operador</th></tr>
+                                    <tr><th class="p-4">Fecha/Hora</th><th class="p-4">Bloques Físicos Usados</th><th class="p-4">Ítem Producido</th><th class="p-4 text-center">Pzas Obtenidas</th><th class="p-4 text-right">Vol Útil</th><th class="p-4 text-right text-red-500">A Reciclaje</th><th class="p-4 text-right text-orange-500">A Retazos</th><th class="p-4 text-right text-slate-400">Merma Máquina</th><th class="p-4">Operador</th><th class="p-4 text-center">Acción</th></tr>
                                 </thead>
                                 <tbody id="reporte-corte-body" class="divide-y divide-slate-50"></tbody>
                             </table>
@@ -6279,7 +6279,7 @@ function renderSalaCorte() {
     } else {
         tbodyBloques.innerHTML = bloquesDisponibles.map(b => `
             <tr class="hover:bg-slate-50 border-b border-slate-100 cursor-pointer transition-colors">
-                <td class="p-3 pl-4"><input type="checkbox" id="corte-chk-${b.id}" class="w-4 h-4 cursor-pointer"></td>
+                <td class="p-3 pl-4"><td class="p-3 pl-4"><input type="checkbox" id="corte-chk-${b.id}" class="w-4 h-4 cursor-pointer" onchange="calcVolCorteDin()"></td></td>
                 <td class="p-3 font-black text-slate-800 text-xs">${b.codigo}</td>
                 <td class="p-3 font-bold text-slate-600 text-xs">${b.tipo} | <span class="text-indigo-600">${b.densFinal}</span></td>
                 <td class="p-3 text-right font-black text-blue-600 text-xs">${Number(b.volNeto).toFixed(2)} M³</td>
@@ -6331,17 +6331,37 @@ function renderSalaCorte() {
         }).join('');
     }
 
-    // 3. Renderizar Banco de Retazos
-    dashRetazos.innerHTML = Object.keys(dbBancoRetazos).map(dens => `
-        <div class="bg-slate-800 p-3 rounded-xl border border-slate-700 text-center shadow-inner">
-            <p class="text-[10px] font-black text-slate-400 uppercase tracking-widest">${dens}</p>
-            <p class="text-lg font-black text-white">${dbBancoRetazos[dens].toFixed(2)}</p>
+  // 3. Renderizar Banco de Retazos
+    const densidades = ['D8', 'D10', 'D13', 'D15', 'D20'];
+    let htmlRetazos = densidades.map(dens => {
+        // Forzamos a que si el valor no existe o es undefined, sea 0.00
+        const valor = dbBancoRetazos[dens] || 0;
+        return `
+        <div class="bg-slate-800 p-2 rounded-xl border border-slate-700 text-center shadow-inner flex flex-col justify-center">
+            <p class="text-[9px] font-black text-slate-400 uppercase tracking-widest">${dens}</p>
+            <p class="text-sm font-black text-white">${valor.toFixed(2)}</p>
+        </div>`;
+    }).join('');
+
+    let volRec = 0;
+    if (typeof dbSilos !== 'undefined') {
+        const siloRec = dbSilos.find(s => s.id === 'REC');
+        if (siloRec) volRec = Number(siloRec.vol) || 0;
+    }
+    
+    htmlRetazos += `
+        <div class="bg-red-900/40 p-2 rounded-xl border border-red-500/50 text-center shadow-inner flex flex-col justify-center">
+            <p class="text-[9px] font-black text-red-400 uppercase tracking-widest">Silo REC</p>
+            <p class="text-sm font-black text-red-100">${volRec.toFixed(2)}</p>
         </div>
-    `).join('');
+    `;
+    dashRetazos.innerHTML = htmlRetazos;
 }
+
 
 // Variables de control de la operación en curso
 let corteOperacionActiva = null;
+let corteCart = []; // EL CARRITO
 
 function iniciarCortePedido(scheduleId) {
     const sched = dbSchedules.find(s => s.id === scheduleId);
@@ -6350,263 +6370,401 @@ function iniciarCortePedido(scheduleId) {
     const item = ord ? ord.items[sched.itemIdx] : null;
     if(!item) return;
 
-    // Detectar densidad requerida desde el nombre del item (Ej: PB8... -> D8)
     const match = item.name.match(/^([A-Z]+)(\d+|SR)/);
     const densRequerida = match ? (match[2] === 'SR' ? 'SR' : 'D' + match[2]) : 'D8';
 
     corteOperacionActiva = {
         schedId: scheduleId,
+        orderId: ord.id,
         isStock: false,
         itemName: item.name,
-        obs: item.obs || '',
         qtyRequerida: sched.qty,
-        volUnitario: sched.volTotal / sched.qty,
+        obs: item.obs || '',
         dens: densRequerida
     };
 
-    abrirPanelAsistente();
+    corteCart = [{
+        name: item.name,
+        dens: densRequerida,
+        volUnit: sched.volTotal / sched.qty,
+        qtyBuenas: sched.qty,
+        qtyMalas: 0,
+        isMainOrder: true,
+        obs: item.obs || ''
+    }];
+
+    abrirPanelAsistente(`ORDEN: ${ord.id} - ${ord.client}`);
 }
 
 function iniciarCorteStock() {
-    // Para corte libre de stock, permitimos al usuario seleccionar qué artículo del catálogo quiere producir
+    corteOperacionActiva = { schedId: null, isStock: true, itemName: 'STOCK MÚLTIPLE', qtyRequerida: 0 };
+    corteCart = [];
+    abrirPanelAsistente("CORTE PARA STOCK GENERAL");
+}
+
+function abrirPanelAsistente(titulo = "CORTE PARA STOCK GENERAL") {
+    const panel = document.getElementById('panel-ejecucion-corte');
+    panel.classList.remove('hidden');
+    
     const opcionesProductos = products.map(p => `<option value="${p.name}">${p.name}</option>`).join('');
     
-    corteOperacionActiva = {
-        schedId: null,
-        isStock: true,
-        itemName: '',
-        qtyRequerida: 0,
-        volUnitario: 0,
-        dens: 'D8'
-    };
+    const subTitulo = corteOperacionActiva.isStock ? "Añade ítems a la bodega" : `Pedido Requerido: <span class="text-red-600 font-black px-2 bg-red-50 rounded">${corteOperacionActiva.qtyRequerida} PZAS</span>`;
+    const obsAlert = (!corteOperacionActiva.isStock && corteOperacionActiva.obs) ? `<div class="p-4 bg-red-100 border-2 border-red-500 rounded-2xl text-red-700 text-sm font-black uppercase mb-4 shadow-sm">⚠️ CORTE ESPECIAL:<br><span class="text-xl block mt-2 text-center bg-white rounded-xl p-2">${corteOperacionActiva.obs}</span></div>` : '';
 
-    const panel = document.getElementById('panel-ejecucion-corte');
-    panel.classList.remove('hidden');
     panel.innerHTML = `
-        <div class="flex justify-between items-start mb-6">
+        <div class="flex justify-between items-start mb-4 border-b border-slate-200 pb-4">
             <div>
-                <h4 class="font-black text-slate-800 text-lg uppercase">Orden de Corte para Stock Libre</h4>
-                <p class="text-[10px] font-black text-red-500 uppercase tracking-widest">Producción para inventario general</p>
+                <h4 class="font-black text-slate-800 text-xl uppercase">${titulo}</h4>
+                <p class="text-[10px] font-bold text-slate-500 mt-1">${subTitulo}</p>
             </div>
-            <button onclick="cerrarAsistenteCorte()" class="text-slate-400 hover:text-slate-600 font-bold">✕ BARRA</button>
+            <button onclick="cerrarAsistenteCorte()" class="text-slate-400 hover:text-slate-600 font-bold bg-slate-100 px-3 py-1.5 rounded-lg text-xs">✕ CERRAR</button>
         </div>
-        <div class="space-y-4">
-            <div>
-                <label class="text-[10px] font-black uppercase text-slate-400 block mb-1">Buscar Producto en Catálogo</label>
-                <input type="text" id="corte-stock-item" list="lista-productos-stock" class="w-full bg-white border border-slate-200 p-3 rounded-xl font-bold text-sm outline-none focus:ring-2 focus:ring-red-500" placeholder="Escriba medida... (Ej: 100/50 o PB8)" onchange="actualizarDatosItemStock(this.value)">
-                <datalist id="lista-productos-stock">
-                    ${opcionesProductos}
-                </datalist>
-            </div>
-            <div id="corte-inputs-stock-detalle" class="hidden space-y-4">
-                <div class="grid grid-cols-2 gap-4">
-                    <div>
-                        <label class="text-[10px] font-black uppercase text-slate-400 block mb-1">Cantidad de Pzas Buenas</label>
-                        <input type="number" id="corte-pzas-buenas" min="1" value="1" class="w-full bg-white border border-slate-200 p-3 rounded-xl font-black text-slate-800 text-lg">
-                    </div>
-                    <div>
-                        <label class="text-[10px] font-black uppercase text-slate-400 block mb-1">Pzas Defectuosas (Bajas)</label>
-                        <input type="number" id="corte-pzas-malas" min="0" value="0" class="w-full bg-white border border-slate-200 p-3 rounded-xl font-black text-slate-800 text-lg">
-                    </div>
-                </div>
-                <div>
-                    <label class="text-[10px] font-black uppercase text-slate-400 block mb-1">Destino de las Piezas Defectuosas</label>
-                    <select id="corte-destino-bajas" class="w-full bg-white border border-slate-200 p-3 rounded-xl font-bold text-xs">
-                        <option value="RECICLAJE">♻️ ENVIAR COMPLETO A SILO DE RECICLAJE</option>
-                        <option value="RETASO">🧩 SALVAR PEDAZOS UTILIZABLES (BANCO DE RETAZOS)</option>
-                    </select>
-                </div>
-                <button onclick="procesarEjecucionCorte()" class="w-full bg-red-600 text-white font-black p-4 rounded-xl shadow-lg hover:bg-red-700 transition-colors uppercase tracking-wider text-sm mt-4">✓ PROCESAR Y TERMINAR CORTE</button>
-            </div>
+        
+        ${obsAlert}
+        
+        <div class="mb-4 flex gap-2">
+            <input type="text" id="corte-buscador-catalogo" list="lista-productos-corte" class="flex-1 bg-white border border-slate-300 p-3 rounded-xl font-bold text-sm outline-none focus:ring-2 focus:ring-blue-500" placeholder="Añadir ítem del catálogo... (Ej: PB8)">
+            <datalist id="lista-productos-corte">${opcionesProductos}</datalist>
+            <button onclick="addCartItemCorte()" class="bg-slate-900 text-white px-6 py-3 rounded-xl font-black text-xs uppercase shadow-md hover:bg-slate-800 transition-colors">AÑADIR ÍTEM</button>
         </div>
-    `;
-}
 
-function actualizarDatosItemStock(itemName) {
-    const prod = products.find(p => p.name === itemName);
-    if(!prod) return;
-    const match = itemName.match(/^([A-Z]+)(\d+|SR)/);
-    
-    corteOperacionActiva.itemName = itemName;
-    corteOperacionActiva.dens = match ? (match[2] === 'SR' ? 'SR' : 'D' + match[2]) : 'D8';
-    
-    const parts = itemName.split('/');
-    if(parts.length >= 4) {
-        const alto = parseFloat(parts[parts.length - 3]) || 0;
-        const largo = parseFloat(parts[parts.length - 2]) || 0;
-        const ancho = parseFloat(parts[parts.length - 1]) || 0;
-        corteOperacionActiva.volUnitario = (alto * largo * ancho) / 1000000;
-    }
-    
-    document.getElementById('corte-inputs-stock-detalle').classList.remove('hidden');
-}
-
-function abrirPanelAsistente() {
-    const panel = document.getElementById('panel-ejecucion-corte');
-    panel.classList.remove('hidden');
-    panel.innerHTML = `
-        <div class="flex justify-between items-start mb-6">
-            <div>
-                <h4 class="font-black text-slate-800 text-lg uppercase">${corteOperacionActiva.itemName}</h4>
-                <p class="text-[10px] font-black text-slate-400 uppercase tracking-widest">Pedido Requerido: <span class="text-red-600 font-black">${corteOperacionActiva.qtyRequerida} Pzas</span></p>
-            </div>
-            <button onclick="cerrarAsistenteCorte()" class="text-slate-400 hover:text-slate-600 font-bold">✕ CERRAR</button>
+        <div class="bg-white border border-slate-200 rounded-2xl overflow-hidden mb-6 shadow-sm">
+            <table class="w-full text-left text-xs">
+                <thead class="bg-slate-100 text-[9px] font-black uppercase text-slate-500 border-b border-slate-200">
+                    <tr>
+                        <th class="p-3">Producto Obtenido</th>
+                        <th class="p-3 text-center text-green-600">Buenas</th>
+                        <th class="p-3 text-center text-red-500">Bajas</th>
+                        <th class="p-3 text-center"></th>
+                    </tr>
+                </thead>
+                <tbody id="corte-cart-body" class="divide-y divide-slate-100"></tbody>
+            </table>
         </div>
-        <div class="space-y-4">
-            <div class="p-4 bg-amber-50 border border-amber-200 rounded-2xl text-amber-800 text-xs font-medium">
-                <span class="font-black uppercase block mb-1">⚠️ Instrucción Operativa:</span>
-                Por favor, marque en la tabla superior los bloques de densidad <span class="font-black underline">${corteOperacionActiva.dens}</span> instalados actualmente en la máquina cortadora para cumplir este trabajo.
+
+        <div class="bg-slate-900 rounded-[24px] p-6 text-white shadow-xl">
+            <div class="grid grid-cols-3 gap-4 mb-4 border-b border-slate-700 pb-4 text-center">
+                <div class="bg-slate-800 p-3 rounded-xl border border-slate-700"><p class="text-[9px] text-slate-400 font-bold uppercase mb-1">Vol Bloques In</p><p id="lbl-vol-in" class="text-lg font-black text-blue-400">0.00 M³</p></div>
+                <div class="bg-blue-900/50 p-3 rounded-xl border border-blue-800"><p class="text-[9px] text-blue-300 font-bold uppercase mb-1">Vol Prods Out</p><p id="lbl-vol-out" class="text-lg font-black text-white">0.00 M³</p></div>
+                <div class="bg-slate-800 p-3 rounded-xl border border-slate-700"><p class="text-[9px] text-slate-400 font-bold uppercase mb-1">Diferencia</p><p id="lbl-vol-diff" class="text-lg font-black text-slate-300">0.00 M³</p></div>
             </div>
-            <div class="grid grid-cols-2 gap-4">
-                <div>
-                    <label class="text-[10px] font-black uppercase text-slate-400 block mb-1">Cantidad Total Obtenida (Físico)</label>
-                    <input type="number" id="corte-pzas-buenas" min="1" value="${corteOperacionActiva.qtyRequerida}" class="w-full bg-white border border-slate-200 p-3 rounded-xl font-black text-slate-800 text-lg">
-                    <p class="text-[9px] font-bold text-slate-400 mt-1 uppercase">Total de piezas útiles del bloque</p>
-                </div>
-                <div>
-                    <label class="text-[10px] font-black uppercase text-slate-400 block mb-1">Piezas Defectuosas (Bajas)</label>
-                    <input type="number" id="corte-pzas-malas" min="0" value="0" class="w-full bg-white border border-slate-200 p-3 rounded-xl font-black text-slate-800 text-lg">
-                </div>
-            </div>
-            <div>
-                <label class="text-[10px] font-black uppercase text-slate-400 block mb-1">Destino de las Piezas Defectuosas (Bajas)</label>
-                <select id="corte-destino-bajas" class="w-full bg-white border border-slate-200 p-3 rounded-xl font-bold text-xs">
-                    <option value="RECICLAJE">♻️ ENVIAR COMPLETO A SILO DE RECICLAJE</option>
-                    <option value="RETASO">🧩 SALVAR PEDAZOS UTILIZABLES (BANCO DE RETAZOS)</option>
+            
+            <div class="mb-4">
+                <label class="text-[10px] font-black uppercase text-slate-400 block mb-2">Destino Bajas (Defectuosas)</label>
+                <select id="corte-destino-bajas" class="w-full bg-slate-800 border border-slate-700 p-3 rounded-xl font-bold text-xs text-white outline-none">
+                    <option value="RECICLAJE">♻️ ENVIAR MERMA A SILO DE RECICLAJE</option>
+                    <option value="RETASO">🧩 SALVAR EN BANCO DE RETAZOS</option>
                 </select>
             </div>
-            <button onclick="procesarEjecucionCorte()" class="w-full bg-red-600 text-white font-black p-4 rounded-xl shadow-lg hover:bg-red-700 transition-colors uppercase tracking-wider text-sm mt-4">✓ REGISTRAR PROCESO DE CORTE</button>
+            
+            <button onclick="procesarEjecucionCorte()" class="w-full bg-red-600 text-white font-black p-4 rounded-xl shadow-lg hover:bg-red-500 transition-colors uppercase tracking-wider text-sm">✓ CONFIRMAR Y GUARDAR TANDA</button>
         </div>
     `;
+    renderCorteCart();
+}
+
+function addCartItemCorte() {
+    const itemName = document.getElementById('corte-buscador-catalogo').value.trim();
+    const prod = products.find(p => p.name === itemName);
+    if(!prod) return alert("Producto no encontrado en el catálogo.");
+    if(corteCart.some(i => i.name === itemName)) return alert("El ítem ya está en la lista.");
+
+    const match = itemName.match(/^([A-Z]+)(\d+|SR)/);
+    const dens = match ? (match[2] === 'SR' ? 'SR' : 'D' + match[2]) : 'D8';
+
+    corteCart.push({
+        name: prod.name,
+        dens: dens,
+        volUnit: Number(prod.vol) || 0,
+        qtyBuenas: 1,
+        qtyMalas: 0,
+        isMainOrder: false,
+        obs: ''
+    });
+    
+    document.getElementById('corte-buscador-catalogo').value = '';
+    renderCorteCart();
+}
+
+function removeCorteCartItem(index) {
+    if(corteCart[index].isMainOrder && !corteOperacionActiva.isStock) {
+        if(!confirm("Este es el producto principal del pedido. ¿Seguro que desea quitarlo?")) return;
+    }
+    corteCart.splice(index, 1);
+    renderCorteCart();
+}
+
+function updateCartQty(index, type, val) {
+    const v = parseInt(val) || 0;
+    if(type === 'buenas') corteCart[index].qtyBuenas = v < 0 ? 0 : v;
+    if(type === 'malas') corteCart[index].qtyMalas = v < 0 ? 0 : v;
+    calcVolCorteDin(); 
+}
+
+function renderCorteCart() {
+    const tbody = document.getElementById('corte-cart-body');
+    if(corteCart.length === 0) {
+        tbody.innerHTML = `<tr><td colspan="4" class="p-4 text-center font-bold text-slate-400 italic">No hay ítems en la lista. Busque y agregue arriba.</td></tr>`;
+    } else {
+        tbody.innerHTML = corteCart.map((it, idx) => {
+            const reqBadge = it.isMainOrder && !corteOperacionActiva.isStock 
+                ? `<span class="bg-blue-100 text-blue-700 px-2 py-0.5 rounded text-[9px] font-black ml-2 uppercase">Pedido</span>` 
+                : `<span class="bg-green-100 text-green-700 px-2 py-0.5 rounded text-[9px] font-black ml-2 uppercase">Stock</span>`;
+            
+            const obsText = it.obs ? `<br><span class="text-[9px] text-orange-500 font-bold uppercase mt-1 inline-block">Corte: ${it.obs}</span>` : '';
+            
+            return `
+            <tr class="hover:bg-slate-50 transition-colors border-b border-slate-50">
+                <td class="p-3 align-middle">
+                    <span class="font-black text-slate-800">${it.name}</span> ${reqBadge} ${obsText}
+                </td>
+                <td class="p-2 w-24">
+                    <input type="number" min="0" value="${it.qtyBuenas}" oninput="updateCartQty(${idx}, 'buenas', this.value)" class="w-full bg-white border border-green-300 p-2 rounded-lg font-black text-green-700 text-center text-sm outline-none focus:ring-2 focus:ring-green-500">
+                </td>
+                <td class="p-2 w-24">
+                    <input type="number" min="0" value="${it.qtyMalas}" oninput="updateCartQty(${idx}, 'malas', this.value)" class="w-full bg-white border border-red-300 p-2 rounded-lg font-black text-red-600 text-center text-sm outline-none focus:ring-2 focus:ring-red-500">
+                </td>
+                <td class="p-2 text-center w-12">
+                    <button onclick="removeCorteCartItem(${idx})" class="text-red-400 hover:text-red-600 p-1.5 bg-white rounded-lg shadow-sm border border-red-100"><i data-lucide="trash-2" class="w-4 h-4"></i></button>
+                </td>
+            </tr>`;
+        }).join('');
+    }
+    if(window.lucide) lucide.createIcons();
+    calcVolCorteDin();
+}
+
+function calcVolCorteDin() {
+    const lblDiff = document.getElementById('lbl-vol-diff');
+    if(!lblDiff || !corteOperacionActiva) return; 
+
+    const bloquesDisponibles = dbBloques.filter(b => b.ubicacion === 'CORTADO');
+    let volBloques = 0;
+    
+    bloquesDisponibles.forEach(b => {
+        const chk = document.getElementById(`corte-chk-${b.id}`);
+        if(chk && chk.checked) volBloques += Number(b.volNeto);
+    });
+
+    let volTotalSalida = 0;
+    corteCart.forEach(it => {
+        volTotalSalida += (it.qtyBuenas + it.qtyMalas) * it.volUnit;
+    });
+
+    const diff = volBloques - volTotalSalida;
+
+    document.getElementById('lbl-vol-in').innerText = volBloques.toFixed(3) + ' M³';
+    document.getElementById('lbl-vol-out').innerText = volTotalSalida.toFixed(3) + ' M³';
+    
+    if(diff < -0.1) {
+        lblDiff.innerText = diff.toFixed(3) + ' M³ (ERROR)';
+        lblDiff.className = "text-base font-black text-red-500";
+    } else if (diff < 0) {
+        lblDiff.innerText = Math.abs(diff).toFixed(3) + ' M³ (Extra)';
+        lblDiff.className = "text-base font-black text-green-400";
+    } else {
+        lblDiff.innerText = diff.toFixed(3) + ' M³ (Merma)';
+        lblDiff.className = "text-base font-black text-orange-400";
+    }
 }
 
 function cerrarAsistenteCorte() {
-    const panel = document.getElementById('panel-ejecucion-corte');
-    panel.classList.add('hidden');
-    panel.innerHTML = '';
+    document.getElementById('panel-ejecucion-corte').classList.add('hidden');
+    document.getElementById('panel-ejecucion-corte').innerHTML = '';
     corteOperacionActiva = null;
+    corteCart = [];
+    document.querySelectorAll('.bloque-checkbox').forEach(cb => cb.checked = false);
+    if(typeof toggleCorteBtn === 'function') toggleCorteBtn();
 }
 
 function procesarEjecucionCorte() {
-    if(!corteOperacionActiva || !corteOperacionActiva.itemName) return;
+    if(!corteOperacionActiva) return;
+    if(corteCart.length === 0) return alert("El carrito está vacío. Agregue productos.");
 
-    // 1. Recolectar bloques seleccionados y validar densidad
     const bloquesDisponibles = dbBloques.filter(b => b.ubicacion === 'CORTADO');
     let bloquesElegidosIds = [];
     let volBloquesIngresado = 0;
-    let densidadIncorrecta = false;
+    let setDensidadesBloques = new Set();
+    let bloqueEsSRDetectado = false;
     
     bloquesDisponibles.forEach(b => {
         const chk = document.getElementById(`corte-chk-${b.id}`);
         if(chk && chk.checked) {
             bloquesElegidosIds.push(b.id);
             volBloquesIngresado += Number(b.volNeto);
-            if(b.densFinal !== corteOperacionActiva.dens) densidadIncorrecta = true;
+            setDensidadesBloques.add(b.densFinal);
+
+            if(b.tipo.toUpperCase().includes('SR') || b.codigo.toUpperCase().includes('SR')) {
+                setDensidadesBloques.add('SR');
+                bloqueEsSRDetectado = true;
+            }
         }
     });
 
-    if(bloquesElegidosIds.length === 0) {
-        alert("ERROR: Debe seleccionar al menos 1 bloque de la lista superior para procesar el corte.");
-        return;
+    if(bloquesElegidosIds.length === 0) return alert("ERROR: Debe marcar al menos 1 bloque de la máquina.");
+
+    let incompatibilidadDensidad = false;
+    let productoSRDetectado = false;
+
+    corteCart.forEach(it => {
+        if(it.dens === 'SR') productoSRDetectado = true;
+        if(!setDensidadesBloques.has(it.dens)) incompatibilidadDensidad = true;
+    });
+
+    if (productoSRDetectado && !bloqueEsSRDetectado) {
+        return alert("❌ CALIDAD: Hay un producto 'SR' en la lista, pero seleccionó bloques estándar.");
     }
-    
-    if(densidadIncorrecta) {
-        const confirmarForzado = confirm(`❌ ADVERTENCIA DE CALIDAD:\n\nHa seleccionado bloques con una densidad distinta a la requerida.\nEl pedido exige material de densidad ${corteOperacionActiva.dens}.\n\n¿Desea FORZAR el uso de estos bloques excepcionalmente bajo su responsabilidad?`);
-        if(!confirmarForzado) return; // Si dice que no, se cancela la operación
+    if (!productoSRDetectado && bloqueEsSRDetectado) {
+        if(!confirm("⚠️ FINANZAS: Está usando un bloque 'SR' para productos normales. ¿Forzar?")) return;
+    }
+    if(incompatibilidadDensidad) {
+        if(!confirm(`❌ DENSIDAD: Hay productos que NO COINCIDEN con la densidad de los bloques. ¿Forzar?`)) return;
     }
 
-    // 2. Extraer valores del formulario y calcular volúmenes de transformación
-    const pzasBuenasTotales = parseInt(document.getElementById('corte-pzas-buenas').value) || 0;
-    const pzasMalas = parseInt(document.getElementById('corte-pzas-malas').value) || 0;
-    const destinoBajas = document.getElementById('corte-destino-bajas').value;
+    let volUtilTotal = 0;
+    let volBajasTotal = 0;
+    let pzasBuenasGlobales = 0;
+    let reportLogData = [];
 
-    const volUtilTotal = pzasBuenasTotales * corteOperacionActiva.volUnitario;
-    const volBajasTotal = pzasMalas * corteOperacionActiva.volUnitario;
+    corteCart.forEach(it => {
+        volUtilTotal += it.qtyBuenas * it.volUnit;
+        volBajasTotal += it.qtyMalas * it.volUnit;
+        pzasBuenasGlobales += it.qtyBuenas;
+    });
+
     const volTotalSalida = volUtilTotal + volBajasTotal;
+    const diff = volBloquesIngresado - volTotalSalida;
 
-    // 3. VALIDACIÓN FÍSICA ESTRUCTURAL (Evitar crear materia)
-    // Se da una pequeñísima tolerancia de 0.05 M3 por variaciones de redondeo matemático
-    if(volTotalSalida > (volBloquesIngresado + 0.05)) {
-        alert(`❌ IMPOSIBLE FÍSICAMENTE:\n\nEstá intentando generar ${volTotalSalida.toFixed(2)} M³ de producto terminado, pero los bloques seleccionados solo suman ${volBloquesIngresado.toFixed(2)} M³ de materia prima.\n\nRevise la cantidad de piezas o seleccione más bloques en la tabla superior.`);
-        return;
+    if(diff < -0.1) {
+        return alert(`❌ IMPOSIBLE: Los bloques suman ${volBloquesIngresado.toFixed(2)} M³, pero genera ${volTotalSalida.toFixed(2)} M³.`);
     }
 
-    // 4. Dar de baja los bloques físicamente procesados
+    const destinoBajas = document.getElementById('corte-destino-bajas').value;
+    const tandaId = Date.now(); 
+
+    // 1. Dar de baja los bloques
     dbBloques = dbBloques.map(b => {
         if(bloquesElegidosIds.includes(b.id)) {
-            return { ...b, ubicacion: 'PROCESADO', fechaModificado: new Date().toLocaleString() };
+            return { ...b, ubicacion: 'PROCESADO', tandaProceso: tandaId, fechaModificado: new Date().toLocaleString() };
         }
         return b;
     });
 
-    // 4. Repartición de Destinos y Mermas matemáticas
-    const mermaPerfiladoYSobranza = Math.max(0, volBloquesIngresado - volUtilTotal - volBajasTotal);
+    // 2. Mermas y Bajas
+    let mermaPerfiladoYSobranza = diff > 0 ? diff : 0; 
+    let volumenTotalDesperdicio = volBajasTotal + mermaPerfiladoYSobranza;
     
-    // Sumar la merma inevitable de corte directo a Reciclaje de planta
-    if(window.dbSilos && dbSilos.REC !== undefined) {
-        dbSilos.REC = (Number(dbSilos.REC) || 0) + mermaPerfiladoYSobranza;
+    if(typeof dbSilos !== 'undefined') {
+        const siloRec = dbSilos.find(s => s.id === 'REC');
+        if(siloRec && destinoBajas === 'RECICLAJE') {
+            siloRec.vol += volumenTotalDesperdicio;
+        }
     }
-
-    // Procesar destino de piezas con falla de calidad
-    if(pzasMalas > 0) {
-        if(destinoBajas === 'RECICLAJE') {
-            if(window.dbSilos && dbSilos.REC !== undefined) dbSilos.REC += volBajasTotal;
+    
+    if(destinoBajas === 'RETASO') {
+        const densPrincipal = Array.from(setDensidadesBloques)[0] || 'D8';
+        if(dbBancoRetazos[densPrincipal] !== undefined) {
+            dbBancoRetazos[densPrincipal] += volumenTotalDesperdicio;
         } else {
-            // Se resguarda el material limpio en la bolsa volumétrica del Banco de Retazos
-            if(dbBancoRetazos[corteOperacionActiva.dens] !== undefined) {
-                dbBancoRetazos[corteOperacionActiva.dens] += volBajasTotal;
-            }
+            dbBancoRetazos[densPrincipal] = volumenTotalDesperdicio;
         }
     }
 
-    // 5. Gestión del Catálogo y Cumplimiento Parcial de Órdenes
-    const prodCatalogo = products.find(p => p.name === corteOperacionActiva.itemName);
-    
-    // TODA pieza física buena producida ingresa directo al inventario final de la fábrica
-    if(prodCatalogo) {
-        prodCatalogo.stock = (parseInt(prodCatalogo.stock) || 0) + pzasBuenasTotales;
-    }
+    // 3. Excedente y Cierre de Órdenes
+    let ordenParaCerrar = null;
 
-    if(!corteOperacionActiva.isStock) {
-        const cantidadFaltante = corteOperacionActiva.qtyRequerida - pzasBuenasTotales;
-        let ordenParaCerrar = null;
+    corteCart.forEach((it) => {
+        const prodCat = products.find(p => p.name === it.name);
+        let qtyParaOrden = 0;
+        let qtyParaStock = 0;
 
-        dbSchedules = dbSchedules.map(s => {
-            if(s.id === corteOperacionActiva.schedId) {
-                if(cantidadFaltante > 0) {
-                    return { ...s, qty: cantidadFaltante, volTotal: Math.max(0, s.volTotal - volUtilTotal) };
+        if(it.isMainOrder && !corteOperacionActiva.isStock) {
+            if(it.qtyBuenas >= corteOperacionActiva.qtyRequerida) {
+                qtyParaOrden = corteOperacionActiva.qtyRequerida;
+                qtyParaStock = it.qtyBuenas - corteOperacionActiva.qtyRequerida; 
+            } else {
+                qtyParaOrden = it.qtyBuenas;
+            }
+
+            const schedIdx = dbSchedules.findIndex(s => s.id === corteOperacionActiva.schedId);
+            if(schedIdx > -1) {
+                const s = dbSchedules[schedIdx];
+                const faltante = s.qty - qtyParaOrden;
+                if(faltante > 0) {
+                    s.qty = faltante;
+                    s.volTotal = Math.max(0, s.volTotal - (qtyParaOrden * it.volUnit));
                 } else {
                     ordenParaCerrar = s.orderId;
-                    return { ...s, status: 'FINALIZADO', fabricadoQty: corteOperacionActiva.qtyRequerida };
+                    s.status = 'FINALIZADO';
+                    s.fabricadoQty = corteOperacionActiva.qtyRequerida;
+                    s.tandaId = tandaId;
                 }
             }
-            return s;
+        } else {
+            qtyParaStock = it.qtyBuenas;
+        }
+
+        if(prodCat && qtyParaStock > 0) {
+            prodCat.stock = (parseInt(prodCat.stock) || 0) + qtyParaStock;
+        }
+
+        reportLogData.push({
+            item: it.name, qtyOrder: qtyParaOrden, qtyStock: qtyParaStock,
+            qtyMalas: it.qtyMalas, volUnit: it.volUnit,
+            volUtil: (qtyParaOrden + qtyParaStock) * it.volUnit,
+            schedId: corteOperacionActiva.isStock ? null : corteOperacionActiva.schedId
         });
+    });
 
-        // Automatización: Si la orden ya tiene TODAS sus piezas cortadas, se va a Inventario
-        if(ordenParaCerrar) {
-            const o = orders.find(x => x.id === ordenParaCerrar);
-            if(o) {
-                let todoCompletado = true;
-                o.items.forEach((item, idx) => {
-                    const pzasCortadas = dbSchedules.filter(sx => sx.orderId === o.id && sx.itemIdx === idx && (sx.status === 'FINALIZADO' || sx.status === 'COMPLETADO')).reduce((sum, sx) => sum + (sx.fabricadoQty || sx.qty), 0);
-                    if(pzasCortadas < item.qty) todoCompletado = false;
-                });
-
-                if(todoCompletado && o.status === 'PRODUCCION') {
-                    o.status = 'INVENTARIO';
-                }
+    if(ordenParaCerrar) {
+        const o = orders.find(x => x.id === ordenParaCerrar);
+        if(o) {
+            let todoCortado = true;
+            dbSchedules.filter(sx => sx.orderId === o.id).forEach(sx => {
+                if(sx.status !== 'FINALIZADO' && sx.status !== 'COMPLETADO') todoCortado = false;
+            });
+            if(todoCortado && o.status === 'PRODUCCION') {
+                o.status = 'INVENTARIO';
+                db.collection("pedidos").doc(String(o.id).replace(/\//g, '-')).set(o);
             }
         }
     }
 
-    // 6. Sincronizar y refrescar toda la aplicación
-    save();
-    localStorage.setItem('plast_products', JSON.stringify(products)); // Guardar cambios específicos en catálogo
-    cerrarAsistenteCorte();
-    renderAll();
-    showToast("¡Operación realizada con éxito! Bloques procesados y mermas distribuidas.");
+    // 4. Reporte Diario
+    const codigosUsados = dbBloques.filter(b => bloquesElegidosIds.includes(b.id)).map(b => b.codigo).join(', ');
+    const userReg = currentUser ? currentUser.name : 'Sistema';
+    
+    // Desglose Independiente de Etiquetas para Reporte
+    const stringResumen = reportLogData.map(i => {
+        let lineas = [];
+        if (i.qtyOrder > 0) {
+            const o = orders.find(x => x.id === (corteOperacionActiva ? corteOperacionActiva.orderId : null));
+            const clientName = o ? o.client : 'Cliente';
+            const orderId = o ? o.id : 'N/A';
+            lineas.push(`<div class="mb-1.5"><span class="bg-blue-100 text-blue-700 px-1.5 py-0.5 rounded text-[8px] uppercase font-black tracking-widest border border-blue-200">Pedido: ${orderId}</span> <span class="text-[9px] font-bold text-slate-500 ml-1">${clientName}</span><br><span class="font-black text-slate-800">${i.qtyOrder}x ${i.item}</span></div>`);
+        }
+        if (i.qtyStock > 0) {
+            lineas.push(`<div class="mb-1.5"><span class="bg-green-100 text-green-700 px-1.5 py-0.5 rounded text-[8px] uppercase font-black tracking-widest border border-green-200">Stock Libre</span><br><span class="font-black text-slate-800">${i.qtyStock}x ${i.item}</span></div>`);
+        }
+        return lineas.join('');
+    }).join('');
+
+    dbReportesCorte.unshift({
+        id: tandaId, fecha: new Date().toLocaleDateString(), hora: new Date().toLocaleTimeString(),
+        bloques: codigosUsados, bloquesIds: bloquesElegidosIds, item: stringResumen, 
+        detalleCortes: reportLogData, destinoBajas: destinoBajas, volBajasTotal: volBajasTotal,
+        pzas: pzasBuenasGlobales, volUtil: volUtilTotal, 
+        volReciclaje: destinoBajas === 'RECICLAJE' ? volumenTotalDesperdicio : 0, 
+        volRetazo: destinoBajas === 'RETASO' ? volumenTotalDesperdicio : 0, 
+        mermaPerfilado: mermaPerfiladoYSobranza, operador: userReg
+    });
+
+    if(typeof saveSilos === 'function') saveSilos();
+    save(); localStorage.setItem('plast_products', JSON.stringify(products)); 
+    cerrarAsistenteCorte(); renderAll(); 
+    showToast("Tanda procesada! Se enviaron las piezas al inventario.");
 }
+
 
 // =========================================================
 // REGLAS INTELIGENTES DE PRODUCTOS (POKA-YOKE)
@@ -6790,20 +6948,7 @@ function procesarMoliendaRetazo() {
     renderAll(); showToast(`Éxito: ${vol} M³ enviados al Silo de Reciclaje.`);
 }
 
-function calcVolCorteDin() {
-    if(!corteOperacionActiva) return;
-    const pzas = parseInt(document.getElementById('corte-pzas-buenas').value)||0;
-    const pzasMalas = parseInt(document.getElementById('corte-pzas-malas').value)||0;
-    
-    const volBueno = pzas * corteOperacionActiva.volUnitario;
-    const volMalo = pzasMalas * corteOperacionActiva.volUnitario;
-    
-    const displayBueno = document.getElementById('corte-vol-dinamico');
-    const displayMalo = document.getElementById('corte-vol-dinamico-malo');
-    
-    if(displayBueno) displayBueno.innerText = volBueno.toFixed(3) + ' M³';
-    if(displayMalo) displayMalo.innerText = volMalo.toFixed(3) + ' M³';
-}
+
 
 function renderReporteCorte() {
     const tbody = document.getElementById('reporte-corte-body');
@@ -6812,17 +6957,14 @@ function renderReporteCorte() {
 
     let filtrados = dbReportesCorte;
     if(filtroFecha) {
-        const parts = filtroFecha.split('-');
-        const formatFecha = `${parts[2]}/${parts[1]}/${parts[0]}`; // Adapta a dd/mm/yyyy local si es necesario
         filtrados = dbReportesCorte.filter(r => {
-            // Comprobación flexible de fechas por si guardó con slash o guiones
             const dateStr = new Date(r.id).toISOString().split('T')[0];
             return dateStr === filtroFecha;
         });
     }
 
     if(filtrados.length === 0) {
-        tbody.innerHTML = `<tr><td colspan="9" class="p-8 text-center text-slate-400 font-bold italic">No hay cortes registrados en esta fecha.</td></tr>`;
+        tbody.innerHTML = `<tr><td colspan="10" class="p-8 text-center text-slate-400 font-bold italic">No hay cortes registrados en esta fecha.</td></tr>`;
         return;
     }
 
@@ -6830,15 +6972,136 @@ function renderReporteCorte() {
         <tr class="hover:bg-slate-50 border-b border-slate-100 transition-colors">
             <td class="p-4 font-bold text-slate-500">${r.fecha} ${r.hora}</td>
             <td class="p-4 font-black text-slate-800 text-[10px] whitespace-normal min-w-[180px] leading-relaxed">${(r.bloques || '').split(', ').join('<br>')}</td>
-            <td class="p-4 font-black text-blue-600 whitespace-nowrap">${r.item}</td>
+            <td class="p-4 font-black text-blue-600 whitespace-normal min-w-[200px] leading-tight">${r.item}</td>
             <td class="p-4 text-center font-black text-lg text-slate-700">${r.pzas}</td>
             <td class="p-4 text-right font-black text-green-600">${r.volUtil.toFixed(3)} M³</td>
             <td class="p-4 text-right font-bold text-red-500">${r.volReciclaje.toFixed(3)} M³</td>
             <td class="p-4 text-right font-bold text-orange-500">${r.volRetazo.toFixed(3)} M³</td>
             <td class="p-4 text-right font-bold text-slate-400">${r.mermaPerfilado.toFixed(3)} M³</td>
             <td class="p-4 text-[9px] uppercase font-black text-slate-400">${r.operador}</td>
+            <td class="p-4 text-center">
+                ${currentUser && currentUser.role === 'ADMIN' ? `<button onclick="anularTandaCorte(${r.id})" class="text-red-400 hover:text-red-600 p-2 bg-white rounded-lg shadow-sm border border-red-100 transition-all" title="Anular este corte (Ctrl+Z)"><i data-lucide="trash-2" class="w-4 h-4"></i></button>` : `<span class="text-[9px] font-black text-slate-300">N/A</span>`}
+            </td>
         </tr>
     `).join('');
+    lucide.createIcons();
+}
+
+function anularTandaCorte(id) {
+    const reporte = dbReportesCorte.find(r => r.id === id);
+    if(!reporte) return alert("Reporte no encontrado.");
+
+    // 1. Escudo de Seguridad: Si alguna orden ya fue despachada, bloquear.
+    let bloqueoDespacho = false;
+    let ordenesAfectadas = new Set();
+    
+    if(reporte.detalleCortes && reporte.detalleCortes.length > 0) {
+        reporte.detalleCortes.forEach(c => {
+            if(c.schedId) {
+                const s = dbSchedules.find(x => x.id === c.schedId);
+                if(s) {
+                    const o = orders.find(x => x.id === s.orderId);
+                    if(o && o.status === 'DESPACHADO') bloqueoDespacho = true;
+                    ordenesAfectadas.add(s.orderId);
+                }
+            }
+        });
+    }
+    
+    if(bloqueoDespacho) {
+        return alert("❌ OPERACIÓN DENEGADA:\nNo puedes anular este corte porque el pedido asociado YA FUE DESPACHADO al cliente.\nDebes anular primero el Ticket de Despacho en la pestaña 'Despachos'.");
+    }
+
+    if(!confirm(`⚠️ ATENCIÓN ADMINISTRADOR:\n¿Está seguro de ANULAR (Ctrl+Z) este corte?\n- Los bloques volverán a la Sala de Corte.\n- El inventario generado se restará.\n- Los pedidos afectados volverán a la lista "Por Programar".`)) return;
+
+    // 2. Devolver los bloques físicos a la máquina (CORTADO)
+    if(reporte.bloquesIds && reporte.bloquesIds.length > 0) {
+        dbBloques = dbBloques.map(b => {
+            if(reporte.bloquesIds.includes(b.id)) {
+                return { ...b, ubicacion: 'CORTADO', tandaProceso: null, fechaModificado: new Date().toLocaleString() };
+            }
+            return b;
+        });
+    }
+
+    // 3. Restar Mermas y Retazos (CORREGIDO: Usa el volumen total exacto que guardamos)
+    if(typeof dbSilos !== 'undefined') {
+        const siloRec = dbSilos.find(s => s.id === 'REC');
+        if(siloRec) {
+            if(reporte.volReciclaje) siloRec.vol -= reporte.volReciclaje;
+            if(siloRec.vol < 0) siloRec.vol = 0;
+        }
+    }
+    
+    if(reporte.destinoBajas === 'RETASO' && reporte.volRetazo) {
+        let densPrincipal = 'D8';
+        if(reporte.bloquesIds && reporte.bloquesIds.length > 0) {
+            const primerBloque = dbBloques.find(b => b.id === reporte.bloquesIds[0]);
+            if(primerBloque) densPrincipal = primerBloque.densFinal;
+        }
+        if(dbBancoRetazos[densPrincipal] !== undefined) {
+            dbBancoRetazos[densPrincipal] -= reporte.volRetazo;
+            if(dbBancoRetazos[densPrincipal] < 0) dbBancoRetazos[densPrincipal] = 0;
+        }
+    }
+
+    // 4. Restar Productos y Revertir Programación de Pedidos
+    if(reporte.detalleCortes && reporte.detalleCortes.length > 0) {
+        reporte.detalleCortes.forEach(c => {
+            // Restar stock del catálogo
+            const totalStockCreado = (c.qtyStock || 0) + (c.qtyOrder || 0);
+            const prodCat = products.find(p => p.name === c.item);
+            if(prodCat) {
+                prodCat.stock = (parseInt(prodCat.stock) || 0) - totalStockCreado;
+                if(prodCat.stock < 0) prodCat.stock = 0;
+            }
+
+            // Revertir descuento de los pedidos por programar de forma estricta
+            if(c.schedId) {
+                const s = dbSchedules.find(x => x.id === c.schedId);
+                if(s) {
+                    if(s.status === 'FINALIZADO' && s.tandaId === id) {
+                        // Esta tanda terminó el pedido por completo. Solo reabrimos el estado.
+                        s.status = 'PENDIENTE';
+                        s.tandaId = null;
+                        s.fabricadoQty = 0;
+                    } else if (s.status !== 'FINALIZADO') {
+                        // Fue un corte parcial. Devolvemos la cantidad exacta a la tabla.
+                        s.status = 'PENDIENTE';
+                        s.qty = (s.qty || 0) + c.qtyOrder;
+                        s.volTotal = (s.volTotal || 0) + (c.qtyOrder * c.volUnit);
+                    }
+                }
+            }
+        });
+    } else {
+        // Respaldo para cortes antiguos sin detalle
+        const prodCat = products.find(p => p.name === reporte.item);
+        if(prodCat) {
+            prodCat.stock = (parseInt(prodCat.stock) || 0) - reporte.pzas;
+            if(prodCat.stock < 0) prodCat.stock = 0;
+        }
+    }
+
+    // 5. Revertir Estado del Pedido (De INVENTARIO vuelve a PRODUCCION)
+    ordenesAfectadas.forEach(orderId => {
+        const o = orders.find(x => x.id === orderId);
+        if(o && o.status === 'INVENTARIO') {
+            o.status = 'PRODUCCION';
+            db.collection("pedidos").doc(String(o.id).replace(/\//g, '-')).set(o);
+        }
+    });
+
+    // 6. Borrar el registro del historial de cortes
+    dbReportesCorte = dbReportesCorte.filter(r => r.id !== id);
+
+    // 7. Guardar y refrescar forzosamente
+    if(typeof saveSilos === 'function') saveSilos();
+    save(); 
+    localStorage.setItem('plast_products', JSON.stringify(products)); 
+    localStorage.setItem('plast_bloques', JSON.stringify(dbBloques)); // Refresco obligado para Bloques en Máquina
+    renderAll();
+    showToast("Corte anulado (Ctrl+Z). Bloques devueltos y pedidos reabiertos.");
 }
 
 function exportarReporteCorteCSV() {
@@ -6906,229 +7169,6 @@ renderAll = function() {
     renderReporteCorte();
     if(typeof renderDashboard === 'function') renderDashboard();
 };
-
-// ==============================================================
-// REDEFINICIÓN DEL ASISTENTE DE CORTE (Con Volumen en Vivo y Log)
-// ==============================================================
-function iniciarCorteStock() {
-    const opcionesProductos = products.map(p => `<option value="${p.name}">${p.name}</option>`).join('');
-    corteOperacionActiva = { schedId: null, isStock: true, itemName: '', qtyRequerida: 0, volUnitario: 0, dens: 'D8' };
-
-    const panel = document.getElementById('panel-ejecucion-corte');
-    panel.classList.remove('hidden');
-    panel.innerHTML = `
-        <div class="flex justify-between items-start mb-6">
-            <div>
-                <h4 class="font-black text-slate-800 text-lg uppercase">Corte para Stock / Venta Libre</h4>
-                <p class="text-[10px] font-black text-red-500 uppercase tracking-widest">Añade stock directamente a la bodega</p>
-            </div>
-            <button onclick="cerrarAsistenteCorte()" class="text-slate-400 hover:text-slate-600 font-bold">✕ CERRAR</button>
-        </div>
-        <div class="space-y-4">
-            <div>
-                <label class="text-[10px] font-black uppercase text-slate-400 block mb-1">Buscar Producto (Escribe Medida o Prefijo)</label>
-                <input type="text" id="corte-stock-item" list="lista-productos-stock" class="w-full bg-white border-2 border-slate-200 p-4 rounded-xl font-black text-sm outline-none focus:border-red-500" placeholder="Ej: PB8 o 100/50" onchange="actualizarDatosItemStock(this.value)">
-                <datalist id="lista-productos-stock">${opcionesProductos}</datalist>
-            </div>
-            <div id="corte-inputs-stock-detalle" class="hidden space-y-4 animate-in fade-in">
-                <div class="grid grid-cols-2 gap-4 bg-slate-100 p-4 rounded-2xl border border-slate-200">
-                    <div>
-                        <label class="text-[10px] font-black uppercase text-slate-500 block mb-1">Pzas Obtenidas (Físico)</label>
-                        <input type="number" id="corte-pzas-buenas" min="1" value="1" class="w-full bg-white border border-slate-300 p-3 rounded-xl font-black text-slate-800 text-2xl outline-none focus:ring-2 focus:ring-red-500" oninput="calcVolCorteDin()">
-                        <p class="text-[10px] font-bold text-blue-600 mt-2 uppercase">Volumen Generado: <span id="corte-vol-dinamico" class="font-black">0.000 M³</span></p>
-                    </div>
-                    <div>
-                        <label class="text-[10px] font-black uppercase text-slate-500 block mb-1">Pzas Defectuosas (Bajas)</label>
-                        <input type="number" id="corte-pzas-malas" min="0" value="0" class="w-full bg-white border border-slate-300 p-3 rounded-xl font-black text-slate-800 text-2xl outline-none focus:ring-2 focus:ring-red-500" oninput="calcVolCorteDin()">
-                        <p class="text-[10px] font-bold text-red-500 mt-2 uppercase">Volumen de Baja: <span id="corte-vol-dinamico-malo" class="font-black">0.000 M³</span></p>
-                    </div>
-                </div>
-                <div>
-                    <label class="text-[10px] font-black uppercase text-slate-400 block mb-1">Destino de las Piezas Defectuosas</label>
-                    <select id="corte-destino-bajas" class="w-full bg-white border border-slate-200 p-3 rounded-xl font-bold text-xs">
-                        <option value="RECICLAJE">♻️ ENVIAR A SILO DE RECICLAJE</option>
-                        <option value="RETASO">🧩 SALVAR EN BANCO DE RETAZOS</option>
-                    </select>
-                </div>
-                <button onclick="procesarEjecucionCorte()" class="w-full bg-red-600 text-white font-black p-4 rounded-xl shadow-lg hover:bg-red-700 transition-colors uppercase tracking-wider mt-4 text-lg">✓ REGISTRAR CORTE</button>
-            </div>
-        </div>
-    `;
-}
-
-function abrirPanelAsistente() {
-    const panel = document.getElementById('panel-ejecucion-corte');
-    panel.classList.remove('hidden');
-    panel.innerHTML = `
-        <div class="flex justify-between items-start mb-6">
-            <div>
-                <h4 class="font-black text-slate-800 text-2xl uppercase">${corteOperacionActiva.itemName}</h4>
-                <p class="text-xs font-black text-slate-400 uppercase tracking-widest mt-1">Pedido Requerido: <span class="text-red-600 font-black px-2 bg-red-50 rounded">${corteOperacionActiva.qtyRequerida} PZAS</span></p>
-            </div>
-            <button onclick="cerrarAsistenteCorte()" class="text-slate-400 hover:text-slate-600 font-bold">✕ CERRAR</button>
-        </div>
-        ${corteOperacionActiva.obs ? `<div class="p-4 bg-red-100 border-2 border-red-500 rounded-2xl text-red-700 text-sm font-black uppercase mb-4 animate-pulse shadow-lg"><i data-lucide="alert-octagon" class="w-5 h-5 inline mr-2 -mt-1"></i>¡ATENCIÓN! CORTE ESPECIAL:<br><span class="text-xl block mt-2 text-center bg-white rounded-xl p-2 border border-red-200 shadow-inner">${corteOperacionActiva.obs}</span></div>` : ''}
-        <div class="space-y-4">
-            <div class="p-4 bg-amber-50 border border-amber-200 rounded-2xl text-amber-800 text-xs font-medium">
-                <span class="font-black uppercase block mb-1">⚠️ Instrucción Operativa:</span>
-                Marque en la tabla superior los bloques de densidad <span class="font-black underline">${corteOperacionActiva.dens}</span> instalados en la cortadora.
-            </div>
-            <div class="grid grid-cols-2 gap-4 bg-slate-100 p-4 rounded-2xl border border-slate-200">
-                <div>
-                    <label class="text-[10px] font-black uppercase text-slate-500 block mb-1">Cant. Obtenida (Física)</label>
-                    <input type="number" id="corte-pzas-buenas" min="1" value="${corteOperacionActiva.qtyRequerida}" class="w-full bg-white border border-slate-300 p-3 rounded-xl font-black text-slate-800 text-3xl outline-none focus:ring-2 focus:ring-red-500 text-center" oninput="calcVolCorteDin()">
-                    <p class="text-[10px] font-bold text-blue-600 mt-2 uppercase text-center">Volumen Útil: <span id="corte-vol-dinamico" class="font-black text-sm block">${(corteOperacionActiva.qtyRequerida * corteOperacionActiva.volUnitario).toFixed(3)} M³</span></p>
-                </div>
-                <div>
-                    <label class="text-[10px] font-black uppercase text-slate-500 block mb-1">Pzas Defectuosas (Baja)</label>
-                    <input type="number" id="corte-pzas-malas" min="0" value="0" class="w-full bg-white border border-slate-300 p-3 rounded-xl font-black text-slate-800 text-3xl outline-none focus:ring-2 focus:ring-red-500 text-center" oninput="calcVolCorteDin()">
-                    <p class="text-[10px] font-bold text-red-500 mt-2 uppercase text-center">Volumen Baja: <span id="corte-vol-dinamico-malo" class="font-black text-sm block">0.000 M³</span></p>
-                </div>
-            </div>
-            <div>
-                <label class="text-[10px] font-black uppercase text-slate-400 block mb-1">Destino de las Piezas Defectuosas</label>
-                <select id="corte-destino-bajas" class="w-full bg-white border border-slate-200 p-3 rounded-xl font-bold text-xs">
-                    <option value="RECICLAJE">♻️ ENVIAR A SILO DE RECICLAJE</option>
-                    <option value="RETASO">🧩 SALVAR EN BANCO DE RETAZOS</option>
-                </select>
-            </div>
-            <button onclick="procesarEjecucionCorte()" class="w-full bg-red-600 text-white font-black p-5 rounded-xl shadow-xl hover:bg-red-700 transition-colors uppercase tracking-wider text-xl mt-4">✓ REGISTRAR CORTE</button>
-        </div>
-    `;
-}
-
-function procesarEjecucionCorte() {
-    if(!corteOperacionActiva || !corteOperacionActiva.itemName) return;
-
-    const bloquesDisponibles = dbBloques.filter(b => b.ubicacion === 'CORTADO');
-    let bloquesElegidosIds = [];
-    let volBloquesIngresado = 0;
-    let densidadIncorrecta = false;
-    
-    // Variables para la aduana estricta de SR
-    const esProductoSR = corteOperacionActiva.itemName.toUpperCase().startsWith('SR');
-    let usoInvalidoSR = false;
-    let desperdicioBloqueSR = false;
-    
-    bloquesDisponibles.forEach(b => {
-        const chk = document.getElementById(`corte-chk-${b.id}`);
-        if(chk && chk.checked) {
-            bloquesElegidosIds.push(b.id);
-            volBloquesIngresado += Number(b.volNeto);
-            if(b.densFinal !== corteOperacionActiva.dens) densidadIncorrecta = true;
-
-            // Verificamos si el bloque físico es "Sin Reciclaje" (ej: 53SR, 58SR)
-            const bloqueEsSR = (b.tipo && b.tipo.toUpperCase().includes('SR')) || (b.codigo && b.codigo.toUpperCase().includes('SR'));
-            
-            // Regla 1: Producto SR requiere bloque SR
-            if (esProductoSR && !bloqueEsSR) usoInvalidoSR = true;
-            
-            // Regla 2: Producto Normal usando bloque SR (Sobrecosto)
-            if (!esProductoSR && bloqueEsSR) desperdicioBloqueSR = true;
-        }
-    });
-
-    if(bloquesElegidosIds.length === 0) return alert("ERROR: Debe seleccionar al menos 1 bloque.");
-    
-    // Bloqueo duro: No permitir material estándar en productos premium
-    if (usoInvalidoSR) {
-        return alert("❌ BLOQUEO DE CALIDAD:\n\nEstá intentando fabricar un producto 'Sin Reciclaje' (SR), pero seleccionó bloques estándar.\n\nPara procesar este corte, TODOS los bloques seleccionados deben ser tipo SR (Ej: 53SR, 58SR).");
-    }
-
-    // Advertencia de sobrecosto
-    if (desperdicioBloqueSR) {
-        if(!confirm("⚠️ ADVERTENCIA FINANCIERA:\n\nEstá a punto de utilizar un bloque especial 'Sin Reciclaje' (SR) para fabricar un producto ESTÁNDAR.\n\nEsto representa un sobrecosto para la empresa. ¿Está seguro de FORZAR esta operación?")) return;
-    }
-    
-    if(densidadIncorrecta) {
-        if(!confirm(`❌ ADVERTENCIA DE DENSIDAD:\nBloques con densidad distinta a la requerida (${corteOperacionActiva.dens}).\n¿FORZAR USO?`)) return;
-    }
-
-    const pzasBuenasTotales = parseInt(document.getElementById('corte-pzas-buenas').value) || 0;
-    const pzasMalas = parseInt(document.getElementById('corte-pzas-malas').value) || 0;
-    const destinoBajas = document.getElementById('corte-destino-bajas').value;
-
-    const volUtilTotal = pzasBuenasTotales * corteOperacionActiva.volUnitario;
-    const volBajasTotal = pzasMalas * corteOperacionActiva.volUnitario;
-    const volTotalSalida = volUtilTotal + volBajasTotal;
-
-    if(volTotalSalida > (volBloquesIngresado + 0.05)) {
-        return alert(`❌ IMPOSIBLE:\nIntenta generar ${volTotalSalida.toFixed(2)} M³ de producto, pero los bloques suman ${volBloquesIngresado.toFixed(2)} M³.\nRevise las piezas.`);
-    }
-
-    dbBloques = dbBloques.map(b => {
-        if(bloquesElegidosIds.includes(b.id)) return { ...b, ubicacion: 'PROCESADO', fechaModificado: new Date().toLocaleString() };
-        return b;
-    });
-
-    const mermaPerfiladoYSobranza = Math.max(0, volBloquesIngresado - volTotalSalida);
-    // Inyectar Merma de Máquina directo al Silo de Reciclaje
-    if(window.dbSilos) {
-        const siloRec = dbSilos.find(s => s.id === 'REC');
-        if(siloRec) siloRec.vol += mermaPerfiladoYSobranza;
-    }
-
-    if(pzasMalas > 0) {
-        // Inyectar Piezas Defectuosas (Bajas) al destino elegido
-        if(destinoBajas === 'RECICLAJE' && window.dbSilos) {
-            const siloRec = dbSilos.find(s => s.id === 'REC');
-            if(siloRec) siloRec.vol += volBajasTotal;
-        } else if(dbBancoRetazos[corteOperacionActiva.dens] !== undefined) {
-            dbBancoRetazos[corteOperacionActiva.dens] += volBajasTotal;
-        }
-    }
-
-    const prodCatalogo = products.find(p => p.name === corteOperacionActiva.itemName);
-    if(prodCatalogo) prodCatalogo.stock = (parseInt(prodCatalogo.stock) || 0) + pzasBuenasTotales;
-
-    if(!corteOperacionActiva.isStock) {
-        const cantidadFaltante = corteOperacionActiva.qtyRequerida - pzasBuenasTotales;
-        let ordenParaCerrar = null;
-
-        dbSchedules = dbSchedules.map(s => {
-            if(s.id === corteOperacionActiva.schedId) {
-                if(cantidadFaltante > 0) {
-                    return { ...s, qty: cantidadFaltante, volTotal: Math.max(0, s.volTotal - volUtilTotal) };
-                } else {
-                    ordenParaCerrar = s.orderId;
-                    return { ...s, status: 'FINALIZADO', fabricadoQty: corteOperacionActiva.qtyRequerida };
-                }
-            }
-            return s;
-        });
-
-        // Automatización del Almacén: Mover a INVENTARIO si todo está cortado
-        if(ordenParaCerrar) {
-            const o = orders.find(x => x.id === ordenParaCerrar);
-            if(o) {
-                let todoElPlanCortado = true;
-                dbSchedules.filter(sx => sx.orderId === o.id).forEach(sx => {
-                    if(sx.status !== 'FINALIZADO' && sx.status !== 'COMPLETADO') {
-                        todoElPlanCortado = false;
-                    }
-                });
-
-                if(todoElPlanCortado && o.status === 'PRODUCCION') {
-                    o.status = 'INVENTARIO';
-                }
-            }
-        }
-    }
-
-    // === GUARDAR EN REPORTE DIARIO DE CORTES ===
-    const codigosUsados = dbBloques.filter(b => bloquesElegidosIds.includes(b.id)).map(b => b.codigo).join(', ');
-    const userReg = currentUser ? currentUser.name : 'Sistema';
-    
-    dbReportesCorte.unshift({
-        id: Date.now(), fecha: new Date().toLocaleDateString(), hora: new Date().toLocaleTimeString(),
-        bloques: codigosUsados, item: corteOperacionActiva.itemName, pzas: pzasBuenasTotales,
-        volUtil: volUtilTotal, volReciclaje: destinoBajas === 'RECICLAJE' ? volBajasTotal : 0,
-        volRetazo: destinoBajas === 'RETASO' ? volBajasTotal : 0, mermaPerfilado: mermaPerfiladoYSobranza, operador: userReg
-    });
-
-    save(); localStorage.setItem('plast_products', JSON.stringify(products));
-    cerrarAsistenteCorte(); renderAll(); showToast("Operación realizada con éxito.");
-}
 
 // ==========================================
 // MÓDULO DE DESPACHOS Y TICKETS
