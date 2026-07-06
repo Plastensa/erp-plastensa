@@ -222,6 +222,43 @@
         </div>
     </div>
 
+<!-- MODAL DE EDICIÓN DE CLIENTE -->
+    <div id="edit-client-modal" class="hidden fixed inset-0 bg-slate-900/80 backdrop-blur-sm z-[9999] flex items-center justify-center p-4 no-print">
+        <div class="bg-white rounded-[32px] shadow-2xl w-full max-w-md overflow-hidden">
+            <div class="bg-blue-600 p-6 text-white flex justify-between items-center">
+                <div>
+                    <h3 class="font-black text-xl tracking-tight">Editar Cliente</h3>
+                    <p class="text-[10px] font-bold uppercase tracking-widest text-blue-200 mt-1">Actualización de Datos</p>
+                </div>
+                <button type="button" onclick="document.getElementById('edit-client-modal').classList.add('hidden')" class="text-blue-200 hover:text-white"><i data-lucide="x" class="w-6 h-6"></i></button>
+            </div>
+            <form onsubmit="submitEditClient(event)" class="p-8 space-y-5">
+                <input type="hidden" id="edit-cli-id">
+                <div>
+                    <label class="text-[10px] font-black uppercase text-slate-400 ml-2 block mb-1">Nombre Completo / Empresa</label>
+                    <input type="text" id="edit-cli-name" required class="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl font-bold text-slate-700 outline-none focus:ring-2 focus:ring-blue-500">
+                </div>
+                <div class="grid grid-cols-2 gap-4">
+                    <div>
+                        <label class="text-[10px] font-black uppercase text-slate-400 ml-2 block mb-1">NIT / CI</label>
+                        <input type="text" id="edit-cli-nit" class="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl font-bold text-slate-700 outline-none focus:ring-2 focus:ring-blue-500">
+                    </div>
+                    <div>
+                        <label class="text-[10px] font-black uppercase text-slate-400 ml-2 block mb-1">Celular</label>
+                        <input type="text" id="edit-cli-phone" class="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl font-bold text-slate-700 outline-none focus:ring-2 focus:ring-blue-500">
+                    </div>
+                </div>
+                <div>
+                    <label class="text-[10px] font-black uppercase text-slate-400 ml-2 block mb-1">Vendedor Asignado</label>
+                    <select id="edit-cli-vendedor" class="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl font-bold text-slate-700 outline-none focus:ring-2 focus:ring-blue-500"></select>
+                </div>
+                <button type="submit" class="w-full bg-slate-900 text-white py-4 rounded-2xl font-black shadow-lg hover:bg-blue-600 transition-colors flex justify-center items-center gap-2 mt-2">
+                    <i data-lucide="save" class="w-5 h-5"></i> GUARDAR CAMBIOS
+                </button>
+            </form>
+        </div>
+    </div>
+
     <!-- APP PRINCIPAL -->
     <div id="main-app" class="h-screen flex w-full overflow-hidden bg-slate-50 no-print hidden relative">
         <div id="toast" class="hidden fixed top-4 right-4 z-[100] p-4 rounded-xl shadow-2xl border-l-4 bg-white border-green-500 flex items-center gap-3 transition-opacity duration-300">
@@ -248,7 +285,10 @@
 
             
             <nav class="flex-1 p-6 space-y-1 overflow-y-auto">
-                <p class="px-4 py-2 text-[10px] font-black text-slate-500 uppercase tracking-widest">Comercial</p>
+               <p class="px-4 py-2 text-[10px] font-black text-slate-500 uppercase tracking-widest">Comercial</p>
+                <button onclick="showTab('clientes')" class="nav-btn w-full flex items-center justify-between p-4 rounded-xl transition-all text-slate-400 hover:bg-slate-800 hover:text-slate-200" data-tab="clientes">
+                    <div class="flex items-center gap-4"><i data-lucide="book-user" class="w-5 h-5"></i><span class="font-bold text-xs uppercase tracking-wider">Cartera Clientes</span></div>
+                </button>
                 <button onclick="showTab('catalogo')" class="nav-btn w-full flex items-center justify-between p-4 rounded-xl transition-all text-slate-400 hover:bg-slate-800 hover:text-slate-200" data-tab="catalogo">
                     <div class="flex items-center gap-4"><i data-lucide="tag" class="w-5 h-5"></i><span class="font-bold text-xs uppercase tracking-wider">Productos</span></div>
                 </button>
@@ -1304,7 +1344,7 @@
                             <button onclick="exportarCSV('usuarios')" class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest shadow-md transition-colors flex items-center gap-2"><i data-lucide="download" class="w-4 h-4"></i> Usuarios</button>
                         </div>
                     </div>
-                    <div class="grid lg:grid-cols-3 gap-8">
+                   <div class="grid lg:grid-cols-2 gap-8">
                         <div class="bg-white p-8 rounded-[32px] border border-slate-200 shadow-sm">
                             <h3 class="font-black text-slate-800 uppercase mb-6 flex items-center gap-2"><i data-lucide="user-plus" class="text-blue-600"></i> Nuevo Usuario</h3>
                             <form onsubmit="addIntSeller(event)" class="space-y-4">
@@ -1355,13 +1395,39 @@
                                 <ul id="list-ext" class="space-y-2"></ul>
                             </div>
                         </div>
+                    </div>
+                </div>
 
-                        <div class="bg-white p-8 rounded-[32px] border border-slate-200 shadow-sm flex flex-col">
-                            <h3 class="font-black text-slate-800 uppercase mb-4 flex items-center gap-2"><i data-lucide="book-user" class="text-green-600"></i> Clientes</h3>
-                            <p class="text-xs text-slate-400 font-bold mb-6">Los clientes se registran automáticamente al crear una cotización.</p>
-                            <div class="flex-1 overflow-auto bg-slate-50 rounded-2xl border border-slate-100 p-4 h-[400px]">
-                                <ul id="list-clients" class="space-y-3"></ul>
-                            </div>
+<!-- TAB: CLIENTES -->
+                <div id="tab-clientes" class="tab-content hidden space-y-6">
+                    <div class="flex flex-col md:flex-row justify-between items-center mb-4 gap-4">
+                        <div>
+                            <h2 class="text-3xl font-black uppercase italic text-slate-800">Cartera de Clientes</h2>
+                            <p class="text-xs font-bold text-slate-400 uppercase tracking-widest mt-1">Directorio Comercial Compartido</p>
+                        </div>
+                        <button onclick="exportarCSV('clientes')" class="bg-green-600 text-white px-6 py-4 rounded-2xl font-black flex items-center gap-2 hover:bg-green-700 shadow-lg transition-all text-xs uppercase">
+                            <i data-lucide="file-down" class="w-4 h-4"></i> EXPORTAR LISTA
+                        </button>
+                    </div>
+
+                    <div class="bg-white rounded-[32px] border border-slate-200 shadow-sm overflow-hidden mt-6">
+                        <div class="p-4 bg-slate-50 border-b border-slate-100 flex items-center gap-2">
+                            <i data-lucide="search" class="w-5 h-5 text-slate-400"></i>
+                            <input type="text" id="buscar-clientes-input" onkeyup="renderClientes()" placeholder="Buscar cliente por nombre o NIT..." class="w-full bg-transparent border-none outline-none font-bold text-sm text-slate-700">
+                        </div>
+                        <div class="overflow-x-auto">
+                            <table class="w-full text-left">
+                                <thead class="bg-slate-50 border-b border-slate-100 text-[10px] font-black uppercase text-slate-500 tracking-widest">
+                                    <tr>
+                                        <th class="p-5">Nombre / Empresa</th>
+                                        <th class="p-5">NIT / CI</th>
+                                        <th class="p-5">Celular</th>
+                                        <th class="p-5">Vendedor Asignado</th>
+                                        <th class="p-5 text-center">Acciones</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="clientes-list-body" class="divide-y divide-slate-50"></tbody>
+                            </table>
                         </div>
                     </div>
                 </div>
@@ -2838,7 +2904,7 @@ function iniciarRadar(userEmail) {
 // 3. Matriz Estricta de Roles y Permisos (Intacta)
 function aplicarPermisosVisuales(role) {
     const adminTabs = ['dashboard-gerencial', 'directorio', 'tesoreria-admin', 'salidas-eps', 'log-maestro', 'historial-admin', 'precios-admin', 'transporte','caja-general', 'seguridad'];
-    const comercialTabs = ['catalogo', 'ventas', 'cotizaciones', 'registro-ventas'];
+    const comercialTabs = ['clientes', 'catalogo', 'ventas', 'cotizaciones', 'registro-ventas'];
     const produccionTabs = ['materia-prima', 'expansion', 'bloquera', 'inventario-bloques', 'corte', 'reporte-corte', 'produccion', 'plan-diario', 'inventario'];
     const finanzasTabs = ['tesoreria'];
 
@@ -2971,8 +3037,72 @@ function logout() {
         }
 
         function deleteClient(id) { 
+            if(!confirm("⚠️ ¿Estás seguro de eliminar este cliente?\nSu historial de compras seguirá existiendo, pero se borrará del directorio.")) return;
             dbClients = dbClients.filter(c => c.id !== id); 
-            save(); renderDirectory(); 
+            save(); renderClientes(); showToast("Cliente eliminado.");
+        }
+
+        function renderClientes() {
+            const tbody = document.getElementById('clientes-list-body');
+            if(!tbody) return;
+            
+            const search = document.getElementById('buscar-clientes-input')?.value.toLowerCase() || '';
+            const filtrados = dbClients.filter(c => c.name.toLowerCase().includes(search) || (c.nit && c.nit.toLowerCase().includes(search)));
+
+            // Ordenamos alfabéticamente
+            filtrados.sort((a, b) => a.name.localeCompare(b.name));
+
+            if(filtrados.length === 0) {
+                tbody.innerHTML = `<tr><td colspan="5" class="p-8 text-center text-slate-400 font-bold italic">No se encontraron clientes.</td></tr>`;
+                return;
+            }
+
+            tbody.innerHTML = filtrados.map(c => {
+                // Vendedores y Admin pueden Editar. Solo Admin puede Borrar.
+                const btnEdit = `<button onclick="openEditClientModal('${c.id}')" title="Editar" class="text-blue-500 hover:text-blue-700 bg-blue-50 p-2 rounded-lg transition-colors border border-blue-100 shadow-sm"><i data-lucide="edit-3" class="w-4 h-4"></i></button>`;
+                const btnDelete = (currentUser && currentUser.role === 'ADMIN') ? `<button onclick="deleteClient(${c.id})" title="Eliminar (Solo Admin)" class="text-red-400 hover:text-red-600 bg-red-50 p-2 rounded-lg transition-colors border border-red-100 shadow-sm"><i data-lucide="trash-2" class="w-4 h-4"></i></button>` : '';
+
+                return `
+                <tr class="hover:bg-slate-50 transition-colors border-b border-slate-100">
+                    <td class="p-5 font-black text-sm text-slate-800">${c.name}</td>
+                    <td class="p-5 font-bold text-slate-600">${c.nit || '-'}</td>
+                    <td class="p-5 font-bold text-slate-600">${c.phone || '-'}</td>
+                    <td class="p-5"><span class="bg-slate-100 text-slate-600 px-3 py-1 rounded-lg text-[9px] font-black uppercase tracking-widest border border-slate-200">${c.propietario || 'No Asignado'}</span></td>
+                    <td class="p-5 text-center flex justify-center gap-2">${btnEdit} ${btnDelete}</td>
+                </tr>`;
+            }).join('');
+            if(window.lucide) lucide.createIcons();
+        }
+
+        function openEditClientModal(id) {
+            const c = dbClients.find(x => String(x.id) === String(id));
+            if(!c) return;
+            document.getElementById('edit-cli-id').value = c.id;
+            document.getElementById('edit-cli-name').value = c.name || '';
+            document.getElementById('edit-cli-nit').value = c.nit || '';
+            document.getElementById('edit-cli-phone').value = c.phone || '';
+
+            // Llenar el selector con los vendedores reales de la empresa
+            const selVend = document.getElementById('edit-cli-vendedor');
+            selVend.innerHTML = '<option value="">-- Sin Asignar --</option>' + dbIntSellers.filter(u => u.role === 'ADMIN' || u.role === 'VENDEDOR').map(u => `<option value="${u.name}">${u.name}</option>`).join('');
+            selVend.value = c.propietario || '';
+
+            document.getElementById('edit-client-modal').classList.remove('hidden');
+        }
+
+        function submitEditClient(e) {
+            e.preventDefault();
+            const id = document.getElementById('edit-cli-id').value;
+            const c = dbClients.find(x => String(x.id) === String(id));
+            if(c) {
+                c.name = document.getElementById('edit-cli-name').value.trim();
+                c.nit = document.getElementById('edit-cli-nit').value.trim();
+                c.phone = document.getElementById('edit-cli-phone').value.trim();
+                c.propietario = document.getElementById('edit-cli-vendedor').value;
+                save(); renderClientes();
+                document.getElementById('edit-client-modal').classList.add('hidden');
+                showToast("Datos de cliente actualizados.");
+            }
         }
 
         // ==========================================
@@ -8402,6 +8532,13 @@ function resetDeFabrica() {
     alert("✅ RESTAURACIÓN DE FÁBRICA COMPLETADA.\n\nSilos, Ventas y Bloques han vuelto a 0.");
     window.location.reload();
 }
+
+// Inyectar el renderizado de clientes al ciclo principal
+const prevRenderAllClientes = renderAll;
+renderAll = function() {
+    prevRenderAllClientes();
+    if(typeof renderClientes === 'function') renderClientes();
+};
 
 renderAll();
     </script>
