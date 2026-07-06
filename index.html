@@ -3725,13 +3725,16 @@ function handleFileUpload(e) {
 
             const baseTotal = q.items.reduce((s,i) => s + i.subtotal, 0); 
             
-            // LÓGICA: Subtotal camuflado (incluye transporte, comision y extras)
-            const subtotalProrrateado = baseTotal + (q.trans || 0) + (q.comm || 0) + (q.extra || 0);
+            // LÓGICA: Calculamos el descuento basado en el valor teórico
+            const subtotalTeorico = baseTotal + (q.trans || 0) + (q.comm || 0) + (q.extra || 0);
             const descPorc = q.descuentoPorcentaje || 0;
-            const descMonto = subtotalProrrateado * (descPorc / 100); 
+            const descMonto = subtotalTeorico * (descPorc / 100); 
             
-            // Multiplicador sobre el subtotal camuflado
-            const multiplier = baseTotal > 0 ? (subtotalProrrateado / baseTotal) : 1; 
+            // ABSORCIÓN INVISIBLE: Forzamos que el subtotal cuadre con el Total Final (ya redondeado)
+            const subtotalProrrateado = q.total + descMonto;
+            
+            // Multiplicador exacto sobre el subtotal ajustado
+            const multiplier = baseTotal > 0 ? (subtotalProrrateado / baseTotal) : 1;
             
             let itemsRows = '';
             q.items.forEach(i => { 
