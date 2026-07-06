@@ -408,6 +408,7 @@
                                         <th class="p-4 text-right">Retención IT</th>
                                         <th class="p-4 text-right">Comisión</th>
                                         <th class="p-4 text-right">Transporte</th>
+                                        <th class="p-4 text-right text-indigo-400">Cobro Extra</th>
                                         <th class="p-4 text-center text-red-400">% Desc</th>
                                         <th class="p-4 text-right text-red-400">Desc (Bs)</th>
                                         <th class="p-4 text-right bg-blue-700">Total Venta</th>
@@ -1571,14 +1572,18 @@
                                 </div>
                             </div>
 
-                            <div class="grid grid-cols-2 gap-6 pt-4">
+                            <div class="grid grid-cols-3 gap-4 pt-4">
                                 <div>
-                                    <label class="text-[10px] font-black uppercase text-slate-400 tracking-widest block mb-2 pl-2">Transporte a Obra (Bs)</label>
+                                    <label class="text-[10px] font-black uppercase text-slate-400 tracking-widest block mb-2 pl-2">Transporte (Bs)</label>
                                     <input type="number" id="inp-trans" value="0" class="w-full p-4 rounded-2xl border border-slate-200 bg-white font-black text-xl outline-none focus:ring-2 focus:ring-slate-300" oninput="calculateFinals()"/>
                                 </div>
                                 <div>
-                                    <label class="text-[10px] font-black uppercase text-orange-400 tracking-widest block mb-2 pl-2">Comisión Solicitada (Bs)</label>
+                                    <label class="text-[10px] font-black uppercase text-orange-400 tracking-widest block mb-2 pl-2">Comisión (Bs)</label>
                                     <input type="number" id="inp-comm" value="0" class="w-full p-4 rounded-2xl border border-orange-200 bg-orange-50 font-black text-xl text-orange-600 outline-none focus:ring-2 focus:ring-orange-300" oninput="calculateFinals()"/>
+                                </div>
+                                <div>
+                                    <label class="text-[10px] font-black uppercase text-indigo-500 tracking-widest block mb-2 pl-2">Cobro Extra (Bs)</label>
+                                    <input type="number" id="inp-extra" value="0" class="w-full p-4 rounded-2xl border border-indigo-200 bg-indigo-50 font-black text-xl text-indigo-600 outline-none focus:ring-2 focus:ring-indigo-300" oninput="calculateFinals()" title="Este cobro se suma al precio final sin que el cliente lo vea."/>
                                 </div>
                             </div>
 
@@ -3212,10 +3217,11 @@ function handleFileUpload(e) {
             const bt = cart.reduce((s, i) => s + i.subtotal, 0); 
             const t = parseFloat(document.getElementById('inp-trans').value)||0; 
             const c = parseFloat(document.getElementById('inp-comm').value)||0; 
+            const ex = parseFloat(document.getElementById('inp-extra').value)||0; 
             const dPct = parseFloat(document.getElementById('inp-desc').value)||0;
 
-            // NUEVA LÓGICA: El subtotal para el cliente (con transporte y comisión prorrateados)
-            const subtotalProrrateado = bt + t + c;
+            // NUEVA LÓGICA: El subtotal para el cliente (con transporte, comisión y cobro extra prorrateados)
+            const subtotalProrrateado = bt + t + c + ex;
             
             // El descuento se calcula sobre ese subtotal camuflado
             const montoDescuento = subtotalProrrateado * (dPct / 100);
@@ -3358,8 +3364,9 @@ function handleFileUpload(e) {
         type: currentType, items: JSON.parse(JSON.stringify(cart)), 
         volGlobalCotizacion: globalCartVol,
         trans: parseFloat(document.getElementById('inp-trans').value)||0, 
-        comm: grossComm, 
-        retencion: retencionCalculada, 
+        comm: grossComm, // Comision Bruta
+        extra: parseFloat(document.getElementById('inp-extra').value)||0, 
+        retencion: retencionCalculada, // NUEVO: Guardamos la retención aplicada
         total: totalFinal, date: new Date().toLocaleDateString()
     };
     
@@ -3385,6 +3392,7 @@ function handleFileUpload(e) {
     document.getElementById('cot-vendedor').value = '';
     document.getElementById('inp-trans').value = 0; 
     document.getElementById('inp-comm').value = 0;
+    document.getElementById('inp-extra').value = 0;
     document.getElementById('inp-desc').value = 0;
     if(document.getElementById('inp-justificacion')) document.getElementById('inp-justificacion').value = '';
     if(document.getElementById('inp-notas')) document.getElementById('inp-notas').value = '';
@@ -3717,8 +3725,8 @@ function handleFileUpload(e) {
 
             const baseTotal = q.items.reduce((s,i) => s + i.subtotal, 0); 
             
-            // LÓGICA: Subtotal camuflado (incluye transporte y comision)
-            const subtotalProrrateado = baseTotal + (q.trans || 0) + (q.comm || 0);
+            // LÓGICA: Subtotal camuflado (incluye transporte, comision y extras)
+            const subtotalProrrateado = baseTotal + (q.trans || 0) + (q.comm || 0) + (q.extra || 0);
             const descPorc = q.descuentoPorcentaje || 0;
             const descMonto = subtotalProrrateado * (descPorc / 100); 
             
@@ -4138,7 +4146,7 @@ function autoFillConsumo() {
 }   
 
 function exportVentasCSV() {
-            let csv = "FECHA,N ORDEN,NIT/CI,NOMBRE CLIENTE,TOTAL VENTA EPS,IT,COMISION VENDEDOR,TRANSPORTE,PORCENTAJE DESC (%),DESCUENTO (Bs),TOTAL VENTA,C/F O S/F,VENDEDOR INTERNO,VENDEDOR EXTERNO,M3 TOTALES,METODO PAGO,ESTADO PAGO\n";
+            let csv = "FECHA,N ORDEN,NIT/CI,NOMBRE CLIENTE,TOTAL VENTA EPS,IT,COMISION VENDEDOR,TRANSPORTE,COBRO EXTRA,PORCENTAJE DESC (%),DESCUENTO (Bs),TOTAL VENTA,C/F O S/F,VENDEDOR INTERNO,VENDEDOR EXTERNO,M3 TOTALES,METODO PAGO,ESTADO PAGO\n";
             
             const selectMes = document.getElementById('filter-reg-mes').value;
             const selectVend = document.getElementById('filter-reg-vendedor').value;
@@ -4180,12 +4188,12 @@ function exportVentasCSV() {
                 const vInt = (o.vendedorInterno || '').replace(/,/g, '');
 
                 // CÁLCULO DE DESCUENTO
-                const subtotalProrrateado = baseTotal + (o.trans || 0) + (o.comm || 0);
+                const subtotalProrrateado = baseTotal + (o.trans || 0) + (o.comm || 0) + (o.extra || 0);
                 const descPorc = o.descuentoPorcentaje || 0;
                 const descMonto = subtotalProrrateado * (descPorc / 100);
 
-                // Ahora enviamos 'it' (Retención), 'comisionNeta' y descuentos al CSV
-                csv += `${o.date},${o.id},${o.nit || ''},${cName},${baseTotal.toFixed(2)},${it.toFixed(2)},${comisionNeta.toFixed(2)},${(o.trans || 0).toFixed(2)},${descPorc},${descMonto.toFixed(2)},${o.total.toFixed(2)},${o.type === 'CF' ? 'C/F' : 'S/F'},${vInt},${vExt},${(o.volGlobalCotizacion || 0).toFixed(2)},${metodosStr},${o.estadoPago}\n`;
+               // Ahora enviamos 'it' (Retención), 'comisionNeta' y descuentos al CSV
+                csv += `${o.date},${o.id},${o.nit || ''},${cName},${baseTotal.toFixed(2)},${it.toFixed(2)},${comisionNeta.toFixed(2)},${(o.trans || 0).toFixed(2)},${(o.extra || 0).toFixed(2)},${descPorc},${descMonto.toFixed(2)},${o.total.toFixed(2)},${o.type === 'CF' ? 'C/F' : 'S/F'},${vInt},${vExt},${(o.volGlobalCotizacion || 0).toFixed(2)},${metodosStr},${o.estadoPago}\n`;
             });
             
             const link = document.createElement("a");
@@ -4817,7 +4825,7 @@ renderAll = function() {
                 const comisionNeta = (o.comm || 0) - it;
 
                 // CÁLCULO DE DESCUENTO
-                const subtotalProrrateado = baseTotal + (o.trans || 0) + (o.comm || 0);
+                const subtotalProrrateado = baseTotal + (o.trans || 0) + (o.comm || 0) + (o.extra || 0);
                 const descPorc = o.descuentoPorcentaje || 0;
                 const descMonto = subtotalProrrateado * (descPorc / 100);
 
@@ -4835,6 +4843,7 @@ renderAll = function() {
                         <td class="p-4 text-right font-medium text-red-500">Bs ${it.toFixed(2)}</td>
                         <td class="p-4 text-right font-black text-orange-600 bg-orange-50/30">Bs ${comisionNeta.toFixed(2)}</td>
                         <td class="p-4 text-right font-medium text-slate-500">Bs ${(o.trans || 0).toFixed(2)}</td>
+                        <td class="p-4 text-right font-black text-indigo-600 bg-indigo-50/30">Bs ${(o.extra || 0).toFixed(2)}</td>
                         <td class="p-4 text-center font-bold text-red-500 bg-red-50/30">${descPorc > 0 ? descPorc + '%' : '-'}</td>
                         <td class="p-4 text-right font-bold text-red-500 bg-red-50/30">${descMonto > 0 ? '- Bs ' + descMonto.toFixed(2) : '-'}</td>
                         <td class="p-4 text-right font-black text-green-600 bg-green-50/30">Bs ${o.total.toFixed(2)}</td>
@@ -7568,6 +7577,7 @@ function editQuote(id) {
     if(document.getElementById('cot-mapa')) document.getElementById('cot-mapa').value = q.mapa || '';
     document.getElementById('inp-trans').value = q.trans || 0;
     document.getElementById('inp-comm').value = q.comm || 0;
+    document.getElementById('inp-extra').value = q.extra || 0;
     document.getElementById('inp-desc').value = q.descuentoPorcentaje || 0;
     if(document.getElementById('inp-justificacion')) document.getElementById('inp-justificacion').value = q.justificacionDesc || '';
     if(document.getElementById('inp-notas')) document.getElementById('inp-notas').value = q.notasComerciales || '';
