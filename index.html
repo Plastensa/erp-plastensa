@@ -4505,12 +4505,6 @@ function renderSalidasEPS() {
                     </div>
                 </li>
             `).join('');
-            document.getElementById('list-clients').innerHTML = dbClients.map(c => `
-                <li class="p-4 bg-white rounded-2xl border border-slate-100 shadow-sm flex justify-between items-center">
-                    <div class="truncate"><p class="font-black text-slate-800 text-sm">${c.name}</p><p class="text-[10px] text-slate-400 font-bold uppercase mt-1">NIT: ${c.nit || 'S/N'} | CEL: ${c.phone || 'S/N'}</p></div>
-                    <button onclick="deleteClient(${c.id})" class="text-red-300 hover:text-red-500 p-2"><i data-lucide="trash-2" class="w-4 h-4"></i></button>
-                </li>
-            `).sort().join('');
         }
 
         function renderCatalogList(filterText = '') {
