@@ -2840,7 +2840,8 @@ function iniciarRadar(userEmail) {
             dbMpTipos = data.dbMpTipos ? JSON.parse(data.dbMpTipos) : [];
             dbExpansion = data.dbExpansion ? JSON.parse(data.dbExpansion) : { jarritas: [], consumos: [] };
             dbPreciosBase = data.dbPreciosBase ? JSON.parse(data.dbPreciosBase) : { ajusteGlobal: 0, matriz: [] };
-            dbBancoRetazos = data.dbBancoRetazos ? JSON.parse(data.dbBancoRetazos) : { D8: 0, D10: 0, D13: 0, D15: 0, D20: 0 };
+            let tempRetazos = data.dbBancoRetazos ? JSON.parse(data.dbBancoRetazos) : null;
+            dbBancoRetazos = (!tempRetazos || Array.isArray(tempRetazos)) ? { D8: 0, D10: 0, D13: 0, D15: 0, D20: 0 } : tempRetazos;
             dbReportesCorte = data.dbReportesCorte ? JSON.parse(data.dbReportesCorte) : [];
             dbDespachos = data.dbDespachos ? JSON.parse(data.dbDespachos) : [];
             dbBloques = data.dbBloques ? JSON.parse(data.dbBloques) : [];
@@ -8498,7 +8499,7 @@ function resetDeFabrica() {
     dbDespachos = [];
     dbMovimientosCaja = [];
     dbReportesCorte = [];
-    dbBancoRetazos = [];
+    dbBancoRetazos = { D8: 0, D10: 0, D13: 0, D15: 0, D20: 0 };
     dbSchedules = [];
     
     // 2. Vaciamos historiales de planta
