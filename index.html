@@ -1080,10 +1080,17 @@
                                 </div>
                             </div>
                             <div class="bg-white p-6 rounded-[32px] border border-slate-200 shadow-sm flex flex-col min-h-[400px]">
-                                <div class="flex justify-between items-center border-b border-slate-100 pb-4 mb-4">
+                               <div class="flex justify-between items-center border-b border-slate-100 pb-4 mb-4">
                                     <h3 class="font-black text-slate-800 uppercase text-sm flex items-center gap-2"><i data-lucide="clipboard-list" class="text-red-500 w-5 h-5"></i> Órdenes de Hoy</h3>
                                     <button onclick="iniciarCorteStock()" class="bg-red-50 text-red-600 px-3 py-1.5 rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-red-100 transition-colors border border-red-100 shadow-sm">+ CORTE STOCK</button>
                                 </div>
+                                
+                                <!-- NUEVO FILTRO DE BÚSQUEDA -->
+                                <div class="mb-4 relative">
+                                    <i data-lucide="search" class="absolute left-3 top-3 w-4 h-4 text-slate-400"></i>
+                                    <input type="text" id="filtro-corte-ordenes" onkeyup="renderSalaCorte(); if(window.lucide) lucide.createIcons();" placeholder="Buscar producto, cliente u orden..." class="w-full pl-9 pr-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl font-bold text-xs text-slate-700 outline-none focus:ring-2 focus:ring-red-500 transition-all">
+                                </div>
+
                                 <div id="corte-ordenes-list" class="space-y-3 flex-1 overflow-auto pr-2"></div>
                             </div>
                         </div>
@@ -6417,9 +6424,10 @@ function renderSalaCorte() {
     if(bloquesDisponibles.length === 0) {
         tbodyBloques.innerHTML = `<tr><td colspan="5" class="p-6 text-center font-bold text-slate-400 italic">No hay bloques en sala de corte. Envíalos desde "Inv. Bloques".</td></tr>`;
     } else {
+        // NOTA: Se corrigió un error visual de tu código original donde había doble <td><td>
         tbodyBloques.innerHTML = bloquesDisponibles.map(b => `
             <tr class="hover:bg-slate-50 border-b border-slate-100 cursor-pointer transition-colors">
-                <td class="p-3 pl-4"><td class="p-3 pl-4"><input type="checkbox" id="corte-chk-${b.id}" class="w-4 h-4 cursor-pointer" onchange="calcVolCorteDin()"></td></td>
+                <td class="p-3 pl-4 text-center"><input type="checkbox" id="corte-chk-${b.id}" class="w-4 h-4 cursor-pointer" onchange="calcVolCorteDin()"></td>
                 <td class="p-3 font-black text-slate-800 text-xs">${b.codigo}</td>
                 <td class="p-3 font-bold text-slate-600 text-xs">${b.tipo} | <span class="text-indigo-600">${b.densFinal}</span></td>
                 <td class="p-3 text-right font-black text-blue-600 text-xs">${Number(b.volNeto).toFixed(2)} M³</td>
@@ -6428,15 +6436,35 @@ function renderSalaCorte() {
         `).join('');
     }
     
-// 2. Filtro Anti-Errores: Mostrar TODO lo que no esté 100% finalizado
-    const pendingSchedules = dbSchedules.filter(s => s.status !== 'FINALIZADO' && s.status !== 'COMPLETADO').sort((a, b) => {
+    // 2. Filtro Anti-Errores: Mostrar TODO lo que no esté 100% finalizado
+    let pendingSchedules = dbSchedules.filter(s => s.status !== 'FINALIZADO' && s.status !== 'COMPLETADO').sort((a, b) => {
         return new Date(a.date) - new Date(b.date);
     });
+
+    // --- NUEVO: FILTRO POR BÚSQUEDA EN TARJETAS ---
+    const searchOrdenes = document.getElementById('filtro-corte-ordenes') ? document.getElementById('filtro-corte-ordenes').value.toLowerCase() : '';
+    if(searchOrdenes) {
+        pendingSchedules = pendingSchedules.filter(s => {
+            const o = orders.find(x => x.id === s.orderId);
+            if(!o) return false;
+            const item = o.items[s.itemIdx];
+            if(!item) return false;
+            
+            const matchClient = o.client.toLowerCase().includes(searchOrdenes);
+            const matchItem = item.name.toLowerCase().includes(searchOrdenes);
+            const matchOrder = o.id.toLowerCase().includes(searchOrdenes);
+            
+            return matchClient || matchItem || matchOrder;
+        });
+    }
     
+    // --- MAGIA DEL MULTI-CORTE: BOTÓN OCULTO ---
+    let btnMultiHtml = `<button id="btn-multi-corte" onclick="iniciarCorteMulti()" class="hidden w-full mb-3 bg-red-600 text-white p-3 rounded-xl font-black text-xs shadow-lg hover:bg-red-700 transition-colors uppercase tracking-widest flex justify-center items-center gap-2"><i data-lucide="layers" class="w-4 h-4"></i> CORTAR SELECCIONADOS (<span id="count-multi-corte">0</span>)</button>`;
+
     if(pendingSchedules.length === 0) {
         listOrdenes.innerHTML = `<div class="p-6 text-center font-bold text-slate-400 italic border-2 border-dashed border-slate-200 rounded-2xl">No hay órdenes pendientes.</div>`;
     } else {
-        listOrdenes.innerHTML = pendingSchedules.map(s => {
+        listOrdenes.innerHTML = btnMultiHtml + pendingSchedules.map(s => {
             const o = orders.find(x => x.id === s.orderId);
             const item = o ? o.items[s.itemIdx] : null;
             if(!item) return '';
@@ -6449,33 +6477,38 @@ function renderSalaCorte() {
             const borderClass = esVencido ? 'border-red-500 bg-red-50 shadow-md' : 'border-slate-200 bg-white';
             const tagVencido = esVencido ? `<span class="bg-red-600 text-white animate-pulse px-2 py-1 rounded text-[9px] font-black uppercase tracking-widest ml-2">¡VENCIDO!</span>` : '';
 
+            // --- MAGIA DEL MULTI-CORTE: CHECKBOX EN LA TARJETA ---
             return `
-            <div class="${borderClass} border p-4 rounded-xl hover:border-red-400 transition-all cursor-pointer group" onclick="iniciarCortePedido(${s.id})">
-                <div class="flex justify-between items-center mb-2">
-                    <div>
-                        <span class="text-[10px] font-black uppercase bg-slate-900 text-white px-2 py-1 rounded-md shadow-sm">${s.date}</span>
-                        ${tagVencido}
-                    </div>
-                    <span class="text-[10px] font-bold text-slate-400 uppercase">Ord: ${o.id}</span>
+            <div class="${borderClass} border p-4 rounded-xl hover:border-red-400 transition-all group relative">
+                <div class="absolute top-3 right-3 z-10">
+                    <input type="checkbox" value="${s.id}" class="multi-sched-chk w-5 h-5 cursor-pointer accent-red-600 shadow-sm" onchange="toggleMultiCorteBtn()">
                 </div>
-                <p class="font-black text-slate-800 text-sm mb-1 group-hover:text-red-600 transition-colors">${item.name}</p>
-                ${item.obs ? `<div class="mt-2 p-1.5 bg-yellow-100 border border-yellow-300 text-yellow-800 text-[9px] font-black uppercase rounded shadow-sm"><i data-lucide="scissors" class="w-3 h-3 inline mr-1"></i>${item.obs}</div>` : ''}
-                <div class="flex justify-between items-end mt-3">
-                    <p class="text-[10px] font-black text-slate-500 truncate max-w-[150px] uppercase">${o.client}</p>
-                    <div class="text-right">
-                        <p class="font-black text-red-600 text-lg leading-none">${s.qty} <span class="text-[10px] text-slate-400 uppercase">Pzas</span></p>
-                        <p class="text-[9px] font-bold text-slate-400 mt-1">${Number(s.volTotal).toFixed(2)} M³</p>
+                <div class="cursor-pointer pr-8" onclick="iniciarCortePedido(${s.id})">
+                    <div class="flex justify-between items-center mb-2">
+                        <div>
+                            <span class="text-[10px] font-black uppercase bg-slate-900 text-white px-2 py-1 rounded-md shadow-sm">${s.date}</span>
+                            ${tagVencido}
+                        </div>
+                    </div>
+                    <p class="font-black text-slate-800 text-sm mb-1 group-hover:text-red-600 transition-colors">${item.name}</p>
+                    ${item.obs ? `<div class="mt-2 p-1.5 bg-yellow-100 border border-yellow-300 text-yellow-800 text-[9px] font-black uppercase rounded shadow-sm"><i data-lucide="scissors" class="w-3 h-3 inline mr-1"></i>${item.obs}</div>` : ''}
+                    <div class="flex justify-between items-end mt-3">
+                        <p class="text-[10px] font-black text-slate-500 truncate max-w-[130px] uppercase">${o.client} <br><span class="text-[8px]">Ord: ${o.id}</span></p>
+                        <div class="text-right">
+                            <p class="font-black text-red-600 text-lg leading-none">${s.qty} <span class="text-[10px] text-slate-400 uppercase">Pzas</span></p>
+                            <p class="text-[9px] font-bold text-slate-400 mt-1">${Number(s.volTotal).toFixed(2)} M³</p>
+                        </div>
                     </div>
                 </div>
             </div>`;
         }).join('');
     }
 
-  // 3. Renderizar Banco de Retazos
+    // 3. Renderizar Banco de Retazos
     const densidades = ['D8', 'D10', 'D13', 'D15', 'D20'];
     let htmlRetazos = densidades.map(dens => {
         // Forzamos a que si el valor no existe o es undefined, sea 0.00
-        const valor = dbBancoRetazos[dens] || 0;
+        const valor = Number(dbBancoRetazos[dens]) || 0;
         return `
         <div class="bg-slate-800 p-2 rounded-xl border border-slate-700 text-center shadow-inner flex flex-col justify-center">
             <p class="text-[9px] font-black text-slate-400 uppercase tracking-widest">${dens}</p>
@@ -6498,7 +6531,6 @@ function renderSalaCorte() {
     dashRetazos.innerHTML = htmlRetazos;
 }
 
-
 // Variables de control de la operación en curso
 let corteOperacionActiva = null;
 let corteCart = []; // EL CARRITO
@@ -6517,6 +6549,7 @@ function iniciarCortePedido(scheduleId) {
         schedId: scheduleId,
         orderId: ord.id,
         isStock: false,
+        isMulti: false, // <-- AÑADIDO PARA EVITAR ERRORES
         itemName: item.name,
         qtyRequerida: sched.qty,
         obs: item.obs || '',
@@ -6530,7 +6563,9 @@ function iniciarCortePedido(scheduleId) {
         qtyBuenas: sched.qty,
         qtyMalas: 0,
         isMainOrder: true,
-        obs: item.obs || ''
+        obs: item.obs || '',
+        // <-- AÑADIDA LA MEMORIA OCULTA PARA QUE FUNCIONE IGUAL QUE EL MULTI-CORTE
+        targets: [{ schedId: scheduleId, orderId: ord.id, qtyRequerida: sched.qty, client: ord.client }]
     }];
 
     abrirPanelAsistente(`ORDEN: ${ord.id} - ${ord.client}`);
@@ -6542,13 +6577,84 @@ function iniciarCorteStock() {
     abrirPanelAsistente("CORTE PARA STOCK GENERAL");
 }
 
+function toggleMultiCorteBtn() {
+    const checkboxes = document.querySelectorAll('.multi-sched-chk:checked');
+    const btn = document.getElementById('btn-multi-corte');
+    const countSpan = document.getElementById('count-multi-corte');
+    
+    if(btn && countSpan) {
+        if(checkboxes.length > 1) {
+            countSpan.innerText = checkboxes.length;
+            btn.classList.remove('hidden');
+        } else {
+            btn.classList.add('hidden');
+        }
+    }
+}
+
+function iniciarCorteMulti() {
+    const checkboxes = document.querySelectorAll('.multi-sched-chk:checked');
+    if(checkboxes.length < 2) return;
+
+    corteOperacionActiva = {
+        isStock: false,
+        isMulti: true, 
+        titulo: 'Corte Consolidado (Varios Pedidos)'
+    };
+
+    corteCart = [];
+    let fusionMapa = {}; // Licuadora: agrupa items iguales
+
+    checkboxes.forEach(cb => {
+        const schedId = parseInt(cb.value);
+        const sched = dbSchedules.find(s => s.id === schedId);
+        if(!sched) return;
+        const ord = orders.find(o => o.id === sched.orderId);
+        const item = ord ? ord.items[sched.itemIdx] : null;
+        if(!item) return;
+
+        const match = item.name.match(/^([A-Z]+)(\d+|SR)/);
+        const densRequerida = match ? (match[2] === 'SR' ? 'SR' : 'D' + match[2]) : 'D8';
+        const volUnitCalc = sched.volTotal / sched.qty;
+
+        // Llave única (Para que mezcle solo los que son exactamente iguales)
+        const fusionKey = `${item.name}-${densRequerida}-${item.obs || ''}`;
+
+        if(!fusionMapa[fusionKey]) {
+            fusionMapa[fusionKey] = {
+                name: item.name, dens: densRequerida, volUnit: volUnitCalc,
+                qtyBuenas: 0, qtyMalas: 0, isMainOrder: true, obs: item.obs || '',
+                targets: [] // Memoria oculta de a quién le pertenece cada pieza
+            };
+        }
+        
+        fusionMapa[fusionKey].qtyBuenas += sched.qty;
+        fusionMapa[fusionKey].targets.push({
+            schedId: schedId, orderId: ord.id, qtyRequerida: sched.qty, client: ord.client
+        });
+    });
+
+    Object.values(fusionMapa).forEach(grupo => corteCart.push(grupo));
+    abrirPanelAsistente(`CONSOLIDADO: ${checkboxes.length} PEDIDOS`);
+}
+
 function abrirPanelAsistente(titulo = "CORTE PARA STOCK GENERAL") {
     const panel = document.getElementById('panel-ejecucion-corte');
     panel.classList.remove('hidden');
     
     const opcionesProductos = products.map(p => `<option value="${p.name}">${p.name}</option>`).join('');
     
-    const subTitulo = corteOperacionActiva.isStock ? "Añade ítems a la bodega" : `Pedido Requerido: <span class="text-red-600 font-black px-2 bg-red-50 rounded">${corteOperacionActiva.qtyRequerida} PZAS</span>`;
+    // --- LÓGICA PARA EL SUBTÍTULO ---
+    let subTitulo = "Añade ítems a la bodega";
+    if (!corteOperacionActiva.isStock) {
+        if (corteOperacionActiva.isMulti) {
+            subTitulo = "Varios pedidos consolidados en 1 solo corte";
+        } else {
+            subTitulo = `Pedido Requerido: <span class="text-red-600 font-black px-2 bg-red-50 rounded">${corteOperacionActiva.qtyRequerida} PZAS</span>`;
+        }
+    }
+    // ---------------------------------
+
     const obsAlert = (!corteOperacionActiva.isStock && corteOperacionActiva.obs) ? `<div class="p-4 bg-red-100 border-2 border-red-500 rounded-2xl text-red-700 text-sm font-black uppercase mb-4 shadow-sm">⚠️ CORTE ESPECIAL:<br><span class="text-xl block mt-2 text-center bg-white rounded-xl p-2">${corteOperacionActiva.obs}</span></div>` : '';
 
     panel.innerHTML = `
