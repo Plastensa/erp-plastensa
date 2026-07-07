@@ -248,9 +248,18 @@
                         <input type="text" id="edit-cli-phone" class="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl font-bold text-slate-700 outline-none focus:ring-2 focus:ring-blue-500">
                     </div>
                 </div>
-                <div>
-                    <label class="text-[10px] font-black uppercase text-slate-400 ml-2 block mb-1">Vendedor Asignado</label>
-                    <select id="edit-cli-vendedor" class="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl font-bold text-slate-700 outline-none focus:ring-2 focus:ring-blue-500"></select>
+               <div class="grid grid-cols-2 gap-4">
+                    <div>
+                        <label class="text-[10px] font-black uppercase text-slate-400 ml-2 block mb-1">Vendedor Asignado</label>
+                        <select id="edit-cli-vendedor" class="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl font-bold text-slate-700 outline-none focus:ring-2 focus:ring-blue-500"></select>
+                    </div>
+                    <div>
+                        <label class="text-[10px] font-black uppercase text-slate-400 ml-2 block mb-1">Categoría de Precio</label>
+                        <select id="edit-cli-tipo-precio" class="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl font-bold text-slate-700 outline-none focus:ring-2 focus:ring-blue-500">
+                            <option value="REGULAR">Regular (Por Volumen Real)</option>
+                            <option value="MAYORISTA_1">Mayorista Nivel 1 (30-80 M³)</option>
+                        </select>
+                    </div>
                 </div>
                 <button type="submit" class="w-full bg-slate-900 text-white py-4 rounded-2xl font-black shadow-lg hover:bg-blue-600 transition-colors flex justify-center items-center gap-2 mt-2">
                     <i data-lucide="save" class="w-5 h-5"></i> GUARDAR CAMBIOS
@@ -3073,9 +3082,10 @@ function logout() {
                 const btnEdit = `<button onclick="openEditClientModal('${c.id}')" title="Editar" class="text-blue-500 hover:text-blue-700 bg-blue-50 p-2 rounded-lg transition-colors border border-blue-100 shadow-sm"><i data-lucide="edit-3" class="w-4 h-4"></i></button>`;
                 const btnDelete = (currentUser && currentUser.role === 'ADMIN') ? `<button onclick="deleteClient(${c.id})" title="Eliminar (Solo Admin)" class="text-red-400 hover:text-red-600 bg-red-50 p-2 rounded-lg transition-colors border border-red-100 shadow-sm"><i data-lucide="trash-2" class="w-4 h-4"></i></button>` : '';
 
+                const badge = c.tipoPrecio === 'MAYORISTA_1' ? '<span class="bg-purple-100 text-purple-700 px-2 py-0.5 rounded text-[8px] font-black uppercase ml-2 border border-purple-200">Mayorista N1</span>' : '';
                 return `
                 <tr class="hover:bg-slate-50 transition-colors border-b border-slate-100">
-                    <td class="p-5 font-black text-sm text-slate-800">${c.name}</td>
+                    <td class="p-5 font-black text-sm text-slate-800">${c.name} ${badge}</td>
                     <td class="p-5 font-bold text-slate-600">${c.nit || '-'}</td>
                     <td class="p-5 font-bold text-slate-600">${c.phone || '-'}</td>
                     <td class="p-5"><span class="bg-slate-100 text-slate-600 px-3 py-1 rounded-lg text-[9px] font-black uppercase tracking-widest border border-slate-200">${c.propietario || 'No Asignado'}</span></td>
@@ -3097,6 +3107,7 @@ function logout() {
             const selVend = document.getElementById('edit-cli-vendedor');
             selVend.innerHTML = '<option value="">-- Sin Asignar --</option>' + dbIntSellers.filter(u => u.role === 'ADMIN' || u.role === 'VENDEDOR').map(u => `<option value="${u.name}">${u.name}</option>`).join('');
             selVend.value = c.propietario || '';
+	    document.getElementById('edit-cli-tipo-precio').value = c.tipoPrecio || 'REGULAR';
 
             document.getElementById('edit-client-modal').classList.remove('hidden');
         }
@@ -3110,6 +3121,7 @@ function logout() {
                 c.nit = document.getElementById('edit-cli-nit').value.trim();
                 c.phone = document.getElementById('edit-cli-phone').value.trim();
                 c.propietario = document.getElementById('edit-cli-vendedor').value;
+		c.tipoPrecio = document.getElementById('edit-cli-tipo-precio').value;
                 save(); renderClientes();
                 document.getElementById('edit-client-modal').classList.add('hidden');
                 showToast("Datos de cliente actualizados.");
@@ -3129,6 +3141,12 @@ function logout() {
                 dd.classList.remove('hidden'); 
             } 
         }
+	
+	function esClienteMayorista() {
+            const n = document.getElementById('cot-client').value.trim().toLowerCase(); 
+            const c = dbClients.find(x => x.name.toLowerCase() === n); 
+            return c && c.tipoPrecio === 'MAYORISTA_1';
+        }	
 
         function selectClientForCot(id) { 
             const c = dbClients.find(x => x.id.toString() === id.toString()); 
@@ -3137,6 +3155,8 @@ function logout() {
                 document.getElementById('cot-nit').value = c.nit || ''; 
                 document.getElementById('cot-phone').value = c.phone || ''; 
                 document.getElementById('client-dropdown').classList.add('hidden'); 
+		recalculateCart();
+                if(currentSelected) updateAdderMath();
             } 
         }
 
@@ -3147,6 +3167,8 @@ function logout() {
                 document.getElementById('cot-nit').value = c.nit || ''; 
                 document.getElementById('cot-phone').value = c.phone || ''; 
             } 
+	    recalculateCart();
+                if(currentSelected) updateAdderMath();
             filterClientDropdown(); 
         }
 
@@ -3280,8 +3302,17 @@ function handleFileUpload(e) {
             
             let p = 0; 
             let tierName = '';
+            const esMayorista = esClienteMayorista();
             
-            if(sv<=29) { p=currentType==='CF'?Number(currentSelected.pCF1):Number(currentSelected.pSF1); tierName='Tarifa 1 a 29 M3'; }
+            if(sv<=29) { 
+                if(esMayorista) {
+                    p=currentType==='CF'?Number(currentSelected.pCF2):Number(currentSelected.pSF2); 
+                    tierName='Tarifa 30 a 80 M3 (Beneficio Mayorista)';
+                } else {
+                    p=currentType==='CF'?Number(currentSelected.pCF1):Number(currentSelected.pSF1); 
+                    tierName='Tarifa 1 a 29 M3'; 
+                }
+            }
             else if(sv<=80) { p=currentType==='CF'?Number(currentSelected.pCF2):Number(currentSelected.pSF2); tierName='Tarifa 30 a 80 M3'; }
             else { p=currentType==='CF'?Number(currentSelected.pCF3):Number(currentSelected.pSF3); tierName='Tarifa Mayor a 80 M3'; }
             
@@ -3340,15 +3371,20 @@ function handleFileUpload(e) {
 
         function recalculateCart() { 
             const cv = cart.reduce((s, i) => s + i.volTotal, 0); 
+            const esMayorista = esClienteMayorista();
             cart.forEach(item => { 
                 const p = products.find(prod => prod.id === item.prodId); 
                 if(p) { 
-                    if(cv <= 29) item.unitPrice = currentType === 'CF' ? Number(p.pCF1||0) : Number(p.pSF1||0); 
+                    if(cv <= 29) {
+                        item.unitPrice = currentType === 'CF' ? 
+                            (esMayorista ? Number(p.pCF2||0) : Number(p.pCF1||0)) : 
+                            (esMayorista ? Number(p.pSF2||0) : Number(p.pSF1||0));
+                    }
                     else if(cv <= 80) item.unitPrice = currentType === 'CF' ? Number(p.pCF2||0) : Number(p.pSF2||0); 
                     else item.unitPrice = currentType === 'CF' ? Number(p.pCF3||0) : Number(p.pSF3||0); 
                     item.subtotal = item.qty * item.unitPrice; 
                 } 
-            }); 
+            });
             document.getElementById('lbl-total-vol').innerText = `${cv.toFixed(2)} M3`; 
             calculateFinals(); 
             renderCart(); 
