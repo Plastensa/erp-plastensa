@@ -205,7 +205,7 @@
                     </div>
                     <div>
                         <label class="text-[10px] font-black uppercase text-slate-400 ml-2 block mb-1">Vol. Unitario (M3)</label>
-                        <input type="number" step="0.001" id="edit-item-vol-unit-input" required class="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl font-bold text-slate-700 outline-none focus:ring-2 focus:ring-indigo-500" oninput="updateEditMath()">
+                        <input type="number" step="0.001" id="edit-item-vol-unit-input" readonly class="w-full px-4 py-3 bg-slate-100 border border-slate-200 rounded-xl font-bold text-slate-400 outline-none cursor-not-allowed">
                     </div>
                 </div>
 
@@ -3627,11 +3627,19 @@ function handleFileUpload(e) {
                 let oldVolTotal = targetOrder.items[idx] ? targetOrder.items[idx].volTotal : 0;
                 const newVolTotal = qty * volUnit;
                 const simulatedGlobalVol = targetOrder.volGlobalCotizacion - oldVolTotal + newVolTotal;
-                
-                let price = targetOrder.items[idx].unitPrice; 
+               
+		let price = targetOrder.items[idx].unitPrice; 
                 
                 if(editSelectedProduct) {
-                    if(simulatedGlobalVol <= 29) price = type === 'CF' ? Number(editSelectedProduct.pCF1) : Number(editSelectedProduct.pSF1);
+                    // Verificar si el cliente es mayorista
+                    const clienteData = dbClients.find(c => c.name.toLowerCase() === targetOrder.client.toLowerCase());
+                    const esMayorista = clienteData && clienteData.tipoPrecio === 'MAYORISTA_1';
+
+                    if(simulatedGlobalVol <= 29) {
+                        price = type === 'CF' ? 
+                            (esMayorista ? Number(editSelectedProduct.pCF2) : Number(editSelectedProduct.pCF1)) : 
+                            (esMayorista ? Number(editSelectedProduct.pSF2) : Number(editSelectedProduct.pSF1));
+                    }
                     else if(simulatedGlobalVol <= 80) price = type === 'CF' ? Number(editSelectedProduct.pCF2) : Number(editSelectedProduct.pSF2);
                     else price = type === 'CF' ? Number(editSelectedProduct.pCF3) : Number(editSelectedProduct.pSF3);
                 }
@@ -3683,9 +3691,21 @@ function handleFileUpload(e) {
     
     target.items[idx].subtotal = parseFloat(document.getElementById('edit-item-subtotal-input').value);
 
-    const baseItemsTotal = target.items.reduce((s, i) => s + i.subtotal, 0);
-    target.total = baseItemsTotal + (target.trans || 0) + (target.comm || 0);
+   const baseItemsTotal = target.items.reduce((s, i) => s + i.subtotal, 0);
     target.volGlobalCotizacion = target.items.reduce((s, i) => s + i.volTotal, 0);
+
+    // LA LICUADORA MATEMÁTICA RESTAURADA:
+    const trans = target.trans || 0;
+    const comm = target.comm || 0;
+    const extra = target.extra || 0;
+    const descPorc = target.descuentoPorcentaje || 0;
+
+    const subtotalTeorico = baseItemsTotal + trans + comm + extra;
+    const descMonto = subtotalTeorico * (descPorc / 100);
+    const totalBruto = subtotalTeorico - descMonto;
+    
+    // Redondeo al entero superior (para no perder centavos)
+    target.total = Math.ceil(totalBruto);
 
     if(source === 'orders') {
         target.saldo = target.total - (target.montoPagado || 0);
@@ -3695,7 +3715,11 @@ function handleFileUpload(e) {
         db.collection("cotizaciones").doc(String(target.id).replace(/\//g, '-')).set(target);
     }
 
-    closeEditItemModal(); showToast("Pedido actualizado estrictamente.");
+    // Refrescamos TODO el sistema para que Tesorería, Salidas EPS, etc. se actualicen visualmente
+    save(); 
+    renderAll(); 
+    closeEditItemModal(); 
+    showToast("Pedido actualizado y sincronizado en todos los módulos.");
 }
 
         // ==========================================
@@ -3724,8 +3748,26 @@ function handleFileUpload(e) {
 
         function submitPayment(e) {
             e.preventDefault();
+            const orderId = document.getElementById('pay-quote-id').value;
+            const isAbono = document.getElementById('pay-is-abono').value === 'true';
+
+            // NUEVO: Limpiar flag de rechazo previo al enviar un nuevo intento de pago
+            if (!isAbono) {
+                const q = quotes.find(x => String(x.id) === String(orderId));
+                if (q && q.pagoRechazado) { 
+                    q.pagoRechazado = false; 
+                    db.collection("cotizaciones").doc(String(q.id).replace(/\//g, '-')).set(q); 
+                }
+            } else {
+                const o = orders.find(x => String(x.id) === String(orderId));
+                if (o && o.pagoRechazado) { 
+                    o.pagoRechazado = false; 
+                    db.collection("pedidos").doc(String(o.id).replace(/\//g, '-')).set(o); 
+                }
+            }
+
             dbPendingVerifications.push({
-                id: Date.now(), orderId: document.getElementById('pay-quote-id').value, isAbono: document.getElementById('pay-is-abono').value === 'true', 
+                id: Date.now(), orderId: orderId, isAbono: isAbono, 
                 amount: parseFloat(document.getElementById('pay-amount').value), account: document.getElementById('pay-account').value, 
                 date: new Date().toLocaleDateString(), vendor: currentUser.name
             });
@@ -3767,7 +3809,15 @@ function handleFileUpload(e) {
             db.collection("pedidos").doc(String(o.id).replace(/\//g, '-')).set(o);
         }
         showToast('Ingreso aprobado y convertido a pedido real.');
-    } else { 
+   } else { 
+        // NUEVA LÓGICA: Marcar el rechazo en la base de datos
+        if(!p.isAbono) {
+            const q = quotes.find(x => String(x.id).trim() === String(p.orderId).trim());
+            if (q) { q.pagoRechazado = true; db.collection("cotizaciones").doc(String(q.id).replace(/\//g, '-')).set(q); }
+        } else {
+            const o = orders.find(x => String(x.id).trim() === String(p.orderId).trim());
+            if (o) { o.pagoRechazado = true; db.collection("pedidos").doc(String(o.id).replace(/\//g, '-')).set(o); }
+        }
         showToast('Ingreso rechazado.'); 
     }
     
@@ -4682,13 +4732,29 @@ function renderSalidasEPS() {
             bgClass = 'bg-red-50/30 opacity-90';
             estadoHTML = `<span class="bg-red-100 text-red-600 px-3 py-1.5 rounded-xl text-[10px] font-black uppercase shadow-sm border border-red-200"><i data-lucide="alert-octagon" class="w-3 h-3 inline mr-1 -mt-0.5"></i> Vencida</span>`;
             actionButtons = `<button onclick="cerrarCotizacion('${q.id}')" class="bg-red-600 hover:bg-red-700 text-white px-4 py-2.5 rounded-xl text-[10px] font-black shadow-md transition-colors flex items-center justify-center w-full gap-1"><i data-lucide="x-circle" class="w-3 h-3"></i> MARCAR PERDIDA</button>`;
-        } else {
-            estadoHTML = `<span class="bg-green-100 text-green-700 px-3 py-1.5 rounded-xl text-[10px] font-black uppercase shadow-sm border border-green-200"><i data-lucide="check-circle-2" class="w-3 h-3 inline mr-1 -mt-0.5"></i> Vigente</span>${alertaSeguimiento}`;
+       } else {
+            // VERIFICAR SI ESTÁ EN TESORERÍA O RECHAZADO
+            const isPending = dbPendingVerifications.some(p => String(p.orderId) === String(q.id) && !p.isAbono);
+            let badgesExtra = alertaSeguimiento;
+            
+            if (isPending) {
+                badgesExtra += `<span class="bg-blue-100 text-blue-700 px-3 py-1.5 rounded-xl text-[10px] font-black uppercase shadow-sm border border-blue-200 ml-2 animate-pulse"><i data-lucide="clock" class="w-3 h-3 inline mr-1 -mt-0.5"></i> En Tesorería</span>`;
+            } else if (q.pagoRechazado) {
+                badgesExtra += `<span class="bg-red-100 text-red-700 px-3 py-1.5 rounded-xl text-[10px] font-black uppercase shadow-sm border border-red-200 ml-2"><i data-lucide="x-circle" class="w-3 h-3 inline mr-1 -mt-0.5"></i> Rechazado</span>`;
+            }
+
+            estadoHTML = `<span class="bg-green-100 text-green-700 px-3 py-1.5 rounded-xl text-[10px] font-black uppercase shadow-sm border border-green-200"><i data-lucide="check-circle-2" class="w-3 h-3 inline mr-1 -mt-0.5"></i> Vigente</span>${badgesExtra}`;
+            
+            // LÓGICA DEL BOTÓN PAGAR
+            const btnPagarColor = isPending ? 'bg-slate-400 cursor-not-allowed' : 'bg-green-500 hover:bg-green-600';
+            const btnPagarClick = isPending ? '' : `onclick="openPaymentModal('${q.id}', false)"`;
+            const btnPagarTexto = isPending ? 'ENVIADO' : 'PAGAR';
+
             actionButtons = `
                 <button onclick="editQuote('${q.id}')" title="Editar" class="bg-yellow-500 hover:bg-yellow-600 text-white px-2.5 py-2.5 rounded-xl text-[10px] font-black shadow-md transition-colors flex items-center justify-center"><i data-lucide="edit-3" class="w-3.5 h-3.5"></i></button>
                 <button onclick="printQuote('${q.id}')" title="PDF" class="bg-slate-800 hover:bg-slate-700 text-white px-2.5 py-2.5 rounded-xl text-[10px] font-black shadow-md transition-colors flex items-center justify-center"><i data-lucide="printer" class="w-3.5 h-3.5"></i></button>
                 <button onclick="aprobarCredito('${q.id}')" title="Aprobar a Crédito Cero" class="bg-cyan-600 hover:bg-cyan-700 text-white px-3 py-2.5 rounded-xl text-[10px] font-black shadow-md transition-colors flex flex-1 items-center justify-center gap-1"><i data-lucide="handshake" class="w-3 h-3"></i> CRÉDITO</button>
-                <button onclick="openPaymentModal('${q.id}', false)" title="Pagar Anticipo" class="bg-green-500 hover:bg-green-600 text-white px-3 py-2.5 rounded-xl text-[10px] font-black shadow-md transition-colors flex flex-1 items-center justify-center gap-1"><i data-lucide="wallet" class="w-3 h-3"></i> PAGAR</button>
+                <button ${btnPagarClick} title="Pagar Anticipo" class="${btnPagarColor} text-white px-3 py-2.5 rounded-xl text-[10px] font-black shadow-md transition-colors flex flex-1 items-center justify-center gap-1"><i data-lucide="wallet" class="w-3 h-3"></i> ${btnPagarTexto}</button>
             `;
         }
 
