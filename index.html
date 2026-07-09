@@ -6919,10 +6919,14 @@ function calcVolCorteDin() {
 
     const diff = volBloques - volTotalSalida;
 
+    // ---> AQUÍ ESTÁ LA NUEVA MAGIA: Calculamos la tolerancia dinámica por bloque <---
+    const toleranciaGlobal = countSeleccionados * 0.17; 
+
     document.getElementById('lbl-vol-in').innerText = volBloques.toFixed(3) + ' M³';
     document.getElementById('lbl-vol-out').innerText = volTotalSalida.toFixed(3) + ' M³';
     
-    if(diff < -0.1) {
+    // ---> Y AQUÍ APLICAMOS ESA TOLERANCIA DINÁMICA <---
+    if(diff < -toleranciaGlobal) { 
         lblDiff.innerText = diff.toFixed(3) + ' M³ (ERROR)';
         lblDiff.className = "text-base font-black text-red-500";
     } else if (diff < 0) {
@@ -7001,9 +7005,12 @@ function procesarEjecucionCorte() {
 
     const volTotalSalida = volUtilTotal + volBajasTotal;
     const diff = volBloquesIngresado - volTotalSalida;
+    
+    // NUEVO: Calculamos la tolerancia basándonos en los bloques realmente seleccionados
+    const toleranciaGlobal = bloquesElegidosIds.length * 0.17;
 
-    if(diff < -0.1) {
-        return alert(`❌ IMPOSIBLE: Los bloques suman ${volBloquesIngresado.toFixed(2)} M³, pero genera ${volTotalSalida.toFixed(2)} M³.`);
+    if(diff < -toleranciaGlobal) {
+        return alert(`❌ IMPOSIBLE: Los bloques suman ${volBloquesIngresado.toFixed(2)} M³, pero intenta generar ${volTotalSalida.toFixed(2)} M³.\n\nTolerancia máxima permitida para ${bloquesElegidosIds.length} bloques: ${toleranciaGlobal.toFixed(2)} M³ de excedente.`);
     }
 
     const destinoBajas = document.getElementById('corte-destino-bajas').value;
