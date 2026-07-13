@@ -104,11 +104,6 @@
                     <input type="number" id="pay-amount" step="0.01" required class="w-full px-4 py-4 bg-white border-2 border-blue-100 rounded-xl font-black text-2xl text-blue-600 outline-none focus:border-blue-500">
                 </div>
 
-<div>
-                    <label class="text-[10px] font-black uppercase text-blue-500 ml-2 tracking-widest block mb-2"><i data-lucide="image" class="w-3 h-3 inline mr-1"></i> Comprobante (Obligatorio)</label>
-                    <input type="file" id="pay-comprobante" accept="image/*" required class="w-full px-4 py-3 bg-blue-50 border border-blue-200 rounded-xl font-bold text-slate-700 outline-none focus:ring-2 focus:ring-blue-500">
-                </div>
-
                 <div>
                     <label class="text-[10px] font-black uppercase text-slate-400 ml-2 tracking-widest block mb-2">Cuenta Destino</label>
                     <select id="pay-account" required class="w-full px-4 py-4 bg-slate-50 border border-slate-200 rounded-xl font-bold text-slate-700 outline-none focus:ring-2 focus:ring-blue-500">
@@ -2400,17 +2395,6 @@
     </div>
 </div>
 
-<!-- MODAL VER COMPROBANTE -->
-    <div id="comprobante-modal" class="hidden fixed inset-0 bg-slate-900/90 backdrop-blur-sm z-[10000] flex items-center justify-center p-4 no-print">
-        <div class="bg-white rounded-[32px] p-4 w-full max-w-lg shadow-2xl relative">
-            <button type="button" onclick="document.getElementById('comprobante-modal').classList.add('hidden')" class="absolute -top-4 -right-4 bg-red-600 text-white p-3 rounded-full shadow-lg hover:bg-red-700 transition-transform hover:scale-110"><i data-lucide="x" class="w-6 h-6"></i></button>
-            <h3 class="font-black text-slate-800 text-center mb-4 uppercase tracking-widest text-xs">Comprobante de Pago</h3>
-            <div class="max-h-[75vh] overflow-y-auto rounded-2xl border border-slate-200 bg-slate-50 p-2">
-                <img id="comprobante-img" src="" class="w-full rounded-xl">
-            </div>
-        </div>
-    </div>
-
     <!-- VISTA INVISIBLE PARA IMPRESIÓN -->
     <div id="quote-print-view" class="print-only p-10 bg-white min-h-screen"></div>
 
@@ -3763,110 +3747,92 @@ function handleFileUpload(e) {
 
         function closePaymentModal() { document.getElementById('payment-modal').classList.add('hidden'); }
 
-function compressImage(file, callback) {
-            const reader = new FileReader();
-            reader.readAsDataURL(file);
-            reader.onload = event => {
-                const img = new Image();
-                img.src = event.target.result;
-                img.onload = () => {
-                    const canvas = document.createElement('canvas');
-                    const MAX_WIDTH = 600;
-                    const scaleSize = MAX_WIDTH / img.width;
-                    canvas.width = MAX_WIDTH;
-                    canvas.height = img.height * scaleSize;
-                    const ctx = canvas.getContext('2d');
-                    ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
-                    callback(canvas.toDataURL('image/jpeg', 0.6)); // Comprime al 60% para que no pese
-                };
-            };
-        }
-
-        function submitPayment(e) {
+function submitPayment(e) {
             e.preventDefault();
-            const btnSubmit = e.target.querySelector('button[type="submit"]');
-            btnSubmit.disabled = true;
-            btnSubmit.innerHTML = "PROCESANDO FOTO Y LIBERANDO PLANTA...";
+            const orderId = document.getElementById('pay-quote-id').value;
+            const isAbono = document.getElementById('pay-is-abono').value === 'true';
+            const amount = parseFloat(document.getElementById('pay-amount').value);
+            const account = document.getElementById('pay-account').value;
+            const idPago = Date.now();
 
-            const fileInput = document.getElementById('pay-comprobante');
-            if(!fileInput.files[0]) return alert("El comprobante es obligatorio.");
+            const pagoObj = {
+                idPago: idPago, fecha: new Date().toLocaleDateString(),
+                monto: amount, cuenta: account, 
+                verificado: false, // Entra en estado de REVISIÓN
+                tesorero: currentUser.name
+            };
 
-            compressImage(fileInput.files[0], (base64Img) => {
-                const orderId = document.getElementById('pay-quote-id').value;
-                const isAbono = document.getElementById('pay-is-abono').value === 'true';
-                const amount = parseFloat(document.getElementById('pay-amount').value);
-                const account = document.getElementById('pay-account').value;
-                
-                const pagoObj = {
-                    idPago: Date.now(), fecha: new Date().toLocaleDateString(),
-                    monto: amount, cuenta: account, verificado: false, // Entra como NO AUDITADO
-                    tesorero: currentUser.name, comprobante: base64Img
+            let finalOrderId = orderId;
+
+            if (!isAbono) {
+                const q = quotes.find(x => String(x.id).trim() === String(orderId).trim());
+                if (!q) return alert("Cotización no encontrada");
+
+                const nuevoPedidoId = generarCorrelativoPedido(); 
+                finalOrderId = nuevoPedidoId;
+
+                const newOrder = { 
+                    ...q, id: nuevoPedidoId, quoteReference: q.id, date: new Date().toLocaleDateString(), 
+                    status: 'PRODUCCION', montoPagado: amount, saldo: q.total - amount, 
+                    pagos: [pagoObj], estadoPago: (q.total - amount) <= 0 ? 'COMPLETO' : 'PARCIAL', pagoRechazado: false
                 };
+                
+                db.collection("pedidos").doc(String(newOrder.id).replace(/\//g, '-')).set(newOrder);
+                db.collection("cotizaciones").doc(String(q.id).replace(/\//g, '-')).delete();
+                quotes = quotes.filter(x => x.id !== q.id); 
+                orders.unshift(newOrder);
+            } else {
+                const o = orders.find(x => String(x.id).trim() === String(orderId).trim());
+                if (!o) return alert("Pedido no encontrado");
+                if (!o.pagos) o.pagos = [];
+                
+                if (o.pagoRechazado) o.pagoRechazado = false; // Limpia alertas pasadas
 
-                if(!isAbono) {
-                    const q = quotes.find(x => String(x.id).trim() === String(orderId).trim());
-                    if(!q) { btnSubmit.disabled = false; return alert("Cotización no encontrada"); }
-
-                    const nuevoPedidoId = generarCorrelativoPedido(); 
-                    const newOrder = { 
-                        ...q, id: nuevoPedidoId, quoteReference: q.id, date: new Date().toLocaleDateString(), 
-                        status: 'PRODUCCION', montoPagado: amount, saldo: q.total - amount, 
-                        pagos: [pagoObj], estadoPago: (q.total - amount) <= 0 ? 'COMPLETO' : 'PARCIAL', pagoRechazado: false
-                    };
-                    db.collection("pedidos").doc(String(newOrder.id).replace(/\//g, '-')).set(newOrder);
-                    db.collection("cotizaciones").doc(String(q.id).replace(/\//g, '-')).delete();
-                    quotes = quotes.filter(x => x.id !== q.id); orders.unshift(newOrder);
-                } else {
-                    const o = orders.find(x => String(x.id).trim() === String(orderId).trim());
-                    if(!o) { btnSubmit.disabled = false; return alert("Pedido no encontrado"); }
-                    if(!o.pagos) o.pagos = [];
-                    o.pagos.push(pagoObj);
-                    o.montoPagado = (o.montoPagado || 0) + amount; o.saldo = o.total - o.montoPagado; 
-                    o.estadoPago = o.saldo <= 0 ? 'COMPLETO' : 'PARCIAL'; o.pagoRechazado = false;
-                    db.collection("pedidos").doc(String(o.id).replace(/\//g, '-')).set(o);
-                }
-
-                save(); closePaymentModal(); renderAll(); 
-                showToast('Pago registrado. Producción liberada.');
-                e.target.reset();
-                btnSubmit.disabled = false; btnSubmit.innerHTML = `<i data-lucide="check-circle-2" class="w-5 h-5"></i> ENVIAR A VERIFICACIÓN`;
-            });
-        }
-
-        function verComprobante(imgStr) {
-            document.getElementById('comprobante-img').src = imgStr;
-            document.getElementById('comprobante-modal').classList.remove('hidden');
-        }
-
-        function auditarPago(orderId, idPago) {
-            if(!confirm("¿Confirmas que el dinero YA ESTÁ en la cuenta del banco?")) return;
-            const o = orders.find(x => x.id === orderId);
-            if(o) {
-                const pago = o.pagos.find(p => p.idPago === idPago);
-                if(pago) {
-                    pago.verificado = true;
-                    db.collection("pedidos").doc(String(o.id).replace(/\//g, '-')).set(o);
-                    save(); renderAll(); showToast("Pago verificado y auditado exitosamente.");
-                }
+                o.pagos.push(pagoObj);
+                o.montoPagado = (o.montoPagado || 0) + amount; 
+                o.saldo = o.total - o.montoPagado; 
+                o.estadoPago = o.saldo <= 0 ? 'COMPLETO' : 'PARCIAL'; 
+                
+                db.collection("pedidos").doc(String(o.id).replace(/\//g, '-')).set(o);
             }
+
+            dbPendingVerifications.push({
+                id: idPago, orderId: finalOrderId, isAbono: isAbono, 
+                amount: amount, account: account, date: new Date().toLocaleDateString(), vendor: currentUser.name
+            });
+
+            save(); closePaymentModal(); e.target.reset(); renderAll(); 
+            showToast('Pago registrado. Planta y Despacho liberados (En Revisión).');
         }
 
-        function revertirPago(orderId, idPago) {
-            if(!confirm("⚠️ ¿Estás seguro de REVERTIR y rechazar este pago?\nEl cliente volverá a tener deuda, se bloqueará el despacho y el vendedor recibirá una alerta roja.")) return;
-            const o = orders.find(x => x.id === orderId);
-            if(o) {
-                const pagoIndex = o.pagos.findIndex(p => p.idPago === idPago);
+        function verifyPayment(pId, approve) {
+            const p = dbPendingVerifications.find(x => String(x.id) === String(pId));
+            if(!p) return;
+            
+            const o = orders.find(x => String(x.id) === String(p.orderId));
+            if(!o) return alert("❌ Error: El pedido no existe.");
+
+            if(approve) {
+                const pago = o.pagos.find(pg => String(pg.idPago) === String(p.id));
+                if(pago) pago.verificado = true;
+                db.collection("pedidos").doc(String(o.id).replace(/\//g, '-')).set(o);
+                showToast('Ingreso auditado. Dinero en Caja.');
+            } else {
+                const pagoIndex = o.pagos.findIndex(pg => String(pg.idPago) === String(p.id));
                 if(pagoIndex > -1) {
                     const montoRestado = o.pagos[pagoIndex].monto;
                     o.pagos.splice(pagoIndex, 1);
                     o.montoPagado -= montoRestado;
                     o.saldo = o.total - o.montoPagado;
                     o.estadoPago = o.saldo <= 0 ? 'COMPLETO' : 'PARCIAL';
-                    o.pagoRechazado = true; // Lanza la mancha roja al vendedor
-                    db.collection("pedidos").doc(String(o.id).replace(/\//g, '-')).set(o);
-                    save(); renderAll(); showToast("Pago revertido por falta de fondos.");
+                    o.pagoRechazado = true; 
                 }
+                db.collection("pedidos").doc(String(o.id).replace(/\//g, '-')).set(o);
+                showToast('Pago revertido. Semáforos bloqueados.'); 
             }
+            
+            dbPendingVerifications = dbPendingVerifications.filter(x => String(x.id) !== String(pId));
+            save(); renderAll();
         }
 
 
@@ -4982,14 +4948,13 @@ renderAll = function() {
     showToast('Aprobado a crédito. Nuevo pedido en producción: ' + nuevoPedidoId);
     renderAll();
 }
-        function renderTesoreriaAdmin() {
+       function renderTesoreriaAdmin() {
             const container = document.getElementById('verificacion-list');
             let html = '';
             
             orders.forEach(o => {
                 if(o.pagos && o.pagos.length > 0) {
                     o.pagos.filter(p => !p.verificado).forEach(p => {
-                        const btnFoto = p.comprobante ? `<button onclick="verComprobante('${p.comprobante}')" class="flex-1 md:flex-none bg-slate-100 text-slate-700 px-4 py-3 rounded-xl font-black text-xs hover:bg-slate-200 transition-colors flex items-center justify-center gap-2 border border-slate-300 shadow-sm"><i data-lucide="eye" class="w-4 h-4"></i> VER FOTO</button>` : '';
                         html += `
                         <div class="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm flex flex-col md:flex-row justify-between items-center gap-4">
                             <div>
@@ -4998,9 +4963,8 @@ renderAll = function() {
                                 <p class="text-xl font-black text-green-600 mt-1">Bs ${p.monto.toFixed(2)} <span class="text-sm text-slate-500 font-bold">a</span> ${p.cuenta}</p>
                             </div>
                             <div class="flex flex-wrap gap-2 w-full md:w-auto justify-center">
-                                ${btnFoto}
-                                <button onclick="revertirPago('${o.id}', ${p.idPago})" class="flex-1 md:flex-none bg-red-50 text-red-600 px-6 py-3 rounded-xl font-black text-xs hover:bg-red-100 transition-colors shadow-sm">REVERTIR</button>
-                                <button onclick="auditarPago('${o.id}', ${p.idPago})" class="flex-1 md:flex-none bg-green-600 text-white px-8 py-3 rounded-xl font-black text-xs shadow-lg shadow-green-200 hover:bg-green-700 transition-all"><i data-lucide="check" class="w-4 h-4 inline mr-1"></i> AUDITADO (OK)</button>
+                                <button onclick="verifyPayment(${p.idPago}, false)" class="flex-1 md:flex-none bg-red-50 text-red-600 px-6 py-3 rounded-xl font-black text-xs hover:bg-red-100 transition-colors shadow-sm">RECHAZAR</button>
+                                <button onclick="verifyPayment(${p.idPago}, true)" class="flex-1 md:flex-none bg-green-600 text-white px-8 py-3 rounded-xl font-black text-xs shadow-lg shadow-green-200 hover:bg-green-700 transition-all"><i data-lucide="check" class="w-4 h-4 inline mr-1"></i> AUDITADO (OK)</button>
                             </div>
                         </div>`;
                     });
@@ -5050,7 +5014,14 @@ renderAll = function() {
             list.sort((a, b) => (b.saldo || 0) - (a.saldo || 0));
 
             document.getElementById('tesoreria-list').innerHTML = list.map(o => {
-                const statusColor = o.estadoPago === 'COMPLETO' ? 'bg-green-100 text-green-700' : 'bg-orange-100 text-orange-700';
+               const tieneSinVerificar = o.pagos && o.pagos.some(p => !p.verificado);
+                let statusBadgeText = o.estadoPago === 'COMPLETO' ? 'PAGADO' : 'NO PAGADO';
+                let statusColor = o.estadoPago === 'COMPLETO' ? 'bg-green-100 text-green-700 border-green-200' : 'bg-red-100 text-red-700 border-red-200';
+                
+                if (tieneSinVerificar) { 
+                    statusBadgeText = 'EN REVISIÓN'; 
+                    statusColor = 'bg-yellow-100 text-yellow-700 border-yellow-300'; 
+                }
                 
                 let historialHtml = '<ul class="space-y-1 mt-2">';
                 if(o.pagoRechazado) {
@@ -5071,7 +5042,7 @@ renderAll = function() {
                     <td class="p-5 align-top text-right font-black text-slate-800">Bs ${o.total.toFixed(2)}</td>
                     <td class="p-5 align-top text-right font-bold text-green-600">Bs ${(o.montoPagado || 0).toFixed(2)}</td>
                     <td class="p-5 align-top text-right font-black text-red-500">Bs ${(o.saldo || 0).toFixed(2)}</td>
-                    <td class="p-5 align-top text-left"><span class="px-2 py-1 rounded-lg text-[10px] font-black uppercase tracking-widest ${statusColor}">${o.estadoPago}</span>${historialHtml}</td>
+                   <td class="p-5 align-top text-left"><span class="px-2 py-1 rounded-lg text-[10px] font-black uppercase tracking-widest border ${statusColor}">${statusBadgeText}</span>${historialHtml}</td>
                     <td class="p-5 align-top text-right">${(o.saldo || 0) > 0 ? `<button onclick="openPaymentModal('${o.id}', true)" class="bg-slate-900 text-white px-4 py-2 rounded-lg text-xs font-black shadow-md hover:bg-slate-800 flex items-center justify-center gap-1 ml-auto"><i data-lucide="plus-circle" class="w-3 h-3"></i> ABONAR</button>` : `<div class="w-full flex justify-end"><i data-lucide="check-circle" class="w-6 h-6 text-green-500"></i></div>`}</td>
                 </tr>`;
             }).join('');
@@ -5130,7 +5101,15 @@ renderAll = function() {
 
                 const typeBadge = o.type === 'CF' ? `<span class="bg-green-500 text-white px-2 py-1 rounded text-[10px] font-black">C/F</span>` : `<span class="bg-slate-200 text-slate-600 px-2 py-1 rounded text-[10px] font-black">S/F</span>`;
                 let metodosStr = o.pagos?.length ? [...new Set(o.pagos.map(p => p.cuenta))].join(', ') : 'PENDIENTE';
-                const payStatusBadge = o.estadoPago === 'COMPLETO' ? `<span class="bg-green-100 text-green-700 px-2 py-1 rounded text-[9px] font-black uppercase">COMPLETO</span>` : `<span class="bg-red-100 text-red-600 px-2 py-1 rounded text-[9px] font-black uppercase">PENDIENTE</span>`;
+                const tieneSinVerificar = o.pagos && o.pagos.some(p => !p.verificado);
+                let payStatusBadge = '';
+                if (tieneSinVerificar) {
+                    payStatusBadge = `<span class="bg-yellow-100 text-yellow-700 px-2 py-1 rounded text-[9px] font-black uppercase tracking-widest shadow-sm block w-max mx-auto border border-yellow-200">EN REVISIÓN</span>`;
+                } else if (o.estadoPago === 'COMPLETO') {
+                    payStatusBadge = `<span class="bg-green-100 text-green-700 px-2 py-1 rounded text-[9px] font-black uppercase tracking-widest shadow-sm block w-max mx-auto border border-green-200">COMPLETO</span>`;
+                } else {
+                    payStatusBadge = `<span class="bg-red-100 text-red-600 px-2 py-1 rounded text-[9px] font-black uppercase tracking-widest shadow-sm block w-max mx-auto border border-red-200">NO PAGADO</span>`;
+                }
 
                 html += `
                     <tr class="hover:bg-slate-50 transition-colors border-b border-slate-100">
@@ -7688,9 +7667,16 @@ function renderFormularioDespacho() {
         infoBolsillo = `<div class="ml-4 bg-slate-50 px-3 py-2 rounded-xl border border-slate-200 text-right"><p class="text-[9px] font-black text-slate-400 uppercase tracking-widest">Bolsillo Flete</p><p class="font-black ${colorPpto} text-xs">Disp: Bs ${saldoTransporte.toFixed(2)}</p></div>`;
     }
 
-    if (saldo <= 0) {
+    const tieneSinVerificar = o.pagos && o.pagos.some(p => !p.verificado);
+
+    if (saldo <= 0 && !tieneSinVerificar) {
         semaforo.className = "px-4 py-2 rounded-xl font-black text-xs uppercase tracking-widest border bg-green-100 text-green-700 border-green-200 flex items-center gap-2";
         semaforo.innerHTML = "PAGADO - OK" + infoBolsillo;
+        btnEjecutar.disabled = false; btnEjecutar.classList.remove('opacity-50', 'cursor-not-allowed');
+        alertaPago.classList.add('hidden');
+    } else if (saldo <= 0 && tieneSinVerificar) {
+        semaforo.className = "px-4 py-2 rounded-xl font-black text-xs uppercase tracking-widest border bg-yellow-100 text-yellow-700 border-yellow-300 flex items-center gap-2 animate-pulse";
+        semaforo.innerHTML = "EN REVISIÓN (VÍA LIBRE)" + infoBolsillo;
         btnEjecutar.disabled = false; btnEjecutar.classList.remove('opacity-50', 'cursor-not-allowed');
         alertaPago.classList.add('hidden');
     } else if (forzadoPorAdmin) {
