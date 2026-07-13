@@ -222,6 +222,51 @@
         </div>
     </div>
 
+<!-- MODAL NUEVO CLIENTE -->
+    <div id="new-client-modal" class="hidden fixed inset-0 bg-slate-900/80 backdrop-blur-sm z-[9999] flex items-center justify-center p-4 no-print">
+        <div class="bg-white rounded-[32px] shadow-2xl w-full max-w-md overflow-hidden">
+            <div class="bg-blue-600 p-6 text-white flex justify-between items-center">
+                <div>
+                    <h3 class="font-black text-xl tracking-tight">Nuevo Cliente</h3>
+                    <p class="text-[10px] font-bold uppercase tracking-widest text-blue-200 mt-1">Registro Manual</p>
+                </div>
+                <button type="button" onclick="document.getElementById('new-client-modal').classList.add('hidden')" class="text-blue-200 hover:text-white"><i data-lucide="x" class="w-6 h-6"></i></button>
+            </div>
+            <form onsubmit="submitNewClient(event)" class="p-8 space-y-5">
+                <div>
+                    <label class="text-[10px] font-black uppercase text-slate-400 ml-2 block mb-1">Nombre Completo / Empresa</label>
+                    <input type="text" id="new-cli-name" required class="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl font-bold text-slate-700 outline-none focus:ring-2 focus:ring-blue-500">
+                </div>
+                <div class="grid grid-cols-2 gap-4">
+                    <div>
+                        <label class="text-[10px] font-black uppercase text-slate-400 ml-2 block mb-1">NIT / CI</label>
+                        <input type="text" id="new-cli-nit" class="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl font-bold text-slate-700 outline-none focus:ring-2 focus:ring-blue-500">
+                    </div>
+                    <div>
+                        <label class="text-[10px] font-black uppercase text-slate-400 ml-2 block mb-1">Celular</label>
+                        <input type="text" id="new-cli-phone" class="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl font-bold text-slate-700 outline-none focus:ring-2 focus:ring-blue-500">
+                    </div>
+                </div>
+               <div class="grid grid-cols-2 gap-4">
+                    <div>
+                        <label class="text-[10px] font-black uppercase text-slate-400 ml-2 block mb-1">Vendedor Asignado</label>
+                        <select id="new-cli-vendedor" class="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl font-bold text-slate-700 outline-none focus:ring-2 focus:ring-blue-500"></select>
+                    </div>
+                    <div>
+                        <label class="text-[10px] font-black uppercase text-slate-400 ml-2 block mb-1">Categoría de Precio</label>
+                        <select id="new-cli-tipo-precio" class="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl font-bold text-slate-700 outline-none focus:ring-2 focus:ring-blue-500">
+                            <option value="REGULAR">Regular (Por Volumen Real)</option>
+                            <option value="MAYORISTA_1">Mayorista Nivel 1 (30-80 M³)</option>
+                        </select>
+                    </div>
+                </div>
+                <button type="submit" class="w-full bg-slate-900 text-white py-4 rounded-2xl font-black shadow-lg hover:bg-blue-600 transition-colors flex justify-center items-center gap-2 mt-2">
+                    <i data-lucide="user-plus" class="w-5 h-5"></i> REGISTRAR CLIENTE
+                </button>
+            </form>
+        </div>
+    </div>
+
 <!-- MODAL DE EDICIÓN DE CLIENTE -->
     <div id="edit-client-modal" class="hidden fixed inset-0 bg-slate-900/80 backdrop-blur-sm z-[9999] flex items-center justify-center p-4 no-print">
         <div class="bg-white rounded-[32px] shadow-2xl w-full max-w-md overflow-hidden">
@@ -1419,14 +1464,19 @@
 
 <!-- TAB: CLIENTES -->
                 <div id="tab-clientes" class="tab-content hidden space-y-6">
-                    <div class="flex flex-col md:flex-row justify-between items-center mb-4 gap-4">
+                   <div class="flex flex-col md:flex-row justify-between items-center mb-4 gap-4">
                         <div>
                             <h2 class="text-3xl font-black uppercase italic text-slate-800">Cartera de Clientes</h2>
                             <p class="text-xs font-bold text-slate-400 uppercase tracking-widest mt-1">Directorio Comercial Compartido</p>
                         </div>
-                        <button onclick="exportarCSV('clientes')" class="bg-green-600 text-white px-6 py-4 rounded-2xl font-black flex items-center gap-2 hover:bg-green-700 shadow-lg transition-all text-xs uppercase">
-                            <i data-lucide="file-down" class="w-4 h-4"></i> EXPORTAR LISTA
-                        </button>
+                        <div class="flex flex-wrap gap-2">
+                            <button onclick="openNewClientModal()" class="bg-blue-600 text-white px-6 py-4 rounded-2xl font-black flex items-center gap-2 hover:bg-blue-700 shadow-lg transition-all text-xs uppercase">
+                                <i data-lucide="user-plus" class="w-4 h-4"></i> NUEVO CLIENTE
+                            </button>
+                            <button onclick="exportarCSV('clientes')" class="bg-green-600 text-white px-6 py-4 rounded-2xl font-black flex items-center gap-2 hover:bg-green-700 shadow-lg transition-all text-xs uppercase">
+                                <i data-lucide="file-down" class="w-4 h-4"></i> EXPORTAR LISTA
+                            </button>
+                        </div>
                     </div>
 
                     <div class="bg-white rounded-[32px] border border-slate-200 shadow-sm overflow-hidden mt-6">
@@ -3129,6 +3179,54 @@ function logout() {
             }
         }
 
+	function openNewClientModal() {
+            // Limpiamos los campos
+            document.getElementById('new-cli-name').value = '';
+            document.getElementById('new-cli-nit').value = '';
+            document.getElementById('new-cli-phone').value = '';
+            
+            // Llenamos el selector de vendedores
+            const selVend = document.getElementById('new-cli-vendedor');
+            selVend.innerHTML = '<option value="">-- Sin Asignar --</option>' + dbIntSellers.filter(u => u.role === 'ADMIN' || u.role === 'VENDEDOR').map(u => `<option value="${u.name}">${u.name}</option>`).join('');
+            
+            // Asignamos al vendedor actual por defecto si aplica
+            if (currentUser && currentUser.role === 'VENDEDOR') {
+                selVend.value = currentUser.name;
+            } else {
+                selVend.value = '';
+            }
+
+            document.getElementById('new-cli-tipo-precio').value = 'REGULAR';
+            document.getElementById('new-client-modal').classList.remove('hidden');
+        }
+
+        function submitNewClient(e) {
+            e.preventDefault();
+            const name = document.getElementById('new-cli-name').value.trim();
+            const nit = document.getElementById('new-cli-nit').value.trim();
+            const phone = document.getElementById('new-cli-phone').value.trim();
+            const propietario = document.getElementById('new-cli-vendedor').value;
+            const tipoPrecio = document.getElementById('new-cli-tipo-precio').value;
+
+            // Evitar duplicados
+            const exists = dbClients.find(c => c.name.toLowerCase() === name.toLowerCase());
+            if(exists) return alert("Ya existe un cliente con ese nombre en la base de datos.");
+
+            dbClients.push({
+                id: Date.now(),
+                name: name,
+                nit: nit,
+                phone: phone,
+                propietario: propietario,
+                tipoPrecio: tipoPrecio
+            });
+
+            save(); 
+            renderClientes();
+            document.getElementById('new-client-modal').classList.add('hidden');
+            showToast("Nuevo cliente registrado con éxito.");
+        }
+
         // ==========================================
         // COTIZADOR Y BUSCADORES
         // ==========================================
@@ -4703,7 +4801,21 @@ function renderSalidasEPS() {
             matchDate = (fd.getFullYear() == sy && (fd.getMonth()+1) == parseInt(sm));
         }
         return matchName && matchDate;
-    }).reverse();
+    });
+
+    // ORDENAMIENTO ESTRICTO: Más recientes arriba
+    filteredQuotes.sort((a, b) => {
+        const dateA = parseDateStr(a.date).getTime();
+        const dateB = parseDateStr(b.date).getTime();
+        
+        if (dateA === dateB) {
+            // Si es la misma fecha, el ID mayor (Ej: 15 vs 14) va primero
+            const idA = parseInt(a.id.split(' - ')[0]) || 0;
+            const idB = parseInt(b.id.split(' - ')[0]) || 0;
+            return idB - idA;
+        }
+        return dateB - dateA; 
+    });
 
     document.getElementById('quotes-list').innerHTML = filteredQuotes.map(q => {
         const fCotiz = parseDateStr(q.date);
@@ -4956,9 +5068,12 @@ renderAll = function() {
                 if(o.pagos && o.pagos.length > 0) {
                     o.pagos.filter(p => !p.verificado).forEach(p => {
                         html += `
-                        <div class="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm flex flex-col md:flex-row justify-between items-center gap-4">
+                       <div class="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm flex flex-col md:flex-row justify-between items-center gap-4">
                             <div>
-                                <div class="flex items-center gap-2 mb-1"><span class="font-black text-slate-800">${o.id}</span></div>
+                                <div class="flex items-center gap-2 mb-1">
+                                    <span class="font-black text-slate-800">${o.id}</span>
+                                    <span class="text-[10px] font-bold text-slate-500 uppercase">| ${o.client}</span>
+                                </div>
                                 <p class="text-xs font-bold text-blue-600 uppercase tracking-widest">${p.tesorero} declaró:</p>
                                 <p class="text-xl font-black text-green-600 mt-1">Bs ${p.monto.toFixed(2)} <span class="text-sm text-slate-500 font-bold">a</span> ${p.cuenta}</p>
                             </div>
@@ -5014,13 +5129,22 @@ renderAll = function() {
             list.sort((a, b) => (b.saldo || 0) - (a.saldo || 0));
 
             document.getElementById('tesoreria-list').innerHTML = list.map(o => {
-               const tieneSinVerificar = o.pagos && o.pagos.some(p => !p.verificado);
-                let statusBadgeText = o.estadoPago === 'COMPLETO' ? 'PAGADO' : 'NO PAGADO';
-                let statusColor = o.estadoPago === 'COMPLETO' ? 'bg-green-100 text-green-700 border-green-200' : 'bg-red-100 text-red-700 border-red-200';
-                
+              const tieneSinVerificar = o.pagos && o.pagos.some(p => !p.verificado);
+                let statusBadgeText = '';
+                let statusColor = '';
+
                 if (tieneSinVerificar) { 
                     statusBadgeText = 'EN REVISIÓN'; 
                     statusColor = 'bg-yellow-100 text-yellow-700 border-yellow-300'; 
+                } else if (o.estadoPago === 'COMPLETO') {
+                    statusBadgeText = 'PAGADO'; 
+                    statusColor = 'bg-green-100 text-green-700 border-green-200';
+                } else if (o.montoPagado > 0 && o.estadoPago !== 'COMPLETO') {
+                    statusBadgeText = 'PARCIAL'; 
+                    statusColor = 'bg-orange-100 text-orange-700 border-orange-200';
+                } else {
+                    statusBadgeText = 'NO PAGADO'; 
+                    statusColor = 'bg-red-100 text-red-700 border-red-200';
                 }
                 
                 let historialHtml = '<ul class="space-y-1 mt-2">';
@@ -5308,7 +5432,18 @@ renderAll = function() {
                     bottomBadge = `<span class="bg-slate-100 border border-slate-200 text-slate-400 px-3 py-1.5 rounded-xl font-black flex justify-center items-center gap-1 uppercase tracking-widest text-[9px] w-max mx-auto"><i data-lucide="calendar-clock" class="w-3 h-3"></i> FALTAN CORTES</span>`;
                 }
 
-                const paymentBadge = o.estadoPago === 'PARCIAL' ? `<span class="bg-red-100 text-red-600 border border-red-200 px-2 py-1 rounded text-[9px] font-black uppercase tracking-widest shadow-sm block w-max mx-auto">Saldo Pend.</span>` : `<span class="bg-green-100 text-green-600 border border-green-200 px-2 py-1 rounded text-[9px] font-black uppercase tracking-widest shadow-sm block w-max mx-auto">Pagado</span>`;
+                const tieneSinVerificar = o.pagos && o.pagos.some(p => !p.verificado);
+                let paymentBadge = '';
+                
+                if (tieneSinVerificar) {
+                    paymentBadge = `<span class="bg-yellow-100 text-yellow-700 border-yellow-300 px-2 py-1 rounded text-[9px] font-black uppercase tracking-widest shadow-sm block w-max mx-auto border">EN REVISIÓN</span>`;
+                } else if (o.estadoPago === 'COMPLETO') {
+                    paymentBadge = `<span class="bg-green-100 text-green-600 border-green-200 px-2 py-1 rounded text-[9px] font-black uppercase tracking-widest shadow-sm block w-max mx-auto border">PAGADO</span>`;
+                } else if (o.montoPagado > 0 && o.estadoPago !== 'COMPLETO') {
+                    paymentBadge = `<span class="bg-orange-100 text-orange-600 border-orange-200 px-2 py-1 rounded text-[9px] font-black uppercase tracking-widest shadow-sm block w-max mx-auto border">PARCIAL</span>`;
+                } else {
+                    paymentBadge = `<span class="bg-red-100 text-red-600 border-red-200 px-2 py-1 rounded text-[9px] font-black uppercase tracking-widest shadow-sm block w-max mx-auto border">NO PAGADO</span>`;
+                }
 
                 return `
                 <tr class="hover:bg-slate-50 transition-colors border-b border-slate-100">
