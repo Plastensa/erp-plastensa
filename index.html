@@ -5130,8 +5130,8 @@ renderAll = function() {
         }
 
         function renderTesoreria() {
-            // Mostrar los que tienen pagos realizados O los que fueron forzados a crédito
-            const list = orders.filter(o => (o.pagos && o.pagos.length > 0) || o.justificacionCredito);
+            // Mostrar TODOS los pedidos confirmados (tengan pagos registrados o no)
+            const list = orders;
             
             if(list.length === 0) { document.getElementById('tesoreria-list').innerHTML = `<tr><td colspan="7" class="p-10 text-center font-bold text-slate-400 italic">No hay cobros ni créditos registrados</td></tr>`; return; }
             
