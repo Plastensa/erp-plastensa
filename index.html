@@ -4736,8 +4736,6 @@ function renderSalidasEPS() {
                 const cf1 = Number(p.pCF1)||0; const sf1 = Number(p.pSF1)||0;
                 const cf2 = Number(p.pCF2)||0; const sf2 = Number(p.pSF2)||0;
                 const cf3 = Number(p.pCF3)||0; const sf3 = Number(p.pSF3)||0;
-                
-                const btnEliminar = currentUser && currentUser.role === 'ADMIN' ? `<button onclick="deleteProduct(${p.id})" class="text-red-300 hover:text-red-500 p-2"><i data-lucide="trash-2" class="w-4 h-4"></i></button>` : '';
 
                 const esOperador = currentUser && currentUser.role === 'OPERADOR';
                 // Si es operador imprime "---", si no, imprime el HTML del precio normal
