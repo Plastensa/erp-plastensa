@@ -2997,7 +2997,7 @@ function aplicarPermisosVisuales(role) {
         showTab('ventas');
     } 
     else if (role === 'OPERADOR') {
-        const ocultarTabs = [...adminTabs, 'ventas', 'cotizaciones', 'registro-ventas', 'log-maestro', ...finanzasTabs];
+        const ocultarTabs = [...adminTabs, 'clientes', 'ventas', 'cotizaciones', 'registro-ventas', 'log-maestro', ...finanzasTabs];
         ocultarTabs.forEach(tab => {
             const btn = document.querySelector(`[data-tab="${tab}"]`);
             if(btn) btn.classList.add('hidden');
@@ -5426,9 +5426,14 @@ renderAll = function() {
                     const remQty = item.qty - scheduledQty;
                     totalRestan += (remQty > 0 ? remQty : 0);
                     
-                    const badge = remQty <= 0 ? `<span class="text-green-500"><i data-lucide="check-circle" class="w-5 h-5"></i></span>` : `<button onclick="openScheduleModal('${o.id}', ${idx})" class="bg-orange-100 hover:bg-orange-200 text-orange-700 px-3 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-widest transition-colors border border-orange-200 shadow-sm">Programar</button>`;
+                   const badge = remQty <= 0 ? `<span class="text-green-500"><i data-lucide="check-circle" class="w-5 h-5"></i></span>` : `<button onclick="openScheduleModal('${o.id}', ${idx})" class="bg-orange-100 hover:bg-orange-200 text-orange-700 px-3 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-widest transition-colors border border-orange-200 shadow-sm">Programar</button>`;
                     const obsTag = item.obs ? `<div class="w-full mt-1 p-1.5 bg-red-50 border-l-2 border-red-500 text-red-700 text-[9px] font-black uppercase tracking-widest rounded-r-lg">⚠️ CORTE: ${item.obs}</div>` : '';
                     
+                    // Bloqueo de seguridad: El lápiz de edición solo sale para Admin o Vendedor
+                    const btnEditItem = (currentUser && (currentUser.role === 'ADMIN' || currentUser.role === 'VENDEDOR'))
+                        ? `<button onclick="openEditItemModal('${o.id}', ${idx}, 'orders')" class="text-indigo-400 hover:text-indigo-600 bg-white border border-slate-200 hover:bg-slate-100 transition-colors p-1.5 rounded-lg shadow-sm"><i data-lucide="edit-3" class="w-3.5 h-3.5"></i></button>`
+                        : '';
+
                     itemsHtml += `
                     <div class="flex flex-col bg-slate-50 p-3 rounded-xl border border-slate-100 mb-2 w-full max-w-sm whitespace-normal shadow-sm">
                         <div class="flex justify-between items-center w-full gap-2">
@@ -5438,7 +5443,7 @@ renderAll = function() {
                             </div>
                             <div class="flex items-center gap-2">
                                 ${badge}
-                                <button onclick="openEditItemModal('${o.id}', ${idx}, 'orders')" class="text-indigo-400 hover:text-indigo-600 bg-white border border-slate-200 hover:bg-slate-100 transition-colors p-1.5 rounded-lg shadow-sm"><i data-lucide="edit-3" class="w-3.5 h-3.5"></i></button>
+                                ${btnEditItem}
                             </div>
                         </div>
                         ${obsTag}
