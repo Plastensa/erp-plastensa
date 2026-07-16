@@ -2974,7 +2974,7 @@ function iniciarRadar(userEmail) {
 
 // 3. Matriz Estricta de Roles y Permisos (Intacta)
 function aplicarPermisosVisuales(role) {
-    const adminTabs = ['dashboard-gerencial', 'directorio', 'tesoreria-admin', 'salidas-eps', 'log-maestro', 'historial-admin', 'precios-admin', 'transporte','caja-general', 'seguridad'];
+    const adminTabs = ['dashboard-gerencial', 'directorio', 'tesoreria-admin', 'salidas-eps', 'historial-admin', 'precios-admin', 'transporte','caja-general', 'seguridad'];
     const comercialTabs = ['clientes', 'catalogo', 'ventas', 'cotizaciones', 'registro-ventas'];
     const produccionTabs = ['materia-prima', 'expansion', 'bloquera', 'inventario-bloques', 'corte', 'reporte-corte', 'produccion', 'plan-diario', 'inventario'];
     const finanzasTabs = ['tesoreria'];
@@ -2997,7 +2997,7 @@ function aplicarPermisosVisuales(role) {
         showTab('ventas');
     } 
     else if (role === 'OPERADOR') {
-        const ocultarTabs = [...adminTabs, 'ventas', 'cotizaciones', 'registro-ventas', ...finanzasTabs];
+        const ocultarTabs = [...adminTabs, 'ventas', 'cotizaciones', 'registro-ventas', 'log-maestro', ...finanzasTabs];
         ocultarTabs.forEach(tab => {
             const btn = document.querySelector(`[data-tab="${tab}"]`);
             if(btn) btn.classList.add('hidden');
@@ -4739,15 +4739,21 @@ function renderSalidasEPS() {
                 
                 const btnEliminar = currentUser && currentUser.role === 'ADMIN' ? `<button onclick="deleteProduct(${p.id})" class="text-red-300 hover:text-red-500 p-2"><i data-lucide="trash-2" class="w-4 h-4"></i></button>` : '';
 
-                const warningBadge = p.cf1 === 0 ? `<span class="bg-red-100 text-red-600 px-2 py-0.5 rounded text-[9px] font-black uppercase shadow-sm ml-2 border border-red-200 animate-pulse">⚠️ SIN PRECIO</span>` : '';
+                const esOperador = currentUser && currentUser.role === 'OPERADOR';
+                // Si es operador imprime "---", si no, imprime el HTML del precio normal
+                const formatCol = (cf, sf) => esOperador ? '<span class="text-slate-300 font-bold">---</span>' : `${cf.toFixed(2)} <span class="text-[10px] text-orange-400 block">S/F: ${sf.toFixed(2)}</span>`;
+
+                const btnEliminar = currentUser && currentUser.role === 'ADMIN' ? `<button onclick="deleteProduct(${p.id})" class="text-red-300 hover:text-red-500 p-2"><i data-lucide="trash-2" class="w-4 h-4"></i></button>` : '';
+
+                const warningBadge = (p.cf1 === 0 && !esOperador) ? `<span class="bg-red-100 text-red-600 px-2 py-0.5 rounded text-[9px] font-black uppercase shadow-sm ml-2 border border-red-200 animate-pulse">⚠️ SIN PRECIO</span>` : '';
 
                 return `
                 <tr class="border-b border-slate-100 hover:bg-slate-50 transition-colors">
                     <td class="p-5 font-black text-sm text-slate-800">${p.name || ''} ${warningBadge} <span class="text-[10px] text-blue-500 block mt-1 uppercase tracking-widest">${p.code || ''}</span></td>
                     <td class="p-5 text-[10px] font-black uppercase text-slate-500 tracking-widest leading-relaxed">Vol: ${vol.toFixed(4)} M3<br>Dens: ${p.density || '-'}</td>
-                    <td class="p-5 text-blue-600 font-black text-sm">${cf1.toFixed(2)} <span class="text-[10px] text-orange-400 block">S/F: ${sf1.toFixed(2)}</span></td>
-                    <td class="p-5 text-yellow-600 font-black text-sm">${cf2.toFixed(2)} <span class="text-[10px] text-orange-400 block">S/F: ${sf2.toFixed(2)}</span></td>
-                    <td class="p-5 text-green-600 font-black text-sm">${cf3.toFixed(2)} <span class="text-[10px] text-orange-400 block">S/F: ${sf3.toFixed(2)}</span></td>
+                    <td class="p-5 text-blue-600 font-black text-sm">${formatCol(cf1, sf1)}</td>
+                    <td class="p-5 text-yellow-600 font-black text-sm">${formatCol(cf2, sf2)}</td>
+                    <td class="p-5 text-green-600 font-black text-sm">${formatCol(cf3, sf3)}</td>
                     <td class="p-5 text-center">${btnEliminar}</td>
                 </tr>`;
             }).join('');
@@ -5348,13 +5354,16 @@ renderAll = function() {
                 
                 // NUEVA LÓGICA: Solo etiquetas informativas
                 let accionHtml = '';
-                if (s.status === 'FINALIZADO' || s.status === 'COMPLETADO') {
+               if (s.status === 'FINALIZADO' || s.status === 'COMPLETADO') {
                     accionHtml = `<span class="bg-green-100 text-green-700 px-3 py-1.5 rounded-lg text-[9px] font-black uppercase"><i data-lucide="check-circle-2" class="w-3 h-3 mr-1 inline"></i> Terminado</span>`;
                 } else {
                     accionHtml = `<span class="bg-yellow-100 text-yellow-700 px-3 py-1.5 rounded-lg text-[9px] font-black uppercase"><i data-lucide="clock" class="w-3 h-3 mr-1 inline"></i> Pendiente</span>`;
                 }
 
-                html += `<tr class="hover:bg-slate-50 transition-colors border-b border-slate-100"><td class="p-4 font-bold text-slate-500">${o.date}</td><td class="p-4 font-black text-slate-800">${o.id}</td><td class="p-4 font-black text-slate-700">${o.client}</td><td class="p-4 font-black text-red-600">${item.name}</td><td class="p-4 text-right font-medium">${volUnitCalc.toFixed(3)}</td><td class="p-4 text-center font-bold">${item.qty}</td><td class="p-4 text-center font-black text-red-600 text-base bg-red-50/50">${s.qty}</td><td class="p-4 text-right font-bold">${(Number(item.volTotal)||0).toFixed(2)} M3</td><td class="p-4 text-right font-black text-red-600 text-base bg-red-50/50">${validVolTotal.toFixed(2)} M3</td><td class="p-4 text-[9px] uppercase font-black text-slate-500">${o.vendedorInterno}</td><td class="p-4 text-center">${accionHtml}</td></tr>`;
+                // Generamos la etiqueta visual si el ítem tiene un corte especial
+                const obsTag = item.obs ? `<br><span class="text-[9px] text-orange-600 font-bold uppercase tracking-widest bg-orange-50 px-1.5 py-0.5 rounded border border-orange-100 inline-block mt-1">Corte: ${item.obs}</span>` : '';
+
+                html += `<tr class="hover:bg-slate-50 transition-colors border-b border-slate-100"><td class="p-4 font-bold text-slate-500">${o.date}</td><td class="p-4 font-black text-slate-800">${o.id}</td><td class="p-4 font-black text-slate-700">${o.client}</td><td class="p-4 font-black text-red-600">${item.name}${obsTag}</td><td class="p-4 text-right font-medium">${volUnitCalc.toFixed(3)}</td><td class="p-4 text-center font-bold">${item.qty}</td><td class="p-4 text-center font-black text-red-600 text-base bg-red-50/50">${s.qty}</td><td class="p-4 text-right font-bold">${(Number(item.volTotal)\vert{}\vert{}0).toFixed(2)} M³</td><td class="p-4 text-right font-black text-red-600 text-base bg-red-50/50">${validVolTotal.toFixed(2)} M³</td><td class="p-4 text-[9px] uppercase font-black text-slate-500">${o.vendedorInterno}</td><td class="p-4 text-center">${accionHtml}</td></tr>`;
             });
             totalDisplay.innerText = `${totalVolDia.toFixed(2)} M3`;
             tbody.innerHTML = html || `<tr><td colspan="11" class="p-10 text-center font-bold text-slate-300 italic">La planta no tiene cortes programados para este día.</td></tr>`;
