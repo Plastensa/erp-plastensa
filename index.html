@@ -6442,6 +6442,9 @@ function getFilterableDate(dateStr) {
 function renderInventarioBloques() {
     const tbody = document.getElementById('inventario-bloques-body');
     if(!tbody) return;
+
+    // --- MEMORIA ANTI-RADAR ---
+    const seleccionadosAnteriores = Array.from(document.querySelectorAll('.bloque-checkbox:checked')).map(cb => cb.value);
     
     const search = document.getElementById('buscar-bloque').value.toLowerCase();
     const filtroDensidad = document.getElementById('filtro-densidad').value;
@@ -6451,37 +6454,32 @@ function renderInventarioBloques() {
     let timeDesde = dateDesdeStr ? new Date(dateDesdeStr + "T00:00:00").getTime() : 0;
     let timeHasta = dateHastaStr ? new Date(dateHastaStr + "T23:59:59").getTime() : Infinity;
 
-    // --- NUEVO: CÁLCULO DE RESUMEN POR TIPOS ---
+    // --- NUEVO: CÁLCULO DE RESUMEN POR TIPOS Y DENSIDAD ---
     const resumen = {};
     dbBloques.forEach(b => {
         let bTime = getFilterableDate(b.fecha);
-        // Filtro de fecha para el resumen
         if (bTime < timeDesde || bTime > timeHasta) return;
 
-        if (!resumen[b.tipo]) resumen[b.tipo] = { inicial: 0, producidos: 0, cortados: 0, total: 0 };
+        const clave = `${b.densFinal} | ${b.tipo}`; // Fusión de llave única
+
+        if (!resumen[clave]) resumen[clave] = { inicial: 0, producidos: 0, cortados: 0, total: 0 };
         
         const isInicial = (b.operador === 'Sistema' || (b.estado && b.estado.toUpperCase().includes('INICIAL')));
         
-        if (isInicial) resumen[b.tipo].inicial++;
-        else resumen[b.tipo].producidos++;
+        if (isInicial) resumen[clave].inicial++;
+        else resumen[clave].producidos++;
 
-        // CORRECCIÓN: 'PROCESADO' cuenta como cortado. 
-        // Los que están en 'PLANTA' o esperando en sala ('CORTADO') forman el saldo total físico.
-        if (b.ubicacion === 'PROCESADO') {
-            resumen[b.tipo].cortados++;
-        }
-        if (b.ubicacion === 'PLANTA' || b.ubicacion === 'CORTADO') {
-            resumen[b.tipo].total++;
-        }
+        if (b.ubicacion === 'PROCESADO') resumen[clave].cortados++;
+        if (b.ubicacion === 'PLANTA' || b.ubicacion === 'CORTADO') resumen[clave].total++;
     });
 
     let htmlResumen = '';
-    Object.keys(resumen).sort().forEach(tipo => {
-        const r = resumen[tipo];
+    Object.keys(resumen).sort().forEach(clave => {
+        const r = resumen[clave];
         if (r.inicial === 0 && r.producidos === 0 && r.cortados === 0 && r.total === 0) return;
         htmlResumen += `
         <tr class="hover:bg-slate-800 transition-colors">
-            <td class="p-3 font-black text-slate-200 border-r border-slate-700/50">Bloque ${tipo}</td>
+            <td class="p-3 font-black text-slate-200 border-r border-slate-700/50">Bloque <span class="text-blue-400">${clave}</span></td>
             <td class="p-3 text-center font-bold text-slate-400 border-r border-slate-700/50">${r.inicial}</td>
             <td class="p-3 text-center font-black text-green-400 border-r border-slate-700/50">+ ${r.producidos}</td>
             <td class="p-3 text-center font-black text-red-400 border-r border-slate-700/50">- ${r.cortados}</td>
@@ -6533,8 +6531,16 @@ function renderInventarioBloques() {
             <td class="p-4 text-center">
                 ${currentUser && currentUser.role === 'ADMIN' ? `<button onclick="eliminarBloque(${b.id})" title="Eliminar Bloque" class="text-red-400 hover:text-red-600 bg-white p-2 rounded-lg shadow-sm border border-red-100 transition-all"><i data-lucide="trash-2" class="w-4 h-4"></i></button>` : `<span class="text-[9px] font-black text-slate-300 uppercase">Sin Acceso</span>`}
             </td>
-        </tr>
+</tr>
     `).join('');
+
+    // --- RESTAURAR MEMORIA ANTI-RADAR ---
+    seleccionadosAnteriores.forEach(val => {
+        const cb = document.querySelector(`.bloque-checkbox[value="${val}"]`);
+        if (cb) cb.checked = true;
+    });
+    if(typeof toggleCorteBtn === 'function') toggleCorteBtn();
+
     lucide.createIcons();
 }
 
@@ -6712,6 +6718,10 @@ function renderSalaCorte() {
     
     if(!tbodyBloques || !listOrdenes || !dashRetazos) return;
 
+    // --- MEMORIA ANTI-RADAR ---
+    const bloquesSeleccionados = Array.from(document.querySelectorAll('#corte-bloques-list input[type="checkbox"]:checked')).map(cb => cb.id);
+    const multiOrdenesSeleccionadas = Array.from(document.querySelectorAll('.multi-sched-chk:checked')).map(cb => cb.value);
+
     // Llenar el buscador inteligente de Retazos con todo el catálogo disponible
     if(datalistGlobal) {
         datalistGlobal.innerHTML = products.map(p => `<option value="${p.name}">${p.name}</option>`).join('');
@@ -6835,6 +6845,19 @@ function renderSalaCorte() {
         </div>
     `;
     dashRetazos.innerHTML = htmlRetazos;
+
+    // --- RESTAURAR MEMORIA ANTI-RADAR ---
+    bloquesSeleccionados.forEach(id => {
+        const cb = document.getElementById(id);
+        if (cb) cb.checked = true;
+    });
+    multiOrdenesSeleccionadas.forEach(val => {
+        const cb = document.querySelector(`.multi-sched-chk[value="${val}"]`);
+        if (cb) cb.checked = true;
+    });
+    
+    if(typeof calcVolCorteDin === 'function') calcVolCorteDin();
+    if(typeof toggleMultiCorteBtn === 'function') toggleMultiCorteBtn();
 }
 
 // Variables de control de la operación en curso
