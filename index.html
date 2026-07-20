@@ -6465,8 +6465,14 @@ function renderInventarioBloques() {
         if (isInicial) resumen[b.tipo].inicial++;
         else resumen[b.tipo].producidos++;
 
-        if (b.ubicacion === 'CORTADO') resumen[b.tipo].cortados++;
-        else if (b.ubicacion === 'PLANTA') resumen[b.tipo].total++;
+        // CORRECCIÓN: 'PROCESADO' cuenta como cortado. 
+        // Los que están en 'PLANTA' o esperando en sala ('CORTADO') forman el saldo total físico.
+        if (b.ubicacion === 'PROCESADO') {
+            resumen[b.tipo].cortados++;
+        }
+        if (b.ubicacion === 'PLANTA' || b.ubicacion === 'CORTADO') {
+            resumen[b.tipo].total++;
+        }
     });
 
     let htmlResumen = '';
@@ -7214,9 +7220,11 @@ function procesarEjecucionCorte() {
     const destinoBajas = document.getElementById('corte-destino-bajas').value;
     const tandaId = Date.now(); 
 
-    // 1. Dar de baja los bloques
+    // 1. Dar de baja los bloques (CON BLINDAJE DE TIPO DE DATO)
     dbBloques = dbBloques.map(b => {
-        if(bloquesElegidosIds.includes(b.id)) {
+        // Obligamos a que la comparación sea exacta convirtiendo todo a String
+        const isElegido = bloquesElegidosIds.some(id => String(id) === String(b.id));
+        if(isElegido) {
             return { ...b, ubicacion: 'PROCESADO', tandaProceso: tandaId, fechaModificado: new Date().toLocaleString() };
         }
         return b;
@@ -7724,10 +7732,10 @@ renderAll = function() {
                 const colorTexto = esNegativo ? 'text-red-600' : 'text-blue-600';
                 const iconoAlerta = esNegativo ? `<i data-lucide="alert-triangle" class="inline w-4 h-4 text-red-500 mr-1 mb-1"></i>` : '';
                 
-                return `
+               return `
                 <tr class="border-b border-slate-100 transition-colors ${colorFila}">
                     <td class="p-4 font-black text-slate-800">${iconoAlerta}${p.name}</td>
-                    <td class="p-4 font-bold text-slate-500">D${p.density}</td>
+                    <td class="p-4 font-bold text-slate-500">${p.density}</td>
                     <td class="p-4 text-right font-medium">${Number(p.vol).toFixed(3)} M³</td>
                     <td class="p-4 text-center font-black ${colorTexto} text-lg">${p.stock} Pzas</td>
                     <td class="p-4 text-right font-black text-slate-700">${(p.stock * Number(p.vol)).toFixed(3)} M³</td>
@@ -7962,7 +7970,7 @@ function ejecutarDespacho() {
         pagoChofer = costoUnitarioPorM3 * volTotalDespachoM3;
     }
 
-    const ticket = {
+   const ticket = {
         idTicket: `TKT-${Date.now().toString().slice(-6)}`,
         orderId: o.id,
         estadoFinanciero: (o.saldo || 0) <= 0 ? 'PAGADO' : 'NO PAGADO',
@@ -7978,6 +7986,10 @@ function ejecutarDespacho() {
     };
 
     dbDespachos.unshift(ticket);
+    
+    // --- NUEVA LÍNEA: Avisar a la carpeta individual de Firebase que el pedido se despachó ---
+    db.collection("pedidos").doc(String(o.id).replace(/\//g, '-')).set(o);
+    
     save(); localStorage.setItem('plast_products', JSON.stringify(products)); // Guardar inventario
     
     document.getElementById('panel-despacho-activo').classList.add('hidden');
