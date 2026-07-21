@@ -4875,18 +4875,21 @@ function renderSalidasEPS() {
             estadoHTML = `<span class="bg-orange-100 text-orange-700 px-3 py-1.5 rounded-xl text-[10px] font-black uppercase shadow-sm border border-orange-200"><i data-lucide="lock" class="w-3 h-3 inline mr-1 -mt-0.5"></i> Esperando Admin</span>${justText}`;
             
             if (currentUser && currentUser.role === 'ADMIN') {
-                actionButtons = `<button onclick="aprobarCotizacion('${q.id}')" class="bg-orange-500 hover:bg-orange-600 text-white px-4 py-2.5 rounded-xl text-[10px] font-black shadow-md transition-colors flex items-center justify-center w-full gap-1"><i data-lucide="check-circle" class="w-4 h-4"></i> AUTORIZAR</button>`;
+                actionButtons = `
+                    <button onclick="printQuote('${q.id}')" title="Ver PDF" class="bg-slate-800 hover:bg-slate-700 text-white px-2.5 py-2.5 rounded-xl text-[10px] font-black shadow-md transition-colors flex items-center justify-center flex-shrink-0"><i data-lucide="printer" class="w-3.5 h-3.5"></i></button>
+                    <button onclick="aprobarCotizacion('${q.id}')" class="bg-orange-500 hover:bg-orange-600 text-white px-3 py-2.5 rounded-xl text-[10px] font-black shadow-md transition-colors flex-1 flex items-center justify-center gap-1"><i data-lucide="check-circle" class="w-4 h-4"></i> AUTORIZAR</button>
+                `;
             } else {
-                actionButtons = `<div class="text-center w-full text-[10px] font-black text-orange-400 uppercase bg-white p-2.5 rounded-xl border border-orange-100 shadow-sm">Bloqueado</div>`;
+                actionButtons = `<div class="text-center flex-1 text-[10px] font-black text-orange-400 uppercase bg-white p-2.5 rounded-xl border border-orange-100 shadow-sm">Bloqueado</div>`;
             }
         } else if (q.status === 'PERDIDA') {
             bgClass = 'bg-slate-100 opacity-60';
             estadoHTML = `<span class="bg-slate-300 text-slate-700 px-3 py-1.5 rounded-xl text-[10px] font-black uppercase shadow-sm border border-slate-400"><i data-lucide="x-circle" class="w-3 h-3 inline mr-1 -mt-0.5"></i> Perdida</span><div class="mt-1.5 text-[9px] text-slate-500 font-bold leading-tight">Motivo: ${q.motivoCierre}</div>`;
-            actionButtons = `<div class="text-center w-full text-[10px] font-black text-slate-500 uppercase">Cerrada</div>`;
+            actionButtons = `<div class="text-center flex-1 text-[10px] font-black text-slate-500 uppercase flex items-center justify-center">Cerrada</div>`;
         } else if (vencida) {
             bgClass = 'bg-red-50/30 opacity-90';
             estadoHTML = `<span class="bg-red-100 text-red-600 px-3 py-1.5 rounded-xl text-[10px] font-black uppercase shadow-sm border border-red-200"><i data-lucide="alert-octagon" class="w-3 h-3 inline mr-1 -mt-0.5"></i> Vencida</span>`;
-            actionButtons = `<button onclick="cerrarCotizacion('${q.id}')" class="bg-red-600 hover:bg-red-700 text-white px-4 py-2.5 rounded-xl text-[10px] font-black shadow-md transition-colors flex items-center justify-center w-full gap-1"><i data-lucide="x-circle" class="w-3 h-3"></i> MARCAR PERDIDA</button>`;
+            actionButtons = `<button onclick="cerrarCotizacion('${q.id}')" class="bg-red-600 hover:bg-red-700 text-white px-4 py-2.5 rounded-xl text-[10px] font-black shadow-md transition-colors flex items-center justify-center flex-1 gap-1"><i data-lucide="x-circle" class="w-3 h-3"></i> MARCAR PERDIDA</button>`;
        } else {
             // VERIFICAR SI ESTÁ EN TESORERÍA O RECHAZADO
             const isPending = dbPendingVerifications.some(p => String(p.orderId) === String(q.id) && !p.isAbono);
@@ -4906,12 +4909,15 @@ function renderSalidasEPS() {
             const btnPagarTexto = isPending ? 'ENVIADO' : 'PAGAR';
 
             actionButtons = `
-                <button onclick="editQuote('${q.id}')" title="Editar" class="bg-yellow-500 hover:bg-yellow-600 text-white px-2.5 py-2.5 rounded-xl text-[10px] font-black shadow-md transition-colors flex items-center justify-center"><i data-lucide="edit-3" class="w-3.5 h-3.5"></i></button>
-                <button onclick="printQuote('${q.id}')" title="PDF" class="bg-slate-800 hover:bg-slate-700 text-white px-2.5 py-2.5 rounded-xl text-[10px] font-black shadow-md transition-colors flex items-center justify-center"><i data-lucide="printer" class="w-3.5 h-3.5"></i></button>
+                <button onclick="editQuote('${q.id}')" title="Editar" class="bg-yellow-500 hover:bg-yellow-600 text-white px-2.5 py-2.5 rounded-xl text-[10px] font-black shadow-md transition-colors flex items-center justify-center flex-shrink-0"><i data-lucide="edit-3" class="w-3.5 h-3.5"></i></button>
+                <button onclick="printQuote('${q.id}')" title="PDF" class="bg-slate-800 hover:bg-slate-700 text-white px-2.5 py-2.5 rounded-xl text-[10px] font-black shadow-md transition-colors flex items-center justify-center flex-shrink-0"><i data-lucide="printer" class="w-3.5 h-3.5"></i></button>
                 <button onclick="aprobarCredito('${q.id}')" title="Aprobar a Crédito Cero" class="bg-cyan-600 hover:bg-cyan-700 text-white px-3 py-2.5 rounded-xl text-[10px] font-black shadow-md transition-colors flex flex-1 items-center justify-center gap-1"><i data-lucide="handshake" class="w-3 h-3"></i> CRÉDITO</button>
                 <button ${btnPagarClick} title="Pagar Anticipo" class="${btnPagarColor} text-white px-3 py-2.5 rounded-xl text-[10px] font-black shadow-md transition-colors flex flex-1 items-center justify-center gap-1"><i data-lucide="wallet" class="w-3 h-3"></i> ${btnPagarTexto}</button>
             `;
         }
+
+        const btnEliminarAdmin = (currentUser && currentUser.role === 'ADMIN') ? 
+            `<button onclick="eliminarCotizacionPermanente('${q.id}')" title="Eliminar Definitivamente" class="bg-red-50 hover:bg-red-100 text-red-600 border border-red-200 px-2.5 py-2.5 rounded-xl text-[10px] font-black shadow-sm transition-colors flex items-center justify-center flex-shrink-0"><i data-lucide="trash-2" class="w-3.5 h-3.5"></i></button>` : '';
 
         return `
         <tr class="border-b border-slate-100 hover:bg-white transition-colors ${bgClass}">
@@ -4934,8 +4940,9 @@ function renderSalidasEPS() {
                 ${q.descuentoPorcentaje > 0 ? `<span class="text-[9px] font-black text-red-500 bg-red-50 border border-red-100 px-1.5 py-0.5 mt-1 rounded inline-block">Desc: ${q.descuentoPorcentaje}%</span>` : ''}
             </td>
             <td class="p-4 align-middle">
-                <div class="flex gap-2 w-full max-w-[280px] mx-auto justify-center">
+                <div class="flex gap-2 w-full max-w-[330px] mx-auto justify-center items-center">
                     ${actionButtons}
+                    ${btnEliminarAdmin}
                 </div>
             </td>
         </tr>`;
@@ -4965,6 +4972,24 @@ function confirmarCierreVenta() {
         showToast("Cotización marcada como perdida."); 
     }
     document.getElementById('close-quote-modal').classList.add('hidden');
+}
+
+function eliminarCotizacionPermanente(id) {
+    if (!confirm("⚠️ ATENCIÓN ADMINISTRADOR:\n\n¿Está seguro de ELIMINAR esta cotización de forma permanente?\nEsta acción no se puede deshacer y borrará el registro de la nube por completo.")) return;
+    
+    // Dispara a Google Firestore para borrar el documento
+    db.collection("cotizaciones").doc(String(id).replace(/\//g, '-')).delete()
+    .then(() => {
+        // Limpiamos la memoria de la pantalla actual
+        quotes = quotes.filter(q => q.id !== id);
+        save();
+        renderQuotes();
+        showToast("Cotización eliminada permanentemente.");
+    })
+    .catch(err => {
+        console.error("Error al borrar en la nube:", err);
+        alert("❌ Hubo un error de conexión al borrar. Revise su internet.");
+    });
 }
 
 function renderDashboard() {
