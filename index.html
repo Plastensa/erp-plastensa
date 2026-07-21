@@ -2333,7 +2333,15 @@
                 <i data-lucide="file-spreadsheet" class="w-4 h-4"></i> EXPORTAR
             </button>
             
-            <button onclick="document.getElementById('modal-caja-movimiento').classList.remove('hidden'); document.getElementById('caja-mov-fecha').valueAsDate = new Date();" class="bg-blue-600 text-white px-4 py-2 mt-3 rounded-xl font-bold uppercase text-xs hover:bg-blue-700 transition-colors flex items-center gap-1 shadow-md">
+            <button onclick="toggleCajaSort()" id="btn-caja-sort" class="bg-slate-200 text-slate-700 px-4 py-2 mt-3 rounded-xl font-bold text-xs hover:bg-slate-300 transition-colors flex items-center gap-1 shadow-md">
+                Orden: ⬇️
+            </button>
+            <button onclick="openSaldoInicialCaja()" class="bg-indigo-600 text-white px-4 py-2 mt-3 rounded-xl font-bold uppercase text-xs hover:bg-indigo-700 transition-colors flex items-center gap-1 shadow-md">
+                <i data-lucide="wallet" class="w-4 h-4"></i> SALDO INICIAL
+            </button>
+            <button onclick="document.getElementById('modal-caja-movimiento').classList.remove('hidden'); document.getElementById('caja-mov-fecha').valueAsDate = new Date(); document.getElementById('caja-mov-desc').value = '';" class="bg-blue-600 text-white px-4 py-2 mt-3 rounded-xl font-bold uppercase text-xs hover:bg-blue-700 transition-colors flex items-center gap-1 shadow-md">
+                <i data-lucide="plus" class="w-4 h-4"></i> NUEVO
+            </button>
                 <i data-lucide="plus" class="w-4 h-4"></i> NUEVO
             </button>
         </div>
@@ -8622,6 +8630,31 @@ function exportarCSV(tipo) {
 // MÓDULO: CAJA GENERAL (GERENCIA)
 // ==========================================
 var movimientosCajaExport = []; // Variable global para guardar lo que se ve en pantalla
+var cajaSortOrder = 'DESC'; // Mantiene el orden preferido por el usuario
+
+function toggleCajaSort() {
+    cajaSortOrder = cajaSortOrder === 'DESC' ? 'ASC' : 'DESC';
+    const btn = document.getElementById('btn-caja-sort');
+    if(btn) btn.innerHTML = `Orden: ${cajaSortOrder === 'DESC' ? '⬇️' : '⬆️'}`;
+    renderCajaGeneral();
+}
+
+function openSaldoInicialCaja() {
+    document.getElementById('caja-mov-fecha').valueAsDate = new Date();
+    document.getElementById('caja-mov-desc').value = 'SALDO INICIAL';
+    document.getElementById('caja-mov-salida').value = '';
+    document.getElementById('caja-mov-entrada').value = '';
+    document.getElementById('caja-mov-monto').value = '';
+    document.getElementById('modal-caja-movimiento').classList.remove('hidden');
+}
+
+function deleteMovimientoCaja(id) {
+    if(!confirm("⚠️ ¿Estás seguro de eliminar este movimiento manual? Esta acción no se puede deshacer y alterará el balance actual.")) return;
+    dbMovimientosCaja = dbMovimientosCaja.filter(m => m.id !== id);
+    save();
+    renderAll();
+    showToast("Movimiento eliminado exitosamente.");
+}
 
 function renderCajaGeneral() {
     const tbody = document.getElementById('caja-general-body');
@@ -8641,15 +8674,18 @@ function renderCajaGeneral() {
         }
     });
 
-    // 2. Integrar movimientos manuales (Egresos, Traspasos)
+   // 2. Integrar movimientos manuales (Egresos, Traspasos)
     dbMovimientosCaja.forEach(m => {
-        if(m.salida) movimientos.push({ fecha: m.fecha, orden: '-', desc: m.desc, totalCobrar: 0, monto: parseFloat(m.monto), cuenta: m.salida, tipo: 'EGRESO' });
-        if(m.entrada) movimientos.push({ fecha: m.fecha, orden: '-', desc: m.desc, totalCobrar: 0, monto: parseFloat(m.monto), cuenta: m.entrada, tipo: 'INGRESO' });
+        if(m.salida) movimientos.push({ id: m.id, fecha: m.fecha, orden: '-', desc: m.desc, totalCobrar: 0, monto: parseFloat(m.monto), cuenta: m.salida, tipo: 'EGRESO' });
+        if(m.entrada) movimientos.push({ id: m.id, fecha: m.fecha, orden: '-', desc: m.desc, totalCobrar: 0, monto: parseFloat(m.monto), cuenta: m.entrada, tipo: 'INGRESO' });
     });
 
-    // 3. Ordenar por fecha cronológica
+    // 3. Ordenar por fecha cronológica y aplicar preferencia Ascendente/Descendente
     const parseDate = (d) => { const p = d.split(d.includes('/')?'/':'-'); return new Date(p[2]||p[0], (p[1]||p[1])-1, p[0]||p[2]); };
-    movimientos.sort((a, b) => parseDate(a.fecha) - parseDate(b.fecha));
+    movimientos.sort((a, b) => {
+        const diff = parseDate(a.fecha) - parseDate(b.fecha);
+        return cajaSortOrder === 'DESC' ? -diff : diff;
+    });
 
     // 4. Aplicar Filtro de Fechas (Si están seleccionadas)
     const dDesde = document.getElementById('caja-filter-desde').value;
@@ -8696,10 +8732,12 @@ function renderCajaGeneral() {
 
         const f = (val) => val ? val.toFixed(2) : '';
 
+       const btnEliminar = (m.orden === '-' && m.id) ? `<button onclick="deleteMovimientoCaja(${m.id})" title="Eliminar Movimiento" class="text-red-400 hover:text-red-600 bg-red-50 px-1.5 py-0.5 rounded ml-2 border border-red-100 transition-colors shadow-sm inline-flex items-center"><i data-lucide="trash-2" class="w-3 h-3"></i></button>` : '';
+
         html += `
         <tr class="hover:bg-slate-50 transition-colors border-b border-slate-100 text-[10px]">
             <td class="p-2 border-r border-slate-200 bg-white sticky left-0 z-10 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)] text-left min-w-[250px] truncate max-w-[300px]">
-                <span class="font-bold text-slate-500">${m.fecha}</span> <span class="font-black ml-1">${m.orden}</span> <span class="font-bold ml-1 text-slate-800">${m.desc}</span> 
+                <span class="font-bold text-slate-500">${m.fecha}</span> <span class="font-black ml-1">${m.orden}</span> <span class="font-bold ml-1 text-slate-800">${m.desc}</span> ${btnEliminar}
             </td>
             <td class="p-2 border-r border-slate-200 text-right font-black text-blue-600">${f(cols.bnI)}</td><td class="p-2 border-r border-slate-200 text-right font-bold text-red-500">${f(cols.bnO)}</td>
             <td class="p-2 border-r border-slate-200 text-right font-black text-blue-600">${f(cols.unI)}</td><td class="p-2 border-r border-slate-200 text-right font-bold text-red-500">${f(cols.unO)}</td>
@@ -8738,14 +8776,22 @@ function submitMovimientoCaja(e) {
     if(!salida && !entrada) return alert("Debe seleccionar una cuenta.");
     if(salida === entrada) return alert("La cuenta de origen y destino no pueden ser iguales.");
 
-    dbMovimientosCaja.push({
-        id: Date.now(),
-        fecha: document.getElementById('caja-mov-fecha').value,
-        monto: parseFloat(document.getElementById('caja-mov-monto').value),
-        desc: document.getElementById('caja-mov-desc').value,
-        salida: salida,
-        entrada: entrada
-    });
+    // Traductor de fecha: convierte YYYY-MM-DD a D/M/YYYY
+        let rawDate = document.getElementById('caja-mov-fecha').value;
+        let formattedDate = rawDate;
+        if(rawDate && rawDate.includes('-')) {
+            const parts = rawDate.split('-');
+            formattedDate = `${parseInt(parts[2])}/${parseInt(parts[1])}/${parts[0]}`;
+        }
+
+        dbMovimientosCaja.push({
+            id: Date.now(),
+            fecha: formattedDate,
+            monto: parseFloat(document.getElementById('caja-mov-monto').value),
+            desc: document.getElementById('caja-mov-desc').value,
+            salida: salida,
+            entrada: entrada
+        });
 
     save();
     document.getElementById('modal-caja-movimiento').classList.add('hidden');
