@@ -5503,10 +5503,13 @@ renderAll = function() {
             
             const list = orders.filter(o => o.status === 'INVENTARIO');
             
-            // Mostrar solo órdenes que aún tienen saldo físico por recoger
+           // Mostrar solo órdenes que aún tienen saldo físico por recoger
             const pendientes = list.filter(o => {
                 let tieneSaldo = false;
-                o.items.forEach(it => { if((it.entregado || 0) < it.qty) tieneSaldo = true; });
+                o.items.forEach(it => { 
+                    // Tolerancia de 0.01 para ignorar errores de redondeo
+                    if((it.qty - (it.entregado || 0)) > 0.01) tieneSaldo = true; 
+                });
                 return tieneSaldo;
             });
 
@@ -7788,14 +7791,15 @@ function buscarPedidoDespacho() {
         o.status === 'INVENTARIO' || o.status === 'PRODUCCION' || 
         o.id.toLowerCase().includes(s) || o.client.toLowerCase().includes(s)
     ).filter(o => {
-        // Solo mostrar si tiene algo que entregar
-        let faltaEntregar = false;
-        o.items.forEach(it => {
-            const entregado = it.entregado || 0;
-            if(entregado < it.qty) faltaEntregar = true;
+            // Solo mostrar si tiene algo que entregar
+            let faltaEntregar = false;
+            o.items.forEach(it => {
+                const entregado = it.entregado || 0;
+                // Tolerancia de 0.01 para ignorar errores de redondeo
+                if((it.qty - entregado) > 0.01) faltaEntregar = true;
+            });
+            return faltaEntregar && (o.id.toLowerCase().includes(s) || o.client.toLowerCase().includes(s));
         });
-        return faltaEntregar && (o.id.toLowerCase().includes(s) || o.client.toLowerCase().includes(s));
-    });
 
     if (filtrados.length === 0) {
         dd.innerHTML = `<div class="p-4 text-center text-slate-400 font-bold text-xs">No hay pedidos pendientes con ese dato.</div>`;
@@ -7882,12 +7886,12 @@ function renderFormularioDespacho() {
         alertaPago.classList.remove('hidden');
     }
 
-    // Tabla de Ítems
+   // Tabla de Ítems
     const tbody = document.getElementById('desp-items-body');
     tbody.innerHTML = o.items.map((it, idx) => {
         const entregado = it.entregado || 0;
         const saldoPzas = it.qty - entregado;
-        if(saldoPzas <= 0) return ''; // No mostrar si ya se entregó todo
+        if(saldoPzas <= 0.01) return ''; // Ocultar si la diferencia es solo un decimal microscópico
 
         return `
         <tr class="border-b border-slate-100">
@@ -7975,12 +7979,15 @@ function ejecutarDespacho() {
     if (errorCantidad) return alert("Error: Intentas despachar más piezas del saldo pendiente.");
     if (itemsDespachados.length === 0) return alert("Debes ingresar al menos 1 pieza para despachar.");
 
-    // Revisar si ya se entregó el 100% del pedido
+   // Revisar si ya se entregó el 100% del pedido
     let pedidoCompletado = true;
-    o.items.forEach(it => { if((it.entregado || 0) < it.qty) pedidoCompletado = false; });
+    o.items.forEach(it => { 
+        // Tolerancia de 0.01 para ignorar errores de redondeo
+        if((it.qty - (it.entregado || 0)) > 0.01) pedidoCompletado = false; 
+    });
     if(pedidoCompletado) o.status = 'DESPACHADO';
 
-    // Prorrateo de Transporte exacto por M³ extraído
+    // Prorrateo de Transporte exacto por M³ extraído	
     const costoTransTotal = o.trans || 0;
     let pagoChofer = 0;
     
