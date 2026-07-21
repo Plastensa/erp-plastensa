@@ -3503,10 +3503,19 @@ function handleFileUpload(e) {
 
         function calculateFinals() { 
             const bt = cart.reduce((s, i) => s + i.subtotal, 0); 
-            const t = parseFloat(document.getElementById('inp-trans').value)||0; 
-            const c = parseFloat(document.getElementById('inp-comm').value)||0; 
-            const ex = parseFloat(document.getElementById('inp-extra').value)||0; 
-            const dPct = parseFloat(document.getElementById('inp-desc').value)||0;
+            
+            // 🛡️ BLINDAJE ANTI-TRAMPAS: Atrapamos los valores y si son negativos los forzamos a 0
+            let t = parseFloat(document.getElementById('inp-trans').value) || 0; 
+            if (t < 0) { t = 0; document.getElementById('inp-trans').value = 0; }
+
+            let c = parseFloat(document.getElementById('inp-comm').value) || 0; 
+            if (c < 0) { c = 0; document.getElementById('inp-comm').value = 0; }
+
+            let ex = parseFloat(document.getElementById('inp-extra').value) || 0; 
+            if (ex < 0) { ex = 0; document.getElementById('inp-extra').value = 0; }
+
+            let dPct = parseFloat(document.getElementById('inp-desc').value) || 0;
+            if (dPct < 0) { dPct = 0; document.getElementById('inp-desc').value = 0; }
 
             // NUEVA LÓGICA: El subtotal para el cliente (con transporte, comisión y cobro extra prorrateados)
             const subtotalProrrateado = bt + t + c + ex;
