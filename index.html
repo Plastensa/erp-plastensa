@@ -2523,6 +2523,7 @@ function save() {
         return;
     }
 
+    // Ya no guardamos la materia prima ni los silos en este cajón gigante
     db.collection("plastensa_erp").doc("datos_centrales").set({
         products: JSON.stringify(products),
         dbMovimientosCaja: JSON.stringify(dbMovimientosCaja),
@@ -2531,17 +2532,13 @@ function save() {
         dbIntSellers: JSON.stringify(dbIntSellers),
         dbPendingVerifications: JSON.stringify(dbPendingVerifications),
         dbSchedules: JSON.stringify(dbSchedules),
-        dbMateriaPrima: JSON.stringify(dbMateriaPrima),
         dbMpTipos: JSON.stringify(dbMpTipos),
-        dbExpansion: JSON.stringify(dbExpansion),
         dbPreciosBase: JSON.stringify(dbPreciosBase),
         dbBancoRetazos: JSON.stringify(dbBancoRetazos),
         dbReportesCorte: JSON.stringify(dbReportesCorte),
         dbDespachos: JSON.stringify(dbDespachos),
         dbBloques: JSON.stringify(dbBloques),
         dbKardex: JSON.stringify(dbKardex),
-        dbSilos: JSON.stringify(dbSilos),
-        dbSilosHistory: JSON.stringify(dbSilosHistory),
         dbTolva: dbTolva
     }, { merge: true }) 
     .then(() => { console.log("Guardado central en la nube exitoso."); })
@@ -2954,6 +2951,7 @@ firebase.auth().onAuthStateChanged((user) => {
 });
 
 // El Radar SÓLO se prende cuando Google nos ha dado permiso de entrar a la bóveda
+// El Radar SÓLO se prende cuando Google nos ha dado permiso de entrar a la bóveda
 function iniciarRadar(userEmail) {
     db.collection("plastensa_erp").doc("datos_centrales").onSnapshot((doc) => {
         if (doc.exists) {
@@ -2965,19 +2963,19 @@ function iniciarRadar(userEmail) {
             dbIntSellers = data.dbIntSellers ? JSON.parse(data.dbIntSellers) : [];
             dbPendingVerifications = data.dbPendingVerifications ? JSON.parse(data.dbPendingVerifications) : [];
             dbSchedules = data.dbSchedules ? JSON.parse(data.dbSchedules) : [];
-            dbMateriaPrima = data.dbMateriaPrima ? JSON.parse(data.dbMateriaPrima) : { historial: [], saldoActual: 0 };
+            
+            // Mantenemos Tipos de MP y Retazos en el cajón general por ahora
             dbMpTipos = data.dbMpTipos ? JSON.parse(data.dbMpTipos) : [];
-            dbExpansion = data.dbExpansion ? JSON.parse(data.dbExpansion) : { jarritas: [], consumos: [] };
             dbPreciosBase = data.dbPreciosBase ? JSON.parse(data.dbPreciosBase) : { ajusteGlobal: 0, matriz: [] };
             let tempRetazos = data.dbBancoRetazos ? JSON.parse(data.dbBancoRetazos) : null;
             dbBancoRetazos = (!tempRetazos || Array.isArray(tempRetazos)) ? { D8: 0, D10: 0, D13: 0, D15: 0, D20: 0 } : tempRetazos;
+            
+            // Módulos que aún siguen en el cajón viejo
             dbReportesCorte = data.dbReportesCorte ? JSON.parse(data.dbReportesCorte) : [];
             dbDespachos = data.dbDespachos ? JSON.parse(data.dbDespachos) : [];
             dbBloques = data.dbBloques ? JSON.parse(data.dbBloques) : [];
             dbKardex = data.dbKardex ? JSON.parse(data.dbKardex) : [];
-            dbSilos = data.dbSilos ? JSON.parse(data.dbSilos) : [];
-            dbSilosHistory = data.dbSilosHistory ? JSON.parse(data.dbSilosHistory) : [];
-	        dbTolva = data.dbTolva !== undefined ? parseFloat(data.dbTolva) : (parseFloat(localStorage.getItem('plast_vol_maquina')) || 0);
+            dbTolva = data.dbTolva !== undefined ? parseFloat(data.dbTolva) : (parseFloat(localStorage.getItem('plast_vol_maquina')) || 0);
             
             erpDataLoaded = true;
             radarActivo = true;
@@ -3013,7 +3011,7 @@ function iniciarRadar(userEmail) {
         erpDataLoaded = false; 
     });
 
-    // 2. RADAR DE CARPETAS INDIVIDUALES (NUEVO)
+    // RADARES DE CARPETAS INDIVIDUALES (Cotizaciones y Pedidos)
     db.collection("cotizaciones").onSnapshot((snapshot) => {
         let tempQ = [];
         snapshot.forEach(doc => tempQ.push(doc.data()));
@@ -3028,6 +3026,48 @@ function iniciarRadar(userEmail) {
         if(erpDataLoaded && currentUser) { 
             renderTesoreria(); renderRegistroVentas(); renderProduction(); renderInventory(); renderHistorialAdmin();
         }
+    });
+
+    // --- RADARES NUEVOS: MATERIA PRIMA Y SILOS ---
+    db.collection("mp_ingresos").onSnapshot((snapshot) => {
+        let tempMP = [];
+        snapshot.forEach(doc => tempMP.push(doc.data()));
+        dbMateriaPrima.historial = tempMP.sort((a,b) => b.id - a.id);
+        if(erpDataLoaded && currentUser) renderMateriaPrima();
+    });
+
+    db.collection("exp_consumos").onSnapshot((snapshot) => {
+        let tempCons = [];
+        snapshot.forEach(doc => tempCons.push(doc.data()));
+        dbExpansion.consumos = tempCons.sort((a,b) => b.id - a.id);
+        if(erpDataLoaded && currentUser) { renderExpansion(); renderMateriaPrima(); }
+    });
+
+    db.collection("exp_jarritas").onSnapshot((snapshot) => {
+        let tempJar = [];
+        snapshot.forEach(doc => tempJar.push(doc.data()));
+        dbExpansion.jarritas = tempJar.sort((a,b) => b.id - a.id);
+        if(erpDataLoaded && currentUser) renderExpansion();
+    });
+
+    db.collection("silos_estado").onSnapshot((snapshot) => {
+        let tempSilos = [];
+        snapshot.forEach(doc => tempSilos.push(doc.data()));
+        if(tempSilos.length > 0) {
+            dbSilos = tempSilos.sort((a,b) => {
+                if(a.id === 'REC') return 1;
+                if(b.id === 'REC') return -1;
+                return parseInt(a.id) - parseInt(b.id);
+            });
+        }
+        if(erpDataLoaded && currentUser) renderSilos();
+    });
+
+    db.collection("silos_historial").onSnapshot((snapshot) => {
+        let tempSilosHist = [];
+        snapshot.forEach(doc => tempSilosHist.push(doc.data()));
+        dbSilosHistory = tempSilosHist.sort((a,b) => b.id - a.id);
+        if(erpDataLoaded && currentUser) renderHistorialSilos();
     });
 }
 
@@ -4302,21 +4342,19 @@ function saveMateriaPrima(e) {
     e.preventDefault();
     const lote = document.getElementById('mp-lote').value; const marca = document.getElementById('mp-marca').value; 
     const peso = parseFloat(document.getElementById('mp-peso').value); const fecha = document.getElementById('mp-fecha').value;
-    dbMateriaPrima.historial.unshift({ id: Date.now(), lote, marca, peso, fecha, operador: currentUser ? currentUser.name : 'Sistema' });
-    dbMateriaPrima.saldoActual += peso;
-    save(); e.target.reset(); initMpDate(); handleMpMarcaChange();
-    renderAll(); showToast("Bolsa registrada en inventario.");
+    
+    const nuevoIngreso = { id: Date.now(), lote, marca, peso, fecha, operador: currentUser ? currentUser.name : 'Sistema' };
+    
+    // Disparo directo a carpeta independiente
+    db.collection("mp_ingresos").doc(String(nuevoIngreso.id)).set(nuevoIngreso)
+    .then(() => {
+        e.target.reset(); initMpDate(); handleMpMarcaChange(); showToast("Bolsa registrada en inventario.");
+    });
 }
 
 function deleteMateriaPrima(id) {
     if(!confirm("¿Eliminar este ingreso? Se restará el peso del almacén principal.")) return;
-    const item = dbMateriaPrima.historial.find(x => x.id === id);
-    if(item) {
-        dbMateriaPrima.saldoActual -= item.peso;
-        if(dbMateriaPrima.saldoActual < 0) dbMateriaPrima.saldoActual = 0;
-        dbMateriaPrima.historial = dbMateriaPrima.historial.filter(x => x.id !== id);
-        save(); renderAll(); showToast("Ingreso eliminado.");
-    }
+    db.collection("mp_ingresos").doc(String(id)).delete().then(() => showToast("Ingreso eliminado."));
 }
 
 function renderMateriaPrima() {
@@ -4431,39 +4469,30 @@ function autoFillConsumo() {
         document.getElementById('exp-marca').disabled = false;
     }
 }
-           function saveJarrita(e) {
+
+function saveJarrita(e) {
     e.preventDefault();
     const h = document.getElementById('jar-hora').value;
     const user = currentUser ? currentUser.name : 'Sistema';
     
-    dbExpansion.jarritas.unshift({ 
-        id: Date.now(), 
-        fecha: new Date().toLocaleDateString(), 
-        hora: h, 
-        silo: document.getElementById('jar-silo').value, 
-        etapa: document.getElementById('jar-etapa').value, 
-        peso: parseFloat(document.getElementById('jar-peso').value), 
-        operador: user 
-    });
+    const nuevaJarrita = { id: Date.now(), fecha: new Date().toLocaleDateString(), hora: h, silo: document.getElementById('jar-silo').value, etapa: document.getElementById('jar-etapa').value, peso: parseFloat(document.getElementById('jar-peso').value), operador: user };
     
-    save(); 
-    e.target.reset(); 
-    initAppDates(); 
-    renderAll(); 
-    showToast("Densidad registrada por " + user);
+    db.collection("exp_jarritas").doc(String(nuevaJarrita.id)).set(nuevaJarrita)
+    .then(() => { e.target.reset(); initAppDates(); showToast("Densidad registrada por " + user); });
 }
 
-        function saveConsumo(e) {
-            e.preventDefault();
-            dbExpansion.consumos.unshift({ id: Date.now(), fecha: new Date().toLocaleDateString(), lote: document.getElementById('exp-lote').value, marca: document.getElementById('exp-marca').value, peso: parseFloat(document.getElementById('exp-peso').value), operador: currentUser.name });
-            save(); e.target.reset(); document.getElementById('exp-marca').disabled = false; renderAll(); showToast("Kilos descontados de almacén.");
-        }
+function saveConsumo(e) {
+    e.preventDefault();
+    const nuevoConsumo = { id: Date.now(), fecha: new Date().toLocaleDateString(), lote: document.getElementById('exp-lote').value, marca: document.getElementById('exp-marca').value, peso: parseFloat(document.getElementById('exp-peso').value), operador: currentUser.name };
+    
+    db.collection("exp_consumos").doc(String(nuevoConsumo.id)).set(nuevoConsumo)
+    .then(() => { e.target.reset(); document.getElementById('exp-marca').disabled = false; showToast("Kilos descontados de almacén."); });
+}
 
-        function deleteConsumo(id) {
-            if(!confirm("¿Anular este consumo? Los kilos volverán al almacén.")) return;
-            dbExpansion.consumos = dbExpansion.consumos.filter(x => x.id !== id);
-            save(); renderAll(); showToast("Consumo anulado.");
-        }
+function deleteConsumo(id) {
+    if(!confirm("¿Anular este consumo? Los kilos volverán al almacén.")) return;
+    db.collection("exp_consumos").doc(String(id)).delete().then(() => showToast("Consumo anulado."));
+}
 
 function renderExpansion() {
     // 1. Renderiza las jarritas
@@ -6083,36 +6112,34 @@ function processPrimeraExpansion(e) {
     
     if(marca === 'Lote no encontrado en Almacén' || !marca) return alert("Ingresa un lote válido.");
     
-    // DOBLE VALIDACIÓN DE SEGURIDAD PARA EL SALDO
     const ingresoOriginal = dbMateriaPrima.historial.find(h => h.lote === lote);
     const consumido = dbExpansion.consumos.filter(c => c.lote === lote).reduce((sum, c) => sum + c.peso, 0);
     const saldoRestante = ingresoOriginal.peso - consumido;
     
-    if(kg > saldoRestante) {
-        return alert(`Operación rechazada. Solo quedan ${saldoRestante.toFixed(1)} KG en esta bolsa.`);
-    }
+    if(kg > saldoRestante) return alert(`Operación rechazada. Solo quedan ${saldoRestante.toFixed(1)} KG en esta bolsa.`);
     
     const volGenerado = kg / jarrita; 
     const silo = dbSilos.find(s => s.id === siloId);
     
     if((silo.vol + volGenerado) > silo.cap) return alert(`¡Rebalse! El Silo ${siloId} solo tiene disponible ${(silo.cap - silo.vol).toFixed(2)} M³.`);
     
-    // Guardar consumos y estados
-    dbExpansion.consumos.unshift({ id: Date.now(), fecha: new Date().toLocaleDateString(), lote: lote, marca: marca, peso: kg, operador: currentUser.name });
+    // 1. Guardar Consumo en Nube de forma independiente
+    const nuevoConsumo = { id: Date.now(), fecha: new Date().toLocaleDateString(), lote: lote, marca: marca, peso: kg, operador: currentUser.name };
+    db.collection("exp_consumos").doc(String(nuevoConsumo.id)).set(nuevoConsumo);
     
+    // 2. Actualizar Estado de Silo en Nube
     silo.kg += kg; silo.vol += volGenerado; silo.dens = silo.kg / silo.vol;
+    db.collection("silos_estado").doc(String(silo.id)).set(silo);
     
-    // GUARDAR EN HISTORIAL KARDEX
+    // 3. Guardar Historial de Movimiento en Nube
     const fh = getFechaHora();
-    dbSilosHistory.unshift({ id: Date.now(), fecha: fh.fecha, hora: fh.hora, op: '1ra Expansión', origen: '-', destino: silo.name, lote: lote, marca: marca, kg: kg, jarrita: jarrita, volEps: volGenerado, volRec: 0, volTotal: volGenerado, operador: currentUser.name });
+    const nuevoHistorial = { id: Date.now() + 1, fecha: fh.fecha, hora: fh.hora, op: '1ra Expansión', origen: '-', destino: silo.name, lote: lote, marca: marca, kg: kg, jarrita: jarrita, volEps: volGenerado, volRec: 0, volTotal: volGenerado, operador: currentUser.name };
+    db.collection("silos_historial").doc(String(nuevoHistorial.id)).set(nuevoHistorial);
     
-    saveSilos(); save(); e.target.reset(); renderAll(); 
-    
-    // Limpiar visualmente el saldo después de guardar
-    document.getElementById('pe-saldo-lote').innerText = '-- KG';
-    
+    e.target.reset(); document.getElementById('pe-saldo-lote').innerText = '-- KG';
     showToast(`1ra Expansión Exitosa: ${volGenerado.toFixed(2)} M³ añadidos al Silo ${siloId}`);
 }
+
 // 4. Lógica de 2da Expansión (Mezcla y Traslado con Porcentaje)
 // 4. Lógica de 2da Expansión (Totalmente Automática y Matemática)
 function processSegundaExpansion(e) {
@@ -6132,53 +6159,47 @@ function processSegundaExpansion(e) {
     const espacioDisponible = siloDestino.cap - siloDestino.vol;
     if(espacioDisponible <= 0.1) return alert(`El Silo ${destinoId} ya está lleno (Capacidad máxima alcanzada).`);
 
-    // --- LA MAGIA: CÁLCULO MATEMÁTICO DEL VOLUMEN (Sin casilla del operador) ---
     const p = porcentajeReciclaje / 100;
     const factorExpansion = siloOrigen.dens / jarrita2; 
-    const factorTotalEntrante = factorExpansion + p; // M³ que entran al destino por cada 1 M³ virgen sacado
+    const factorTotalEntrante = factorExpansion + p; 
     
-    // ¿Cuánto virgen podemos sacar como máximo para llenar el destino sin que rebalse?
     const volMaxPermitido = espacioDisponible / factorTotalEntrante;
-    
-    // El volumen a extraer será lo que hay en el silo origen, o el máximo permitido (lo que sea menor)
     let volExtraer = Math.min(siloOrigen.vol, volMaxPermitido);
     let esVaciadoTotal = (volExtraer === siloOrigen.vol);
 
-    // 1. LA MATEMÁTICA DEL RECICLAJE
     const volReciclajeM3 = volExtraer * p;
     if(volReciclajeM3 > siloReciclaje.vol) {
         return alert(`Silo de Reciclaje solo tiene ${siloReciclaje.vol.toFixed(2)} M³ (necesitas ${volReciclajeM3.toFixed(2)} M³ para cubrir el ${porcentajeReciclaje}%).`);
     }
     
-    // 2. FÍSICA REAL: Masa extraída y volumen generado (inflado a Jarrita 2)
     const kgExtraidos = volExtraer * siloOrigen.dens; 
     const volGenerado = kgExtraidos / jarrita2;
-    
-    // 3. PESO OCULTO DEL RECICLAJE (Protege la densidad final)
     const kgReciclaje = volReciclajeM3 * jarrita2;
     
-    // Sumas totales entrantes al Silo Destino
     const volTotalEntrante = volGenerado + volReciclajeM3;
     const kgTotalesEntrantes = kgExtraidos + kgReciclaje;
     
-    // Descontar de los orígenes
+    // Descontar y Guardar Silos Origen
     siloOrigen.kg -= kgExtraidos; 
     siloOrigen.vol -= volExtraer;
     if(siloOrigen.vol < 0.1 || siloOrigen.kg < 0.1) { siloOrigen.kg = 0; siloOrigen.vol = 0; siloOrigen.dens = 0; }
+    db.collection("silos_estado").doc(String(siloOrigen.id)).set(siloOrigen);
     
     if(volReciclajeM3 > 0) {
         siloReciclaje.vol -= volReciclajeM3; 
         if(siloReciclaje.vol < 0.1) siloReciclaje.vol = 0;
+        db.collection("silos_estado").doc(String(siloReciclaje.id)).set(siloReciclaje);
     }
     
-    // Ingresar al destino y sellar densidad matemáticamente exacta
+    // Llenar y Guardar Silo Destino
     siloDestino.kg += kgTotalesEntrantes; 
     siloDestino.vol += volTotalEntrante; 
     siloDestino.dens = siloDestino.kg / siloDestino.vol;
+    db.collection("silos_estado").doc(String(siloDestino.id)).set(siloDestino);
     
-    // GUARDAR EN HISTORIAL KARDEX
+    // Guardar Historial individualmente
     const fh = getFechaHora();
-    dbSilosHistory.unshift({ 
+    const nuevoHistorial = { 
         id: Date.now(), fecha: fh.fecha, hora: fh.hora, 
         op: esVaciadoTotal ? '2da Expansión (Vaciado Saldo)' : '2da Expansión (Llenado Auto)', 
         origen: siloOrigen.name, destino: siloDestino.name, 
@@ -6186,9 +6207,10 @@ function processSegundaExpansion(e) {
         kg: kgTotalesEntrantes, jarrita: jarrita2, 
         volEps: volGenerado, volRec: volReciclajeM3, volTotal: volTotalEntrante, 
         operador: currentUser.name 
-    });
+    };
+    db.collection("silos_historial").doc(String(nuevoHistorial.id)).set(nuevoHistorial);
 
-    saveSilos(); e.target.reset(); renderAll();
+    e.target.reset(); 
     showToast(`Éxito: Procesados ${volExtraer.toFixed(2)} M³ de virgen con ${volReciclajeM3.toFixed(2)} M³ de reciclaje.`);
 }
 
@@ -6207,14 +6229,16 @@ function processVaciadoBloquera(e) {
     silo.kg -= kgExtraidos; silo.vol -= volExtraer;
     if(silo.vol < 0.1) { silo.vol = 0; silo.kg = 0; silo.dens = 0; }
     
+    db.collection("silos_estado").doc(String(silo.id)).set(silo);
+
     const fh = getFechaHora();
-    dbSilosHistory.unshift({ id: Date.now(), fecha: fh.fecha, hora: fh.hora, op: 'Vaciado a Bloquera', origen: silo.name, destino: 'Bloquera', lote: '-', marca: '-', kg: kgExtraidos, jarrita: silo.dens, volEps: volExtraer, volRec: 0, volTotal: volExtraer, operador: currentUser.name });
+    const nuevoHist = { id: Date.now(), fecha: fh.fecha, hora: fh.hora, op: 'Vaciado a Bloquera', origen: silo.name, destino: 'Bloquera', lote: '-', marca: '-', kg: kgExtraidos, jarrita: silo.dens, volEps: volExtraer, volRec: 0, volTotal: volExtraer, operador: currentUser.name };
+    db.collection("silos_historial").doc(String(nuevoHist.id)).set(nuevoHist);
 
-    // === ENVIAR VOLUMEN A TOLVA DE LA BLOQUERA EN LA NUBE ===
     dbTolva += volExtraer;
+    db.collection("plastensa_erp").doc("datos_centrales").update({ dbTolva: dbTolva });
 
-    saveSilos(); e.target.reset(); renderAll();
-    showToast(`Vaciado correcto. ${volExtraer.toFixed(2)} M³ añadidos a la Bloquera.`);
+    e.target.reset(); showToast(`Vaciado correcto. ${volExtraer.toFixed(2)} M³ añadidos a la Bloquera.`);
 }
 
 
@@ -6229,12 +6253,13 @@ function addReciclajeManual() {
     if((siloRec.vol + m3) > siloRec.cap) return alert(`Rebalse: El Silo de reciclaje solo tiene espacio para ${(siloRec.cap - siloRec.vol).toFixed(2)} M³.`);
     
     siloRec.vol += m3;
+    db.collection("silos_estado").doc(String(siloRec.id)).set(siloRec);
     
-    // GUARDAR EN HISTORIAL KARDEX
     const fh = getFechaHora();
-    dbSilosHistory.unshift({ id: Date.now(), fecha: fh.fecha, hora: fh.hora, op: 'Ingreso Reciclaje', origen: 'Planta', destino: 'Silo RECICLAJE', lote: 'Mermas', marca: '-', kg: 0, jarrita: 0, volEps: m3, volRec: 0, volTotal: m3, operador: currentUser.name });
+    const nuevoHist = { id: Date.now(), fecha: fh.fecha, hora: fh.hora, op: 'Ingreso Reciclaje', origen: 'Planta', destino: 'Silo RECICLAJE', lote: 'Mermas', marca: '-', kg: 0, jarrita: 0, volEps: m3, volRec: 0, volTotal: m3, operador: currentUser.name };
+    db.collection("silos_historial").doc(String(nuevoHist.id)).set(nuevoHist);
 
-    saveSilos(); renderAll(); showToast(`${m3} M³ de reciclaje añadidos al silo.`);
+    showToast(`${m3} M³ de reciclaje añadidos al silo.`);
 }
 
 // 7. EXPORTADOR A CSV
