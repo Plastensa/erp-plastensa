@@ -2517,7 +2517,7 @@
 	// INTERRUPTOR CRÍTICO DE SEGURIDAD
 	let erpDataLoaded = false;
 
-// 3. FUNCIÓN DE GUARDADO EN LA NUBE (VERSION CON BLINDAJE ANTI-BORRADO)
+// 3. FUNCIÓN DE GUARDADO EN LA NUBE (VERSION PARTICIONADA ANTI-COLAPSO)
 function save() {
     if (!erpDataLoaded) {
         console.error("🛑 BLOQUEO DE SEGURIDAD: Guardado rechazado. Los datos no han terminado de cargar del servidor.");
@@ -2529,11 +2529,8 @@ function save() {
         return;
     }
 
-    // El cajón principal ahora solo guarda lo estrictamente necesario
+    // 1. Guardar configuraciones y personal en el cajón CENTRAL (Liviano)
     db.collection("plastensa_erp").doc("datos_centrales").set({
-        products: JSON.stringify(products),
-        dbMovimientosCaja: JSON.stringify(dbMovimientosCaja),
-        dbClients: JSON.stringify(dbClients),
         dbExtSellers: JSON.stringify(dbExtSellers),
         dbIntSellers: JSON.stringify(dbIntSellers),
         dbPendingVerifications: JSON.stringify(dbPendingVerifications),
@@ -2541,11 +2538,25 @@ function save() {
         dbPreciosBase: JSON.stringify(dbPreciosBase),
         dbBancoRetazos: JSON.stringify(dbBancoRetazos),
         dbTolva: dbTolva
-    }, { merge: true }) 
-    .then(() => { console.log("Guardado central en la nube exitoso."); })
-    .catch(error => console.error("Error guardando en la nube: ", error));
+    }).catch(error => console.error("Error guardando centrales: ", error));
+
+    // 2. Guardar Catálogo de Productos (Cajón SEPARADO)
+    db.collection("plastensa_erp").doc("datos_productos").set({
+        products: JSON.stringify(products)
+    }, { merge: true }).catch(error => console.error("Error guardando productos: ", error));
+
+    // 3. Guardar Clientes (Cajón SEPARADO)
+    db.collection("plastensa_erp").doc("datos_clientes").set({
+        dbClients: JSON.stringify(dbClients)
+    }, { merge: true }).catch(error => console.error("Error guardando clientes: ", error));
+
+    // 4. Guardar Caja General (Cajón SEPARADO)
+    db.collection("plastensa_erp").doc("datos_caja").set({
+        dbMovimientosCaja: JSON.stringify(dbMovimientosCaja)
+    }, { merge: true }).catch(error => console.error("Error guardando caja: ", error));
 
     localStorage.setItem('plast_products', JSON.stringify(products));
+    console.log("✅ Guardado particionado en 4 cajones exitoso.");
 }
 
 function exportarExcelMaestro() {
@@ -3005,13 +3016,18 @@ firebase.auth().onAuthStateChanged((user) => {
 });
 
 // El Radar SÓLO se prende cuando Google nos ha dado permiso de entrar a la bóveda
+// El Radar SÓLO se prende cuando Google nos ha dado permiso de entrar a la bóveda
 function iniciarRadar(userEmail) {
+    // RADAR 1: DATOS CENTRALES (Liviano + Rescate de datos viejos)
     db.collection("plastensa_erp").doc("datos_centrales").onSnapshot((doc) => {
         if (doc.exists) {
             const data = doc.data();
-            products = data.products ? JSON.parse(data.products) : products;
-            dbMovimientosCaja = data.dbMovimientosCaja ? JSON.parse(data.dbMovimientosCaja) : [];
-            dbClients = data.dbClients ? JSON.parse(data.dbClients) : dbClients;
+            
+            // Rescate de datos viejos (si el sistema aún no ha migrado del todo)
+            if (data.products && products.length === 0) products = JSON.parse(data.products);
+            if (data.dbClients && dbClients.length === 0) dbClients = JSON.parse(data.dbClients);
+            if (data.dbMovimientosCaja && dbMovimientosCaja.length === 0) dbMovimientosCaja = JSON.parse(data.dbMovimientosCaja);
+
             dbExtSellers = data.dbExtSellers ? JSON.parse(data.dbExtSellers) : [];
             dbIntSellers = data.dbIntSellers ? JSON.parse(data.dbIntSellers) : [];
             dbPendingVerifications = data.dbPendingVerifications ? JSON.parse(data.dbPendingVerifications) : [];
@@ -3056,6 +3072,29 @@ function iniciarRadar(userEmail) {
         console.error("Error en el radar de Firebase: ", error);
         erpDataLoaded = false; 
     });
+
+    // === NUEVOS RADARES PARA LOS CAJONES SEPARADOS ===
+    db.collection("plastensa_erp").doc("datos_productos").onSnapshot((doc) => {
+        if (doc.exists && erpDataLoaded) { 
+            products = JSON.parse(doc.data().products); 
+            if(currentUser) { renderCatalogList(); renderInventarioBloques(); } 
+        }
+    });
+
+    db.collection("plastensa_erp").doc("datos_clientes").onSnapshot((doc) => {
+        if (doc.exists && erpDataLoaded) { 
+            dbClients = JSON.parse(doc.data().dbClients); 
+            if(currentUser) renderClientes(); 
+        }
+    });
+
+    db.collection("plastensa_erp").doc("datos_caja").onSnapshot((doc) => {
+        if (doc.exists && erpDataLoaded) { 
+            dbMovimientosCaja = JSON.parse(doc.data().dbMovimientosCaja); 
+            if(currentUser) renderCajaGeneral(); 
+        }
+    });
+    // ==================================================
 
     // RADARES INDIVIDUALES: COTIZACIONES Y PEDIDOS
     db.collection("cotizaciones").onSnapshot((snapshot) => {
