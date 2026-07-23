@@ -2520,16 +2520,16 @@
 // 3. FUNCIÓN DE GUARDADO EN LA NUBE (VERSION CON BLINDAJE ANTI-BORRADO)
 function save() {
     if (!erpDataLoaded) {
-        console.error("🛑 BLOQUEO DE SEGURIDAD: Guardado rechazado. Los datos no han terminado de cargar del servidor o hay un problema de conexión.");
+        console.error("🛑 BLOQUEO DE SEGURIDAD: Guardado rechazado. Los datos no han terminado de cargar del servidor.");
         return;
     }
 
-    if (products.length === 0 && dbIntSellers.length <= 1 && dbBloques.length === 0) {
-        console.error("🛑 BLOQUEO DE SEGURIDAD: Se detectó un intento de sobreescribir la nube con listas vacías. Operación abortada.");
+    if (products.length === 0 && dbIntSellers.length <= 1) {
+        console.error("🛑 BLOQUEO DE SEGURIDAD: Se detectó un intento de sobreescribir la nube con listas vacías.");
         return;
     }
 
-    // Ya no guardamos la materia prima ni los silos en este cajón gigante
+    // El cajón principal ahora solo guarda lo estrictamente necesario
     db.collection("plastensa_erp").doc("datos_centrales").set({
         products: JSON.stringify(products),
         dbMovimientosCaja: JSON.stringify(dbMovimientosCaja),
@@ -2537,21 +2537,15 @@ function save() {
         dbExtSellers: JSON.stringify(dbExtSellers),
         dbIntSellers: JSON.stringify(dbIntSellers),
         dbPendingVerifications: JSON.stringify(dbPendingVerifications),
-        dbSchedules: JSON.stringify(dbSchedules),
         dbMpTipos: JSON.stringify(dbMpTipos),
         dbPreciosBase: JSON.stringify(dbPreciosBase),
         dbBancoRetazos: JSON.stringify(dbBancoRetazos),
-        dbReportesCorte: JSON.stringify(dbReportesCorte),
-        dbDespachos: JSON.stringify(dbDespachos),
-        dbBloques: JSON.stringify(dbBloques),
-        dbKardex: JSON.stringify(dbKardex),
         dbTolva: dbTolva
     }, { merge: true }) 
     .then(() => { console.log("Guardado central en la nube exitoso."); })
     .catch(error => console.error("Error guardando en la nube: ", error));
 
     localStorage.setItem('plast_products', JSON.stringify(products));
-    localStorage.setItem('plast_bloques', JSON.stringify(dbBloques));
 }
 
 function exportarExcelMaestro() {
@@ -2794,12 +2788,14 @@ async function robotMigradorFinal() {
         // ==========================================
         // MÓDULO: KARDEX E INVENTARIO INICIAL (PT)
         // ==========================================
-        function registrarMovimientoInventario(itemName, qty, tipo, motivo) {
-            const fecha = new Date().toLocaleDateString();
-            const hora = new Date().toLocaleTimeString();
-            const operador = currentUser ? currentUser.name : 'Sistema';
-            dbKardex.unshift({ id: Date.now(), fecha, hora, item: itemName, qty, tipo, motivo, operador });
-        }
+function registrarMovimientoInventario(itemName, qty, tipo, motivo) {
+    const fecha = new Date().toLocaleDateString();
+    const hora = new Date().toLocaleTimeString();
+    const operador = currentUser ? currentUser.name : 'Sistema';
+    
+    const nuevoKardex = { id: Date.now(), fecha, hora, item: itemName, qty, tipo, motivo, operador };
+    db.collection("kardex_pt").doc(String(nuevoKardex.id)).set(nuevoKardex);
+}
 
         function downloadInventarioTemplate() {
             const stockItems = products.filter(p => Number(p.stock) > 0);
@@ -3009,7 +3005,6 @@ firebase.auth().onAuthStateChanged((user) => {
 });
 
 // El Radar SÓLO se prende cuando Google nos ha dado permiso de entrar a la bóveda
-// El Radar SÓLO se prende cuando Google nos ha dado permiso de entrar a la bóveda
 function iniciarRadar(userEmail) {
     db.collection("plastensa_erp").doc("datos_centrales").onSnapshot((doc) => {
         if (doc.exists) {
@@ -3020,19 +3015,12 @@ function iniciarRadar(userEmail) {
             dbExtSellers = data.dbExtSellers ? JSON.parse(data.dbExtSellers) : [];
             dbIntSellers = data.dbIntSellers ? JSON.parse(data.dbIntSellers) : [];
             dbPendingVerifications = data.dbPendingVerifications ? JSON.parse(data.dbPendingVerifications) : [];
-            dbSchedules = data.dbSchedules ? JSON.parse(data.dbSchedules) : [];
             
-            // Mantenemos Tipos de MP y Retazos en el cajón general por ahora
             dbMpTipos = data.dbMpTipos ? JSON.parse(data.dbMpTipos) : [];
             dbPreciosBase = data.dbPreciosBase ? JSON.parse(data.dbPreciosBase) : { ajusteGlobal: 0, matriz: [] };
             let tempRetazos = data.dbBancoRetazos ? JSON.parse(data.dbBancoRetazos) : null;
             dbBancoRetazos = (!tempRetazos || Array.isArray(tempRetazos)) ? { D8: 0, D10: 0, D13: 0, D15: 0, D20: 0 } : tempRetazos;
             
-            // Módulos que aún siguen en el cajón viejo
-            dbReportesCorte = data.dbReportesCorte ? JSON.parse(data.dbReportesCorte) : [];
-            dbDespachos = data.dbDespachos ? JSON.parse(data.dbDespachos) : [];
-            dbBloques = data.dbBloques ? JSON.parse(data.dbBloques) : [];
-            dbKardex = data.dbKardex ? JSON.parse(data.dbKardex) : [];
             dbTolva = data.dbTolva !== undefined ? parseFloat(data.dbTolva) : (parseFloat(localStorage.getItem('plast_vol_maquina')) || 0);
             
             erpDataLoaded = true;
@@ -3069,7 +3057,7 @@ function iniciarRadar(userEmail) {
         erpDataLoaded = false; 
     });
 
-    // RADARES DE CARPETAS INDIVIDUALES (Cotizaciones y Pedidos)
+    // RADARES INDIVIDUALES: COTIZACIONES Y PEDIDOS
     db.collection("cotizaciones").onSnapshot((snapshot) => {
         let tempQ = [];
         snapshot.forEach(doc => tempQ.push(doc.data()));
@@ -3086,7 +3074,7 @@ function iniciarRadar(userEmail) {
         }
     });
 
-    // --- RADARES NUEVOS: MATERIA PRIMA Y SILOS ---
+    // RADARES INDIVIDUALES: PRODUCCIÓN FASE 1 (MATERIA PRIMA Y SILOS)
     db.collection("mp_ingresos").onSnapshot((snapshot) => {
         let tempMP = [];
         snapshot.forEach(doc => tempMP.push(doc.data()));
@@ -3126,6 +3114,41 @@ function iniciarRadar(userEmail) {
         snapshot.forEach(doc => tempSilosHist.push(doc.data()));
         dbSilosHistory = tempSilosHist.sort((a,b) => b.id - a.id);
         if(erpDataLoaded && currentUser) renderHistorialSilos();
+    });
+
+    // RADARES INDIVIDUALES: PRODUCCIÓN FASE 2 (BLOQUERA, CORTES Y DESPACHOS)
+    db.collection("bloques_inventario").onSnapshot((snapshot) => {
+        let tempB = [];
+        snapshot.forEach(doc => tempB.push(doc.data()));
+        dbBloques = tempB; 
+        if(erpDataLoaded && currentUser) { renderInventarioBloques(); renderVolumenMaquina(); renderSalaCorte(); }
+    });
+
+    db.collection("cortes_programados").onSnapshot((snapshot) => {
+        let tempS = [];
+        snapshot.forEach(doc => tempS.push(doc.data()));
+        dbSchedules = tempS;
+        if(erpDataLoaded && currentUser) { renderPlanDiario(); renderProduction(); renderSalaCorte(); }
+    });
+
+    db.collection("cortes_reportes").onSnapshot((snapshot) => {
+        let tempR = [];
+        snapshot.forEach(doc => tempR.push(doc.data()));
+        dbReportesCorte = tempR.sort((a,b) => b.id - a.id);
+        if(erpDataLoaded && currentUser) { renderReporteCorte(); }
+    });
+
+    db.collection("kardex_pt").onSnapshot((snapshot) => {
+        let tempK = [];
+        snapshot.forEach(doc => tempK.push(doc.data()));
+        dbKardex = tempK.sort((a,b) => b.id - a.id);
+    });
+
+    db.collection("despachos_tickets").onSnapshot((snapshot) => {
+        let tempD = [];
+        snapshot.forEach(doc => tempD.push(doc.data()));
+        dbDespachos = tempD.sort((a,b) => String(b.idTicket).localeCompare(String(a.idTicket)));
+        if(erpDataLoaded && currentUser) { renderDespacho(); renderTransporte(); renderTransporteDetail(); }
     });
 }
 
@@ -4177,32 +4200,36 @@ function submitPayment(e) {
         }
 
         function submitSchedule(e) {
-            e.preventDefault();
-            const orderId = document.getElementById('sched-order-id').value;
-            const itemIdx = parseInt(document.getElementById('sched-item-idx').value);
-            const dateStr = document.getElementById('sched-date').value;
-            const qty = parseFloat(document.getElementById('sched-qty').value);
-            const volUnit = parseFloat(document.getElementById('sched-vol-unit').value);
-            const volTotal = qty * volUnit;
+    e.preventDefault();
+    const orderId = document.getElementById('sched-order-id').value;
+    const itemIdx = parseInt(document.getElementById('sched-item-idx').value);
+    const dateStr = document.getElementById('sched-date').value;
+    const qty = parseFloat(document.getElementById('sched-qty').value);
+    const volUnit = parseFloat(document.getElementById('sched-vol-unit').value);
+    const volTotal = qty * volUnit;
 
-            const check = checkCapacity(dateStr, volTotal);
-            if(!check.allowed) {
-                const errBox = document.getElementById('sched-error');
-                errBox.innerText = check.msg; errBox.classList.remove('hidden');
-                return;
-            }
+    const check = checkCapacity(dateStr, volTotal);
+    if(!check.allowed) {
+        const errBox = document.getElementById('sched-error');
+        errBox.innerText = check.msg; errBox.classList.remove('hidden');
+        return;
+    }
 
-            dbSchedules.push({ id: Date.now(), orderId: orderId, itemIdx: itemIdx, date: dateStr, qty: qty, volTotal: volTotal, status: 'PENDIENTE' });
-            save(); closeScheduleModal(); renderAll(); showToast("Corte programado exitosamente.");
-        }
+    const nuevoCorte = { id: Date.now(), orderId: orderId, itemIdx: itemIdx, date: dateStr, qty: qty, volTotal: volTotal, status: 'PENDIENTE' };
+    db.collection("cortes_programados").doc(String(nuevoCorte.id)).set(nuevoCorte);
+    
+    closeScheduleModal(); showToast("Corte programado exitosamente.");
+}
 
         function finishSchedule(schedId) {
     const s = dbSchedules.find(x => x.id === schedId);
     if(s) {
         s.status = 'FINALIZADO';
-        const o = orders.find(x => x.id === s.orderId);
+        db.collection("cortes_programados").doc(String(s.id)).set(s);
         
+        const o = orders.find(x => x.id === s.orderId);
         let allFinished = true;
+        
         if(o && o.items) {
             o.items.forEach((item, idx) => {
                 const scheduledQty = dbSchedules.filter(sx => sx.orderId === o.id && sx.itemIdx === idx && sx.status === 'FINALIZADO').reduce((sum, sx) => sum + sx.qty, 0);
@@ -4212,13 +4239,11 @@ function submitPayment(e) {
         
         if(allFinished && o && o.status === 'PRODUCCION') {
             o.status = 'INVENTARIO';
+            db.collection("pedidos").doc(String(o.id).replace(/\//g, '-')).set(o);
             showToast("Corte finalizado. Orden enviada a Inventario.");
         } else {
             showToast("Corte parcial finalizado.");
         }
-        
-        if(o) db.collection("pedidos").doc(String(o.id).replace(/\//g, '-')).set(o);
-        save();
     }
 }
 
@@ -5810,7 +5835,6 @@ function anularDespacho(idTicket) {
     const tIndex = dbDespachos.findIndex(x => x.idTicket === idTicket);
     if (tIndex === -1) return alert("Ticket no encontrado.");
     const t = dbDespachos[tIndex];
-
     const o = orders.find(x => x.id === t.orderId);
     
     if (o) {
@@ -5827,11 +5851,12 @@ function anularDespacho(idTicket) {
                     if (s.orderId === o.id && s.itemIdx === orderItemIdx && s.auto === true) {
                         if (s.qty <= aRevertir) {
                             aRevertir -= s.qty;
-                            dbSchedules.splice(i, 1); 
+                            db.collection("cortes_programados").doc(String(s.id)).delete();
                         } else {
                             s.qty -= aRevertir;
                             s.volTotal = s.qty * (orderItem.volTotal / orderItem.qty);
                             aRevertir = 0;
+                            db.collection("cortes_programados").doc(String(s.id)).set(s);
                         }
                         if (aRevertir <= 0) break;
                     }
@@ -5855,7 +5880,7 @@ function anularDespacho(idTicket) {
         db.collection("pedidos").doc(String(o.id).replace(/\//g, '-')).set(o);
     }
 
-    dbDespachos.splice(tIndex, 1);
+    db.collection("despachos_tickets").doc(String(idTicket).replace(/\//g, '-')).delete();
     save();
     showToast(`Despacho ${idTicket} anulado con éxito. Inventario restaurado.`);
 }
@@ -6520,13 +6545,10 @@ function registrarBloque() {
     if(isNaN(peso) || !produccionActiva) return;
 
     let volMaquina = dbTolva;
-
-    // === 1. CANDADO FÍSICO ESTRICTO ===
     if (volMaquina < (produccionActiva.volReal - 0.05)) {
-        return alert(`❌ TOLVA VACÍA O INSUFICIENTE:\n\nIntenta producir un bloque de ${produccionActiva.volReal} M³, pero la tolva solo tiene ${volMaquina.toFixed(2)} M³ disponibles.\n\nPor favor, vaya a "Expansión" y vacíe material hacia la bloquera para poder continuar.`);
+        return alert(`❌ TOLVA VACÍA O INSUFICIENTE:\n\nIntenta producir un bloque de ${produccionActiva.volReal} M³, pero la tolva solo tiene ${volMaquina.toFixed(2)} M³ disponibles.`);
     }
 
-    // === 2. Descontar Volumen de la Nube ===
     dbTolva -= produccionActiva.volReal;
     if(dbTolva < 0) dbTolva = 0;
 
@@ -6550,16 +6572,14 @@ function registrarBloque() {
                 estado = `OBSERVADO (${produccionActiva.densidad} Malo)`; colorEstado = "text-red-500 font-black";
             }
         } else {
-            // BUG CORREGIDO: Aquí decía textReal en vez de densReal
             alert(`🛑 DENSIDAD EXTREMA (${densReal.toFixed(2)} kg/m³). Se guardará como FUERA DE RANGO.`);
             estado = "FUERA DE RANGO"; colorEstado = "text-red-700 font-black";
         }
     }
 
     const hoy = new Date().toLocaleDateString();
-    const bloquesHoy = dbBloques.filter(b => b.fecha === hoy && b.tipo === produccionActiva.tipo && b.densFinal === densFinal);
-    const correlativo = String(bloquesHoy.length + 1).padStart(2, '0');
-    const codigoUnico = `${hoy.replace(/\//g, '').slice(0, 4)}-${densFinal}-${produccionActiva.tipo}-#${correlativo}`;
+    const correlativo = String(produccionActiva.listaSesion.length + 1).padStart(2, '0');
+    const codigoUnico = `${hoy.replace(/\//g, '').slice(0, 4)}-${densFinal}-${produccionActiva.tipo}-#${Date.now().toString().slice(-4)}`;
 
     const nuevoBloque = {
         id: Date.now(), codigo: codigoUnico, tipo: produccionActiva.tipo, densFinal: densFinal, peso: peso,
@@ -6567,11 +6587,11 @@ function registrarBloque() {
         estado: estado, colorEstado: colorEstado, ubicacion: 'PLANTA', fecha: hoy, operador: currentUser ? currentUser.name : 'Sistema'
     };
 
-    dbBloques.push(nuevoBloque);
     produccionActiva.listaSesion.unshift(nuevoBloque); 
     
-    localStorage.setItem('plast_bloques', JSON.stringify(dbBloques)); 
-    save();
+    // Disparo Directo a Firebase
+    db.collection("bloques_inventario").doc(String(nuevoBloque.id)).set(nuevoBloque);
+    save(); // Para actualizar dbTolva
     
     document.getElementById('blq-peso').value = '';
     document.getElementById('blq-ultimo-registro').classList.remove('hidden');
@@ -6581,7 +6601,6 @@ function registrarBloque() {
 
     renderListaSesion();
     renderVolumenMaquina();
-    renderInventarioBloques();
     document.getElementById('blq-peso').focus();
 }
 
@@ -6732,10 +6751,8 @@ function eliminarBloque(id) {
         if(infoCatalogo) dbTolva += infoCatalogo.volReal;
     }
 
-    dbBloques = dbBloques.filter(b => b.id !== id);
-    localStorage.setItem('plast_bloques', JSON.stringify(dbBloques)); save();
-    renderInventarioBloques();
-    renderVolumenMaquina();
+    db.collection("bloques_inventario").doc(String(id)).delete();
+    save(); // Para actualizar dbTolva
     showToast("Bloque eliminado permanentemente.");
 }
 
@@ -6754,10 +6771,12 @@ function enviarSeleccionadosACorte() {
         checkboxes.forEach(cb => {
             const id = parseInt(cb.value);
             const bloque = dbBloques.find(b => b.id === id);
-            if(bloque) bloque.ubicacion = 'CORTADO';
+            if(bloque) {
+                bloque.ubicacion = 'CORTADO';
+                db.collection("bloques_inventario").doc(String(bloque.id)).set(bloque);
+            }
         });
-        localStorage.setItem('plast_bloques', JSON.stringify(dbBloques)); save();
-        renderInventarioBloques();
+        
         toggleCorteBtn();
         showToast(`${checkboxes.length} bloques enviados a corte.`);
     }
@@ -7370,7 +7389,6 @@ function procesarEjecucionCorte() {
             bloquesElegidosIds.push(b.id);
             volBloquesIngresado += Number(b.volNeto);
             setDensidadesBloques.add(b.densFinal);
-
             if(b.tipo.toUpperCase().includes('SR') || b.codigo.toUpperCase().includes('SR')) {
                 setDensidadesBloques.add('SR');
                 bloqueEsSRDetectado = true;
@@ -7411,9 +7429,7 @@ function procesarEjecucionCorte() {
 
     const volTotalSalida = volUtilTotal + volBajasTotal;
     const diff = volBloquesIngresado - volTotalSalida;
-    
-    // NUEVO: Calculamos la tolerancia basándonos en los bloques realmente seleccionados
-    const toleranciaGlobal = bloquesElegidosIds.length * 0.17;
+    const toleranciaGlobal = bloquesElegidosIds.length * 0.17; 
 
     if(diff < -toleranciaGlobal) {
         return alert(`❌ IMPOSIBLE: Los bloques suman ${volBloquesIngresado.toFixed(2)} M³, pero intenta generar ${volTotalSalida.toFixed(2)} M³.\n\nTolerancia máxima permitida para ${bloquesElegidosIds.length} bloques: ${toleranciaGlobal.toFixed(2)} M³ de excedente.`);
@@ -7422,14 +7438,13 @@ function procesarEjecucionCorte() {
     const destinoBajas = document.getElementById('corte-destino-bajas').value;
     const tandaId = Date.now(); 
 
-    // 1. Dar de baja los bloques (CON BLINDAJE DE TIPO DE DATO)
-    dbBloques = dbBloques.map(b => {
-        // Obligamos a que la comparación sea exacta convirtiendo todo a String
+    // 1. Dar de baja los bloques directo a Firebase
+    bloquesDisponibles.forEach(b => {
         const isElegido = bloquesElegidosIds.some(id => String(id) === String(b.id));
         if(isElegido) {
-            return { ...b, ubicacion: 'PROCESADO', tandaProceso: tandaId, fechaModificado: new Date().toLocaleString() };
+            b.ubicacion = 'PROCESADO'; b.tandaProceso = tandaId; b.fechaModificado = new Date().toLocaleString();
+            db.collection("bloques_inventario").doc(String(b.id)).set(b);
         }
-        return b;
     });
 
     // 2. Mermas y Bajas
@@ -7440,6 +7455,7 @@ function procesarEjecucionCorte() {
         const siloRec = dbSilos.find(s => s.id === 'REC');
         if(siloRec && destinoBajas === 'RECICLAJE') {
             siloRec.vol += volumenTotalDesperdicio;
+            db.collection("silos_estado").doc(String(siloRec.id)).set(siloRec);
         }
     }
     
@@ -7450,6 +7466,7 @@ function procesarEjecucionCorte() {
         } else {
             dbBancoRetazos[densPrincipal] = volumenTotalDesperdicio;
         }
+        save(); // Guarda el banco de retazos en el documento central
     }
 
     // 3. Excedente y Cierre de Órdenes
@@ -7468,9 +7485,8 @@ function procesarEjecucionCorte() {
                 qtyParaOrden = it.qtyBuenas;
             }
 
-            const schedIdx = dbSchedules.findIndex(s => s.id === corteOperacionActiva.schedId);
-            if(schedIdx > -1) {
-                const s = dbSchedules[schedIdx];
+            const s = dbSchedules.find(x => x.id === corteOperacionActiva.schedId);
+            if(s) {
                 const faltante = s.qty - qtyParaOrden;
                 if(faltante > 0) {
                     s.qty = faltante;
@@ -7481,6 +7497,7 @@ function procesarEjecucionCorte() {
                     s.fabricadoQty = corteOperacionActiva.qtyRequerida;
                     s.tandaId = tandaId;
                 }
+                db.collection("cortes_programados").doc(String(s.id)).set(s);
             }
         } else {
             qtyParaStock = it.qtyBuenas;
@@ -7516,7 +7533,6 @@ function procesarEjecucionCorte() {
     const codigosUsados = dbBloques.filter(b => bloquesElegidosIds.includes(b.id)).map(b => b.codigo).join(', ');
     const userReg = currentUser ? currentUser.name : 'Sistema';
     
-    // Desglose Independiente de Etiquetas para Reporte
     const stringResumen = reportLogData.map(i => {
         let lineas = [];
         if (i.qtyOrder > 0) {
@@ -7531,7 +7547,7 @@ function procesarEjecucionCorte() {
         return lineas.join('');
     }).join('');
 
-    dbReportesCorte.unshift({
+    const nuevoReporte = {
         id: tandaId, fecha: new Date().toLocaleDateString(), hora: new Date().toLocaleTimeString(),
         bloques: codigosUsados, bloquesIds: bloquesElegidosIds, item: stringResumen, 
         detalleCortes: reportLogData, destinoBajas: destinoBajas, volBajasTotal: volBajasTotal,
@@ -7539,14 +7555,14 @@ function procesarEjecucionCorte() {
         volReciclaje: destinoBajas === 'RECICLAJE' ? volumenTotalDesperdicio : 0, 
         volRetazo: destinoBajas === 'RETASO' ? volumenTotalDesperdicio : 0, 
         mermaPerfilado: mermaPerfiladoYSobranza, operador: userReg
-    });
+    };
+    
+    db.collection("cortes_reportes").doc(String(nuevoReporte.id)).set(nuevoReporte);
 
-    if(typeof saveSilos === 'function') saveSilos();
-    save(); localStorage.setItem('plast_products', JSON.stringify(products)); 
-    cerrarAsistenteCorte(); renderAll(); 
+    save(); // Guardar productos
+    cerrarAsistenteCorte(); 
     showToast("Tanda procesada! Se enviaron las piezas al inventario.");
 }
-
 
 // =========================================================
 // REGLAS INTELIGENTES DE PRODUCTOS (POKA-YOKE)
@@ -7773,7 +7789,6 @@ function anularTandaCorte(id) {
     const reporte = dbReportesCorte.find(r => r.id === id);
     if(!reporte) return alert("Reporte no encontrado.");
 
-    // 1. Escudo de Seguridad: Si alguna orden ya fue despachada, bloquear.
     let bloqueoDespacho = false;
     let ordenesAfectadas = new Set();
     
@@ -7796,22 +7811,23 @@ function anularTandaCorte(id) {
 
     if(!confirm(`⚠️ ATENCIÓN ADMINISTRADOR:\n¿Está seguro de ANULAR (Ctrl+Z) este corte?\n- Los bloques volverán a la Sala de Corte.\n- El inventario generado se restará.\n- Los pedidos afectados volverán a la lista "Por Programar".`)) return;
 
-    // 2. Devolver los bloques físicos a la máquina (CORTADO)
+    // 2. Devolver los bloques físicos a la máquina en Firebase
     if(reporte.bloquesIds && reporte.bloquesIds.length > 0) {
-        dbBloques = dbBloques.map(b => {
+        dbBloques.forEach(b => {
             if(reporte.bloquesIds.includes(b.id)) {
-                return { ...b, ubicacion: 'CORTADO', tandaProceso: null, fechaModificado: new Date().toLocaleString() };
+                b.ubicacion = 'CORTADO'; b.tandaProceso = null; b.fechaModificado = new Date().toLocaleString();
+                db.collection("bloques_inventario").doc(String(b.id)).set(b);
             }
-            return b;
         });
     }
 
-    // 3. Restar Mermas y Retazos (CORREGIDO: Usa el volumen total exacto que guardamos)
+    // 3. Restar Mermas y Retazos
     if(typeof dbSilos !== 'undefined') {
         const siloRec = dbSilos.find(s => s.id === 'REC');
         if(siloRec) {
             if(reporte.volReciclaje) siloRec.vol -= reporte.volReciclaje;
             if(siloRec.vol < 0) siloRec.vol = 0;
+            db.collection("silos_estado").doc(String(siloRec.id)).set(siloRec);
         }
     }
     
@@ -7830,7 +7846,6 @@ function anularTandaCorte(id) {
     // 4. Restar Productos y Revertir Programación de Pedidos
     if(reporte.detalleCortes && reporte.detalleCortes.length > 0) {
         reporte.detalleCortes.forEach(c => {
-            // Restar stock del catálogo
             const totalStockCreado = (c.qtyStock || 0) + (c.qtyOrder || 0);
             const prodCat = products.find(p => p.name === c.item);
             if(prodCat) {
@@ -7838,34 +7853,25 @@ function anularTandaCorte(id) {
                 if(prodCat.stock < 0) prodCat.stock = 0;
             }
 
-            // Revertir descuento de los pedidos por programar de forma estricta
             if(c.schedId) {
                 const s = dbSchedules.find(x => x.id === c.schedId);
                 if(s) {
                     if(s.status === 'FINALIZADO' && s.tandaId === id) {
-                        // Esta tanda terminó el pedido por completo. Solo reabrimos el estado.
                         s.status = 'PENDIENTE';
                         s.tandaId = null;
                         s.fabricadoQty = 0;
                     } else if (s.status !== 'FINALIZADO') {
-                        // Fue un corte parcial. Devolvemos la cantidad exacta a la tabla.
                         s.status = 'PENDIENTE';
                         s.qty = (s.qty || 0) + c.qtyOrder;
                         s.volTotal = (s.volTotal || 0) + (c.qtyOrder * c.volUnit);
                     }
+                    db.collection("cortes_programados").doc(String(s.id)).set(s);
                 }
             }
         });
-    } else {
-        // Respaldo para cortes antiguos sin detalle
-        const prodCat = products.find(p => p.name === reporte.item);
-        if(prodCat) {
-            prodCat.stock = (parseInt(prodCat.stock) || 0) - reporte.pzas;
-            if(prodCat.stock < 0) prodCat.stock = 0;
-        }
     }
 
-    // 5. Revertir Estado del Pedido (De INVENTARIO vuelve a PRODUCCION)
+    // 5. Revertir Estado del Pedido
     ordenesAfectadas.forEach(orderId => {
         const o = orders.find(x => x.id === orderId);
         if(o && o.status === 'INVENTARIO') {
@@ -7875,14 +7881,9 @@ function anularTandaCorte(id) {
     });
 
     // 6. Borrar el registro del historial de cortes
-    dbReportesCorte = dbReportesCorte.filter(r => r.id !== id);
+    db.collection("cortes_reportes").doc(String(id)).delete();
 
-    // 7. Guardar y refrescar forzosamente
-    if(typeof saveSilos === 'function') saveSilos();
-    save(); 
-    localStorage.setItem('plast_products', JSON.stringify(products)); 
-    localStorage.setItem('plast_bloques', JSON.stringify(dbBloques)); // Refresco obligado para Bloques en Máquina
-    renderAll();
+    save(); // Guarda catálogos y retazos
     showToast("Corte anulado (Ctrl+Z). Bloques devueltos y pedidos reabiertos.");
 }
 
@@ -8115,7 +8116,7 @@ function ejecutarDespacho() {
     o.items.forEach((it, idx) => {
         const input = document.getElementById(`desp-input-${idx}`);
         if(input) {
-            const aDespachar = parseFloat(input.value) || 0; // CORRECCIÓN: parseFloat permite decimales
+            const aDespachar = parseFloat(input.value) || 0; 
             const entregadoPrevio = it.entregado || 0;
             
             if (aDespachar > (it.qty - entregadoPrevio)) errorCantidad = true;
@@ -8127,26 +8128,22 @@ function ejecutarDespacho() {
                 volTotalDespachoM3 += volDespachado;
                 itemsDespachados.push({ name: it.name, qtyComprada: it.qty, qtyDespachada: aDespachar, volDespachadoM3: volDespachado });
 
-                // 1. INVENTARIO NEGATIVO: Descontar permitiendo números rojos
+                // INVENTARIO NEGATIVO
                 const prodCat = products.find(p => normalizarNombre(p.name) === normalizarNombre(it.name));
                 if(prodCat) {
-                    prodCat.stock = (parseFloat(prodCat.stock) || 0) - aDespachar; // CORRECCIÓN: parseFloat en stock
+                    prodCat.stock = (parseFloat(prodCat.stock) || 0) - aDespachar; 
                 }
 
-                // 2. BACKFLUSHING (Auto-Limpieza): Generar corte virtual si se despacha sin estar programado
+                // BACKFLUSHING (Auto-Limpieza) directo a Firebase
                 const scheduledQty = dbSchedules.filter(s => s.orderId === o.id && s.itemIdx === idx).reduce((sum, s) => sum + s.qty, 0);
                 if (it.entregado > scheduledQty) {
                     const diff = it.entregado - scheduledQty;
-                    dbSchedules.push({ 
-                        id: Date.now() + Math.floor(Math.random() * 1000), // ID único
-                        orderId: o.id, 
-                        itemIdx: idx, 
-                        date: new Date().toLocaleDateString(), 
-                        qty: diff, 
-                        volTotal: diff * volUnit, 
-                        status: 'FINALIZADO', // Lo damos por hecho automáticamente
-                        auto: true // Etiqueta interna de auditoría
-                    });
+                    const nuevoCorteFantasma = { 
+                        id: Date.now() + Math.floor(Math.random() * 1000), 
+                        orderId: o.id, itemIdx: idx, date: new Date().toLocaleDateString(), 
+                        qty: diff, volTotal: diff * volUnit, status: 'FINALIZADO', auto: true 
+                    };
+                    db.collection("cortes_programados").doc(String(nuevoCorteFantasma.id)).set(nuevoCorteFantasma);
                 }
             }
         }
@@ -8155,19 +8152,14 @@ function ejecutarDespacho() {
     if (errorCantidad) return alert("Error: Intentas despachar más piezas del saldo pendiente.");
     if (itemsDespachados.length === 0) return alert("Debes ingresar al menos 1 pieza para despachar.");
 
-   // Revisar si ya se entregó el 100% del pedido
     let pedidoCompletado = true;
     o.items.forEach(it => { 
-        // Tolerancia de 0.01 para ignorar errores de redondeo
         if((it.qty - (it.entregado || 0)) > 0.01) pedidoCompletado = false; 
     });
     if(pedidoCompletado) o.status = 'DESPACHADO';
 
-    // Prorrateo de Transporte exacto por M³ extraído	
     const costoTransTotal = o.trans || 0;
     let pagoChofer = 0;
-    
-    // Sumamos el volumen total teórico completo del pedido original
     const volTotalTeoricoPedido = o.items.reduce((sum, item) => sum + (item.volTotal || 0), 0);
     const volumenBaseCalculo = o.volGlobalCotizacion > 0 ? o.volGlobalCotizacion : volTotalTeoricoPedido;
 
@@ -8176,33 +8168,25 @@ function ejecutarDespacho() {
         pagoChofer = costoUnitarioPorM3 * volTotalDespachoM3;
     }
 
-   const ticket = {
+    const ticket = {
         idTicket: `TKT-${Date.now().toString().slice(-6)}`,
         orderId: o.id,
         estadoFinanciero: (o.saldo || 0) <= 0 ? 'PAGADO' : 'NO PAGADO',
         fecha: new Date().toLocaleString(),
-        cliente: o.client,
-        conductor: conductor,
-        placa: placa,
-        obs: obs,
-        items: itemsDespachados,
-        volM3: volTotalDespachoM3,
-        pagoChoferGenerado: pagoChofer,
+        cliente: o.client, conductor: conductor, placa: placa, obs: obs,
+        items: itemsDespachados, volM3: volTotalDespachoM3, pagoChoferGenerado: pagoChofer,
         operador: currentUser ? currentUser.name : 'Sistema'
     };
 
-    dbDespachos.unshift(ticket);
-    
-    // --- NUEVA LÍNEA: Avisar a la carpeta individual de Firebase que el pedido se despachó ---
+    // Subir a Firebase Despacho y Pedido actualizado
+    db.collection("despachos_tickets").doc(String(ticket.idTicket).replace(/\//g, '-')).set(ticket);
     db.collection("pedidos").doc(String(o.id).replace(/\//g, '-')).set(o);
     
-    save(); localStorage.setItem('plast_products', JSON.stringify(products)); // Guardar inventario
-    
+    save(); // Guardar inventario de catalogo
     document.getElementById('panel-despacho-activo').classList.add('hidden');
     pedidoDespachoActivo = null;
     document.getElementById('buscador-despacho').value = '';
     
-    renderAll();
     imprimirTicketTermico(ticket);
 }
 
@@ -8636,24 +8620,22 @@ function generarCorrelativoPedido() {
 // MÓDULO DE ANULACIÓN DE PEDIDOS (SOLO ADMIN)
 // ==========================================
 function anularPedido(id) {
-    // 1. Escudo Anti-Despachos
     const despachosAsociados = dbDespachos.filter(d => String(d.orderId).trim() === String(id).trim());
     if (despachosAsociados.length > 0) {
-        alert(`🛑 ACCIÓN BLOQUEADA:\n\nEl pedido ${id} NO se puede anular porque ya tiene material despachado y entregado al cliente.\n\nSi necesitas hacer una devolución de algo ya entregado, debes coordinarlo físicamente y realizar el ajuste de forma manual en almacén.`);
+        alert(`🛑 ACCIÓN BLOQUEADA:\n\nEl pedido ${id} NO se puede anular porque ya tiene material despachado y entregado al cliente.\n\nSi necesitas hacer una devolución, debes realizar el ajuste de forma manual.`);
         return;
     }
 
-    // 2. Confirmación de Seguridad Extrema
     if (!confirm(`⚠️ ATENCIÓN ADMINISTRADOR:\n\n¿Estás completamente seguro de ANULAR y borrar el pedido ${id}?\n\nEsta acción eliminará el pedido de Ventas, vaciará los cortes programados en Producción, y borrará los ingresos asociados en Tesorería.\n\nEsta acción es IRREVERSIBLE.`)) {
         return;
     }
 
-    // INYECCIÓN FASE 2: Francotirador directo a la carpeta de Google
     db.collection("pedidos").doc(String(id).replace(/\//g, '-')).delete()
     .then(() => {
-        // 3. Limpieza Profunda con Escudo de Strings
-        orders = orders.filter(o => String(o.id).trim() !== String(id).trim());
-        dbSchedules = dbSchedules.filter(s => String(s.orderId).trim() !== String(id).trim());
+        // Borrar todos los schedules del pedido
+        dbSchedules.filter(s => String(s.orderId).trim() === String(id).trim()).forEach(s => {
+            db.collection("cortes_programados").doc(String(s.id)).delete();
+        });
 
         if (typeof dbPendingVerifications !== 'undefined') {
             dbPendingVerifications = dbPendingVerifications.filter(p => String(p.orderId).trim() !== String(id).trim());
@@ -8666,9 +8648,7 @@ function anularPedido(id) {
             });
         }
 
-        // 4. Guardar en Firebase/Local y refrescar pantalla
         save();
-        renderAll();
         showToast(`Pedido ${id} anulado y borrado de la nube exitosamente.`);
     })
     .catch((err) => {
