@@ -5478,13 +5478,19 @@ renderAll = function() {
                         <td class="p-4 text-[10px] font-black uppercase text-slate-500">${metodosStr}</td>
                         <td class="p-4 text-center">${payStatusBadge}</td>
                         <td class="p-4 text-center">
-                                    <div class="flex items-center justify-center gap-2">
-                                        <button onclick="printQuote('${o.id}')" class="bg-blue-600 hover:bg-blue-700 text-white px-3 py-1.5 rounded-lg text-[9px] font-black shadow-sm transition-colors inline-flex items-center gap-1">
-                                            <i data-lucide="printer" class="w-3 h-3"></i> PDF
-                                        </button>
-                                        ${(currentUser && currentUser.role === 'ADMIN') ? `<button onclick="anularPedido('${o.id}')" class="bg-red-50 hover:bg-red-100 text-red-600 border border-red-200 px-3 py-1.5 rounded-lg text-[9px] font-black shadow-sm transition-colors inline-flex items-center gap-1" title="Anular Pedido"><i data-lucide="trash-2" class="w-3 h-3"></i> Anular</button>` : ''}
-                                    </div>
-                                </td>
+    <div class="flex flex-col items-center justify-center gap-2">
+        <div class="flex gap-2">
+            <button onclick="printQuote('${o.id}')" class="bg-blue-600 hover:bg-blue-700 text-white px-3 py-1.5 rounded-lg text-[9px] font-black shadow-sm transition-colors inline-flex items-center gap-1">
+                <i data-lucide="printer" class="w-3 h-3"></i> PDF
+            </button>
+            ${(currentUser && currentUser.role === 'ADMIN') ? `<button onclick="anularPedido('${o.id}')" class="bg-red-50 hover:bg-red-100 text-red-600 border border-red-200 px-3 py-1.5 rounded-lg text-[9px] font-black shadow-sm transition-colors inline-flex items-center gap-1" title="Anular Pedido"><i data-lucide="trash-2" class="w-3 h-3"></i> Anular</button>` : ''}
+        </div>
+        ${(o.type === 'CF' && currentUser && currentUser.role === 'ADMIN') ? `
+        <button onclick="emitirFacturaPiloto('${o.id}')" class="w-full bg-purple-600 hover:bg-purple-700 text-white px-3 py-1.5 rounded-lg text-[9px] font-black shadow-sm transition-colors flex items-center justify-center gap-1 mt-1">
+            <i data-lucide="send" class="w-3 h-3"></i> FACTURAR (PILOTO)
+        </button>` : ''}
+    </div>
+</td>
                     </tr>`;
             });
             tbody.innerHTML = html || `<tr><td colspan="16" class="p-10 text-center font-bold text-slate-400 italic">No hay ventas que coincidan con el filtro.</td></tr>`;
@@ -9246,6 +9252,101 @@ renderAll = function() {
     prevRenderAllClientes();
     if(typeof renderClientes === 'function') renderClientes();
 };
+
+// =========================================================
+// INTEGRACIÓN API - SYSTEMS BOLIVIA (FACTURACIÓN SIAT)
+// =========================================================
+function emitirFacturaPiloto(orderId) {
+    if(!confirm("¿Deseas enviar este pedido al sistema de facturación piloto de Systems Bolivia?")) return;
+
+    const o = orders.find(x => x.id === orderId);
+    if(!o) return alert("Pedido no encontrado.");
+
+    if(!o.nit || o.nit.trim() === '') return alert("❌ ERROR: El cliente no tiene NIT o CI registrado en el pedido.");
+
+    showToast("Enviando datos al servidor de Impuestos...");
+
+    // 1. CÁLCULO Y PRORRATEO DE PRECIOS EXACTOS (Como en tu PDF)
+    const baseTotal = o.items.reduce((s,i) => s + i.subtotal, 0);
+    const subtotalTeorico = baseTotal + (o.trans || 0) + (o.comm || 0) + (o.extra || 0);
+    const descPorc = o.descuentoPorcentaje || 0;
+    const descMonto = subtotalTeorico * (descPorc / 100);
+    const subtotalProrrateado = o.total + descMonto; // Total Bruto sin descuentos
+    const multiplier = baseTotal > 0 ? (subtotalProrrateado / baseTotal) : 1;
+
+    // 2. CONSTRUCCIÓN DE LOS ITEMS PARA EL SIAT
+    const json_products = o.items.map(i => {
+        const proratedPrice = i.unitPrice * multiplier;
+        const discountItem = (proratedPrice * i.qty) * (descPorc / 100);
+        const subtotalItem = (proratedPrice * i.qty) - discountItem;
+        
+        // Buscar código de producto en el catálogo (Si no tiene, envía PROD)
+        const pCat = products.find(p => p.name === i.name);
+        const pCode = (pCat && pCat.code) ? pCat.code : "PROD";
+
+        return {
+            "economic_activity": "222030", // Código SIAT general para plastoformo
+            "code_product_sin": "99100",   // Código SIAT genérico
+            "product_code": pCode,
+            "description_product": i.name,
+            "amount": i.qty,
+            "unit_of_measurement": "58", 
+            "unit_price": parseFloat(proratedPrice.toFixed(2)),
+            "discount_amount": parseFloat(discountItem.toFixed(2)),
+            "subtotal": parseFloat(subtotalItem.toFixed(2))
+        };
+    });
+
+    // 3. IDENTIFICAR SI ES NIT O CI
+    let docType = 1; // 1 = CI
+    const cleanNit = String(o.nit).replace(/\s+/g, '');
+    if (/^\d{8,15}$/.test(cleanNit) && cleanNit.length > 7) docType = 5; // 5 = NIT
+
+    // 4. ARMAR EL PAQUETE (PAYLOAD)
+    const payload = {
+        "additional_discount": 0,
+        "amount_giftcard": 0,
+        "payment_method_code": 1, // 1 = Efectivo
+        "card_number": "",
+        "code_clients": "100", // Cód Genérico Piloto
+        "document_type_clients": docType,
+        "complement_client": "",
+        "document_clients": cleanNit,
+        "business_name_clients": o.client,
+        "email_clients": "sin_correo@plastensa.com",
+        "login": "admin",
+        "json_products": json_products,
+        "id_movement": 0,
+        "billing_date": "",
+        "number_invoice": 0
+    };
+
+    console.log("Enviando payload a Systems Bolivia:", payload);
+
+    // 5. DISPARAR A LA API
+    fetch('https://systemsbolivia.com/produccion/apiInvWinner20mi/Api/emissions', {
+        method: 'POST',
+        headers: {
+            'company': 'fernando',
+            'branch': '0',
+            'pos': '0',
+            'sectors': '1',
+            'modality': '1',
+            'Content-Type': 'application/json',
+            'Authorization': 'Bearer eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJpYXQiOjE3NjMyMDQ5OTAsImV4cCI6MTc2MzI5MTM5MCwiZGF0YSI6eyJpZCI6MSwibG9naW4iOiJhZG1pbiIsImNvbXBhbnkiOiJlbXByZXNhIn19.zdy9HlQcsjcfy2XzdgvKkhqml8I8zvVMXadXMalc-R4'
+        },
+        body: JSON.stringify(payload)
+    })
+    .then(response => response.json())
+    .then(data => {
+        console.log("Respuesta de Facturación API:", data);
+        alert("📊 RESPUESTA DEL SISTEMA DE FACTURACIÓN:\n\n" + JSON.stringify(data, null, 2));
+    })
+    .catch(error => {
+        console.error("Error en facturación API:", error);
+        alert("❌ Ocurrió un error de red al intentar facturar. Revisa tu conexión a internet.");
+    });
+}
 
 renderAll();
     </script>
