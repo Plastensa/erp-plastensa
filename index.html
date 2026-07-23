@@ -2456,6 +2456,12 @@
     <span>ROBOT: MIGRAR M. PRIMA, EXPANSIÓN Y SILOS (FASE 2)</span>
 </button>
 
+<!-- BOTÓN TEMPORAL MIGRACIÓN BLOQUERA Y DESPACHOS -->
+<button onclick="robotMigradorFinal()" class="col-span-1 md:col-span-2 w-full bg-red-600 text-white px-8 py-6 rounded-xl font-black hover:bg-red-700 transition-colors flex flex-col items-center justify-center gap-3 shadow-lg border-2 border-red-400 border-dashed mt-4">
+    <i data-lucide="database-zap" class="w-8 h-8 animate-pulse"></i> 
+    <span>ROBOT: MIGRAR BLOQUERA, CORTES Y DESPACHOS (FASE 3)</span>
+</button>
+
                         </div>
                     </div>
                 </div>
@@ -2727,6 +2733,58 @@ async function robotMigradorProduccion() {
         }
         
         alert("✅ MIGRACIÓN DE PRODUCCIÓN 100% EXITOSA\n\nTus datos históricos ya están clonados y a salvo en carpetas individuales. Ve a tu consola de Firebase para confirmarlo.");
+    } catch (error) {
+        console.error("Error en migración:", error);
+        alert("❌ GOOGLE RECHAZÓ LA OPERACIÓN.\n\nMotivo exacto:\n" + error.message);
+    }
+}
+
+// ==========================================
+// ROBOT DE MIGRACIÓN: BLOQUERA Y DESPACHOS
+// ==========================================
+async function robotMigradorFinal() {
+    const confirmacion = confirm("🤖 ROBOT MIGRADOR FASE 3\n\n¿Iniciar la clonación de Bloques, Programación, Cortes, Kardex y Despachos a sus carpetas independientes?");
+    if(!confirmacion) return;
+    
+    try {
+        showToast("Migrando Inventario de Bloques...");
+        let bCount = 0;
+        for (let b of dbBloques) {
+            await db.collection("bloques_inventario").doc(String(b.id)).set(b);
+            bCount++;
+        }
+
+        showToast("Migrando Cortes Programados...");
+        let sCount = 0;
+        for (let s of dbSchedules) {
+            await db.collection("cortes_programados").doc(String(s.id)).set(s);
+            sCount++;
+        }
+        
+        showToast("Migrando Reportes de Corte...");
+        let rcCount = 0;
+        for (let rc of dbReportesCorte) {
+            await db.collection("cortes_reportes").doc(String(rc.id)).set(rc);
+            rcCount++;
+        }
+
+        showToast("Migrando Kardex PT...");
+        let kCount = 0;
+        for (let k of dbKardex) {
+            await db.collection("kardex_pt").doc(String(k.id)).set(k);
+            kCount++;
+        }
+        
+        showToast("Migrando Despachos...");
+        let dCount = 0;
+        for (let d of dbDespachos) {
+            // Aseguramos que el ID del ticket no tenga barras inclinadas
+            let safeId = String(d.idTicket).replace(/\//g, '-');
+            await db.collection("despachos_tickets").doc(safeId).set(d);
+            dCount++;
+        }
+        
+        alert(`✅ MIGRACIÓN FINAL 100% EXITOSA\n\nSe clonaron:\n- ${bCount} Bloques\n- ${sCount} Cortes Prog.\n- ${rcCount} Rep. Cortes\n- ${kCount} Reg. Kardex\n- ${dCount} Despachos\n\nRevisa tu consola de Firebase.`);
     } catch (error) {
         console.error("Error en migración:", error);
         alert("❌ GOOGLE RECHAZÓ LA OPERACIÓN.\n\nMotivo exacto:\n" + error.message);
