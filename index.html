@@ -2449,6 +2449,12 @@
                                 <i data-lucide="bot" class="w-8 h-8 animate-bounce"></i> 
                                 <span>ROBOT: MIGRAR A CARPETAS INDIVIDUALES (FASE 1)</span>
                             </button>
+			    
+			    <!-- BOTÓN TEMPORAL MIGRACIÓN PRODUCCIÓN -->
+<button onclick="robotMigradorProduccion()" class="col-span-1 md:col-span-2 w-full bg-orange-600 text-white px-8 py-6 rounded-xl font-black hover:bg-orange-700 transition-colors flex flex-col items-center justify-center gap-3 shadow-lg border-2 border-orange-400 border-dashed mt-4">
+    <i data-lucide="database-zap" class="w-8 h-8 animate-pulse"></i> 
+    <span>ROBOT: MIGRAR M. PRIMA, EXPANSIÓN Y SILOS (FASE 2)</span>
+</button>
 
                         </div>
                     </div>
@@ -2686,6 +2692,47 @@ async function robotMigrador() {
         console.error("Error real de Firebase:", error);
         // 3. Mostrar el VERDADERO error de Google en la pantalla si algo falla
         alert("❌ GOOGLE RECHAZÓ LA OPERACIÓN.\n\nMotivo exacto:\n" + error.message + "\n\nPor favor, tómale una foto a este mensaje y envíamela.");
+    }
+}
+
+// ==========================================
+// ROBOT DE MIGRACIÓN: PRODUCCIÓN A CARPETAS
+// ==========================================
+async function robotMigradorProduccion() {
+    const confirmacion = confirm("🤖 ROBOT MIGRADOR FASE 2\n\n¿Iniciar la clonación de Materia Prima, Expansión y Silos a sus carpetas independientes en la nube?");
+    if(!confirmacion) return;
+    
+    try {
+        showToast("Migrando Materia Prima...");
+        for (let h of dbMateriaPrima.historial) {
+            await db.collection("mp_ingresos").doc(String(h.id)).set(h);
+        }
+        
+        showToast("Migrando Expansión (Consumos)...");
+        for (let c of dbExpansion.consumos) {
+            await db.collection("exp_consumos").doc(String(c.id)).set(c);
+        }
+
+        showToast("Migrando Expansión (Jarritas)...");
+        for (let j of dbExpansion.jarritas) {
+            await db.collection("exp_jarritas").doc(String(j.id)).set(j);
+        }
+        
+        showToast("Migrando Historial de Silos...");
+        for (let sh of dbSilosHistory) {
+            await db.collection("silos_historial").doc(String(sh.id)).set(sh);
+        }
+
+        // Los Silos actuales (el estado en tiempo real de los 9 silos)
+        showToast("Migrando Estado Actual de Silos...");
+        for (let s of dbSilos) {
+            await db.collection("silos_estado").doc(String(s.id)).set(s);
+        }
+        
+        alert("✅ MIGRACIÓN DE PRODUCCIÓN 100% EXITOSA\n\nTus datos históricos ya están clonados y a salvo en carpetas individuales. Ve a tu consola de Firebase para confirmarlo.");
+    } catch (error) {
+        console.error("Error en migración:", error);
+        alert("❌ GOOGLE RECHAZÓ LA OPERACIÓN.\n\nMotivo exacto:\n" + error.message);
     }
 }
 
