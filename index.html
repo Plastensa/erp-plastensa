@@ -7564,6 +7564,14 @@ function procesarEjecucionCorte() {
         const prodCat = products.find(p => p.name === it.name);
         let qtySobranteStock = it.qtyBuenas;
 
+        // === 1. CORRECCIÓN INVENTARIO (ELIMINA SALDOS NEGATIVOS) ===
+        // Todo lo que se corta (sea pedido o stock) debe sumar a la bodega física.
+        if(prodCat && it.qtyBuenas > 0) {
+            prodCat.stock = (parseInt(prodCat.stock) || 0) + it.qtyBuenas;
+            registrarMovimientoInventario(prodCat.name, it.qtyBuenas, 'INGRESO', 'Producción Sala Corte');
+        }
+        // ==========================================================
+
         if(it.isMainOrder && !corteOperacionActiva.isStock) {
             const destinos = it.targets || [];
             
@@ -7579,11 +7587,13 @@ function procesarEjecucionCorte() {
                     qtySobranteStock = 0;
                 }
 
-                // Descontar al pedido correcto y enviar a la base de datos
-                const schedIdx = dbSchedules.findIndex(s => s.id === destino.schedId);
+                // === 2. CORRECCIÓN TARJETAS FANTASMA ===
+                // Forzamos String para buscar y Number para restar, evitando bugs de Firebase
+                const schedIdx = dbSchedules.findIndex(s => String(s.id) === String(destino.schedId));
                 if(schedIdx > -1) {
                     const s = dbSchedules[schedIdx];
-                    const faltante = s.qty - qtyAAsignar;
+                    const faltante = Number(s.qty) - qtyAAsignar;
+                    
                     if(faltante > 0) {
                         s.qty = faltante;
                         s.volTotal = Math.max(0, s.volTotal - (qtyAAsignar * it.volUnit));
@@ -7604,12 +7614,8 @@ function procesarEjecucionCorte() {
             });
         }
         
-        // El excedente o stock libre va al inventario
+        // Mermas y Sobrantes se anotan en el log
         if (qtySobranteStock > 0 || it.qtyMalas > 0 || !it.isMainOrder) {
-            if(prodCat && qtySobranteStock > 0) {
-                prodCat.stock = (parseInt(prodCat.stock) || 0) + qtySobranteStock;
-                registrarMovimientoInventario(prodCat.name, qtySobranteStock, 'INGRESO', 'Producción de Corte (Stock)');
-            }
             if(qtySobranteStock > 0 || it.qtyMalas > 0) {
                 reportLogData.push({
                     item: it.name, qtyOrder: 0, qtyStock: qtySobranteStock, qtyMalas: it.qtyMalas,
