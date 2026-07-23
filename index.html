@@ -7190,6 +7190,12 @@ function abrirPanelAsistente(titulo = "CORTE PARA STOCK GENERAL") {
 
     const obsAlert = (!corteOperacionActiva.isStock && corteOperacionActiva.obs) ? `<div class="p-4 bg-red-100 border-2 border-red-500 rounded-2xl text-red-700 text-sm font-black uppercase mb-4 shadow-sm">⚠️ CORTE ESPECIAL:<br><span class="text-xl block mt-2 text-center bg-white rounded-xl p-2">${corteOperacionActiva.obs}</span></div>` : '';
 
+    // NUEVO: Variables de estado para Modo Reproceso
+    corteOperacionActiva.modoInput = 'BLOQUES';
+    corteOperacionActiva.ptInputName = '';
+    corteOperacionActiva.ptInputQty = 0;
+    corteOperacionActiva.ptInputVol = 0;
+
     panel.innerHTML = `
         <div class="flex justify-between items-start mb-4 border-b border-slate-200 pb-4">
             <div>
@@ -7200,9 +7206,30 @@ function abrirPanelAsistente(titulo = "CORTE PARA STOCK GENERAL") {
         </div>
         
         ${obsAlert}
+
+        <!-- NUEVO: INTERRUPTOR DE ORIGEN DE MATERIAL -->
+        <div class="mb-4 bg-slate-100 p-4 rounded-2xl border border-slate-200">
+            <div class="flex justify-between items-center mb-3">
+                <label class="text-[10px] font-black uppercase text-slate-500 tracking-widest">Materia Prima (Matriz)</label>
+                <button onclick="toggleModoInputCorte()" id="btn-toggle-input" class="bg-indigo-100 text-indigo-700 px-3 py-1.5 rounded-lg text-[9px] font-black uppercase tracking-widest border border-indigo-200 hover:bg-indigo-200 transition-colors shadow-sm">
+                    🔄 CAMBIAR A REPROCESO (PT)
+                </button>
+            </div>
+            
+            <div id="div-input-bloques" class="text-sm font-bold text-slate-700">
+                <i data-lucide="box" class="inline w-4 h-4 mr-1 text-blue-500"></i> Usando Bloques Vírgenes (Marcados a la izquierda).
+            </div>
+            
+            <div id="div-input-pt" class="hidden flex gap-2 items-center">
+                <input type="text" id="corte-input-pt-name" list="lista-productos-corte" class="flex-1 bg-white border border-slate-300 p-2.5 rounded-xl font-bold text-xs outline-none focus:ring-2 focus:ring-indigo-500" placeholder="Buscar Producto Terminado...">
+                <input type="number" id="corte-input-pt-qty" placeholder="Cant." min="1" class="w-20 bg-white border border-slate-300 p-2.5 rounded-xl font-bold text-xs text-center outline-none focus:ring-2 focus:ring-indigo-500">
+                <button onclick="setPtInputCorte()" class="bg-indigo-600 text-white px-4 py-2.5 rounded-xl font-black text-xs uppercase shadow-md hover:bg-indigo-700">FIJAR MATRIZ</button>
+            </div>
+            <div id="div-pt-fijado" class="hidden mt-3 text-xs font-black text-indigo-700 bg-indigo-50 p-3 rounded-xl border border-indigo-200 shadow-sm"></div>
+        </div>
         
         <div class="mb-4 flex gap-2">
-            <input type="text" id="corte-buscador-catalogo" list="lista-productos-corte" class="flex-1 bg-white border border-slate-300 p-3 rounded-xl font-bold text-sm outline-none focus:ring-2 focus:ring-blue-500" placeholder="Añadir ítem del catálogo... (Ej: PB8)">
+            <input type="text" id="corte-buscador-catalogo" list="lista-productos-corte" class="flex-1 bg-white border border-slate-300 p-3 rounded-xl font-bold text-sm outline-none focus:ring-2 focus:ring-blue-500" placeholder="Añadir ítem resultante... (Ej: PB8)">
             <datalist id="lista-productos-corte">${opcionesProductos}</datalist>
             <button onclick="addCartItemCorte()" class="bg-slate-900 text-white px-6 py-3 rounded-xl font-black text-xs uppercase shadow-md hover:bg-slate-800 transition-colors">AÑADIR ÍTEM</button>
         </div>
@@ -7223,7 +7250,7 @@ function abrirPanelAsistente(titulo = "CORTE PARA STOCK GENERAL") {
 
         <div class="bg-slate-900 rounded-[24px] p-6 text-white shadow-xl">
             <div class="grid grid-cols-3 gap-4 mb-4 border-b border-slate-700 pb-4 text-center">
-                <div class="bg-slate-800 p-3 rounded-xl border border-slate-700"><p class="text-[9px] text-slate-400 font-bold uppercase mb-1">Vol Bloques In</p><p id="lbl-vol-in" class="text-lg font-black text-blue-400">0.00 M³</p></div>
+                <div class="bg-slate-800 p-3 rounded-xl border border-slate-700"><p class="text-[9px] text-slate-400 font-bold uppercase mb-1">Volumen In</p><p id="lbl-vol-in" class="text-lg font-black text-blue-400">0.00 M³</p></div>
                 <div class="bg-blue-900/50 p-3 rounded-xl border border-blue-800"><p class="text-[9px] text-blue-300 font-bold uppercase mb-1">Vol Prods Out</p><p id="lbl-vol-out" class="text-lg font-black text-white">0.00 M³</p></div>
                 <div class="bg-slate-800 p-3 rounded-xl border border-slate-700"><p class="text-[9px] text-slate-400 font-bold uppercase mb-1">Diferencia</p><p id="lbl-vol-diff" class="text-lg font-black text-slate-300">0.00 M³</p></div>
             </div>
@@ -7242,6 +7269,50 @@ function abrirPanelAsistente(titulo = "CORTE PARA STOCK GENERAL") {
     renderCorteCart();
 }
 
+function toggleModoInputCorte() {
+    if (!corteOperacionActiva) return;
+    const divB = document.getElementById('div-input-bloques');
+    const divP = document.getElementById('div-input-pt');
+    const btn = document.getElementById('btn-toggle-input');
+    
+    if (corteOperacionActiva.modoInput === 'BLOQUES') {
+        corteOperacionActiva.modoInput = 'PT';
+        divB.classList.add('hidden'); divP.classList.remove('hidden');
+        btn.innerText = '🔄 VOLVER A BLOQUES VÍRGENES';
+        document.querySelectorAll('.bloque-checkbox').forEach(cb => cb.checked = false);
+    } else {
+        corteOperacionActiva.modoInput = 'BLOQUES';
+        divP.classList.add('hidden'); divB.classList.remove('hidden');
+        btn.innerText = '🔄 CAMBIAR A REPROCESO (PT)';
+        corteOperacionActiva.ptInputVol = 0;
+        document.getElementById('div-pt-fijado').classList.add('hidden');
+    }
+    if(typeof toggleCorteBtn === 'function') toggleCorteBtn();
+    calcVolCorteDin();
+}
+
+function setPtInputCorte() {
+    if (!corteOperacionActiva) return;
+    const name = document.getElementById('corte-input-pt-name').value.trim();
+    const qty = parseInt(document.getElementById('corte-input-pt-qty').value) || 0;
+    
+    const prod = products.find(p => p.name === name);
+    if(!prod) return alert("Producto no encontrado en el inventario.");
+    if(qty <= 0) return alert("Cantidad inválida.");
+    if((parseInt(prod.stock)||0) < qty) return alert(`No hay suficiente stock. Solo quedan ${prod.stock} piezas de ${name}.`);
+    
+    const volUnit = Number(prod.vol) || 0;
+    corteOperacionActiva.ptInputName = name;
+    corteOperacionActiva.ptInputQty = qty;
+    corteOperacionActiva.ptInputVol = volUnit * qty;
+    
+    const divFijado = document.getElementById('div-pt-fijado');
+    divFijado.innerHTML = `✅ MATRIZ FIJADA: <b>${qty}x ${name}</b> (${corteOperacionActiva.ptInputVol.toFixed(3)} M³)<br><span class="text-[9px] font-bold text-slate-500 uppercase mt-1 block">Este material se descontará del inventario PT al guardar.</span>`;
+    divFijado.classList.remove('hidden');
+    
+    calcVolCorteDin();
+}
+
 function addCartItemCorte() {
     const itemName = document.getElementById('corte-buscador-catalogo').value.trim();
     const prod = products.find(p => p.name === itemName);
@@ -7258,7 +7329,8 @@ function addCartItemCorte() {
         qtyBuenas: 1,
         qtyMalas: 0,
         isMainOrder: false,
-        obs: ''
+        obs: '',
+        targets: []
     });
     
     document.getElementById('corte-buscador-catalogo').value = '';
@@ -7314,49 +7386,43 @@ function renderCorteCart() {
 }
 
 function calcVolCorteDin() {
-    // 1. PRIMERO CONTAMOS LOS BLOQUES (esté abierto el panel o no)
-    const bloquesDisponibles = dbBloques.filter(b => b.ubicacion === 'CORTADO');
-    let volBloques = 0;
-    let countSeleccionados = 0;
-    
-    bloquesDisponibles.forEach(b => {
-        const chk = document.getElementById(`corte-chk-${b.id}`);
-        if(chk && chk.checked) {
-            volBloques += Number(b.volNeto);
-            countSeleccionados++; // <-- Contamos la casilla marcada
-        }
-    });
+    const lblDiff = document.getElementById('lbl-vol-diff');
+    if(!lblDiff || !corteOperacionActiva) return; 
 
-    // 2. ACTUALIZAMOS LA ETIQUETA VISUAL
+    let volEntrada = 0;
+    let countBloques = 0;
+    
+    if (corteOperacionActiva.modoInput === 'BLOQUES') {
+        const bloquesDisponibles = dbBloques.filter(b => b.ubicacion === 'CORTADO');
+        bloquesDisponibles.forEach(b => {
+            const chk = document.getElementById(`corte-chk-${b.id}`);
+            if(chk && chk.checked) { volEntrada += Number(b.volNeto); countBloques++; }
+        });
+    } else {
+        volEntrada = corteOperacionActiva.ptInputVol || 0;
+    }
+
+    // Actualiza etiqueta visual de la izquierda (solo si es modo bloques)
     const badgeCount = document.getElementById('contador-bloques-corte');
     if (badgeCount) {
-        if (countSeleccionados > 0) {
-            badgeCount.innerText = `${countSeleccionados} Seleccionado${countSeleccionados > 1 ? 's' : ''}`;
+        if (countBloques > 0 && corteOperacionActiva.modoInput === 'BLOQUES') {
+            badgeCount.innerText = `${countBloques} Seleccionado${countBloques > 1 ? 's' : ''}`;
             badgeCount.classList.remove('hidden');
         } else {
             badgeCount.classList.add('hidden');
         }
     }
 
-    // 3. EL CANDADO: Si el panel de cortes no está activo, detenemos la función aquí
-    const lblDiff = document.getElementById('lbl-vol-diff');
-    if(!lblDiff || !corteOperacionActiva) return; 
-
-    // 4. SI PASÓ EL CANDADO, HACEMOS LA MATEMÁTICA DE LA MERMA
     let volTotalSalida = 0;
-    corteCart.forEach(it => {
-        volTotalSalida += (it.qtyBuenas + it.qtyMalas) * it.volUnit;
-    });
+    corteCart.forEach(it => { volTotalSalida += (it.qtyBuenas + it.qtyMalas) * it.volUnit; });
 
-    const diff = volBloques - volTotalSalida;
+    const diff = volEntrada - volTotalSalida;
+    let toleranciaGlobal = 0.17; 
+    if (corteOperacionActiva.modoInput === 'BLOQUES') toleranciaGlobal = countBloques * 0.17; 
 
-    // ---> AQUÍ ESTÁ LA NUEVA MAGIA: Calculamos la tolerancia dinámica por bloque <---
-    const toleranciaGlobal = countSeleccionados * 0.17; 
-
-    document.getElementById('lbl-vol-in').innerText = volBloques.toFixed(3) + ' M³';
+    document.getElementById('lbl-vol-in').innerText = volEntrada.toFixed(3) + ' M³';
     document.getElementById('lbl-vol-out').innerText = volTotalSalida.toFixed(3) + ' M³';
     
-    // ---> Y AQUÍ APLICAMOS ESA TOLERANCIA DINÁMICA <---
     if(diff < -toleranciaGlobal) { 
         lblDiff.innerText = diff.toFixed(3) + ' M³ (ERROR)';
         lblDiff.className = "text-base font-black text-red-500";
@@ -7383,49 +7449,55 @@ function procesarEjecucionCorte() {
     if(!corteOperacionActiva) return;
     if(corteCart.length === 0) return alert("El carrito está vacío. Agregue productos.");
 
-    const bloquesDisponibles = dbBloques.filter(b => b.ubicacion === 'CORTADO');
     let bloquesElegidosIds = [];
-    let volBloquesIngresado = 0;
-    let setDensidadesBloques = new Set();
-    let bloqueEsSRDetectado = false;
-    
-    bloquesDisponibles.forEach(b => {
-        const chk = document.getElementById(`corte-chk-${b.id}`);
-        if(chk && chk.checked) {
-            bloquesElegidosIds.push(b.id);
-            volBloquesIngresado += Number(b.volNeto);
-            setDensidadesBloques.add(b.densFinal);
-            if(b.tipo.toUpperCase().includes('SR') || b.codigo.toUpperCase().includes('SR')) {
-                setDensidadesBloques.add('SR');
-                bloqueEsSRDetectado = true;
-            }
-        }
-    });
+    let volEntradaReal = 0;
+    let setDensidadesOrigen = new Set();
+    let origenEsSR = false;
 
-    if(bloquesElegidosIds.length === 0) return alert("ERROR: Debe marcar al menos 1 bloque de la máquina.");
+    // VALIDACIÓN DE MATERIA PRIMA (Bloques vs PT)
+    if (corteOperacionActiva.modoInput === 'BLOQUES') {
+        const bloquesDisponibles = dbBloques.filter(b => b.ubicacion === 'CORTADO');
+        bloquesDisponibles.forEach(b => {
+            const chk = document.getElementById(`corte-chk-${b.id}`);
+            if(chk && chk.checked) {
+                bloquesElegidosIds.push(b.id);
+                volEntradaReal += Number(b.volNeto);
+                setDensidadesOrigen.add(b.densFinal);
+                if(b.tipo.toUpperCase().includes('SR') || b.codigo.toUpperCase().includes('SR')) {
+                    setDensidadesOrigen.add('SR');
+                    origenEsSR = true;
+                }
+            }
+        });
+        if(bloquesElegidosIds.length === 0) return alert("ERROR: Debe marcar al menos 1 bloque de la máquina.");
+    } else {
+        if(!corteOperacionActiva.ptInputName || corteOperacionActiva.ptInputQty <= 0) return alert("ERROR: Debe fijar un Producto Terminado de inventario como matriz.");
+        volEntradaReal = corteOperacionActiva.ptInputVol;
+        const match = corteOperacionActiva.ptInputName.match(/^([A-Z]+)(\d+|SR)/);
+        const d = match ? (match[2] === 'SR' ? 'SR' : 'D' + match[2]) : 'D8';
+        setDensidadesOrigen.add(d);
+        if(d === 'SR') origenEsSR = true;
+    }
 
     let incompatibilidadDensidad = false;
     let productoSRDetectado = false;
 
     corteCart.forEach(it => {
         if(it.dens === 'SR') productoSRDetectado = true;
-        if(!setDensidadesBloques.has(it.dens)) incompatibilidadDensidad = true;
+        if(!setDensidadesOrigen.has(it.dens)) incompatibilidadDensidad = true;
     });
 
-    if (productoSRDetectado && !bloqueEsSRDetectado) {
-        return alert("❌ CALIDAD: Hay un producto 'SR' en la lista, pero seleccionó bloques estándar.");
+    if (productoSRDetectado && !origenEsSR) {
+        return alert("❌ CALIDAD: Hay un producto 'SR' en la lista, pero seleccionó material origen estándar.");
     }
-    if (!productoSRDetectado && bloqueEsSRDetectado) {
-        if(!confirm("⚠️ FINANZAS: Está usando un bloque 'SR' para productos normales. ¿Forzar?")) return;
+    if (!productoSRDetectado && origenEsSR) {
+        if(!confirm("⚠️ FINANZAS: Está usando un material origen 'SR' para fabricar productos normales. ¿Forzar?")) return;
     }
     if(incompatibilidadDensidad) {
-        if(!confirm(`❌ DENSIDAD: Hay productos que NO COINCIDEN con la densidad de los bloques. ¿Forzar?`)) return;
+        if(!confirm(`❌ DENSIDAD: Hay productos que NO COINCIDEN con la densidad del material de origen. ¿Forzar?`)) return;
     }
 
-    let volUtilTotal = 0;
-    let volBajasTotal = 0;
-    let pzasBuenasGlobales = 0;
-    let reportLogData = [];
+    let volUtilTotal = 0; let volBajasTotal = 0; let pzasBuenasGlobales = 0; let reportLogData = [];
 
     corteCart.forEach(it => {
         volUtilTotal += it.qtyBuenas * it.volUnit;
@@ -7434,26 +7506,37 @@ function procesarEjecucionCorte() {
     });
 
     const volTotalSalida = volUtilTotal + volBajasTotal;
-    const diff = volBloquesIngresado - volTotalSalida;
-    const toleranciaGlobal = bloquesElegidosIds.length * 0.17; 
+    const diff = volEntradaReal - volTotalSalida;
+    
+    let toleranciaGlobal = 0.17; 
+    if(corteOperacionActiva.modoInput === 'BLOQUES') toleranciaGlobal = bloquesElegidosIds.length * 0.17;
 
     if(diff < -toleranciaGlobal) {
-        return alert(`❌ IMPOSIBLE: Los bloques suman ${volBloquesIngresado.toFixed(2)} M³, pero intenta generar ${volTotalSalida.toFixed(2)} M³.\n\nTolerancia máxima permitida para ${bloquesElegidosIds.length} bloques: ${toleranciaGlobal.toFixed(2)} M³ de excedente.`);
+        return alert(`❌ IMPOSIBLE: La materia prima suma ${volEntradaReal.toFixed(2)} M³, pero intenta generar ${volTotalSalida.toFixed(2)} M³.\n\nTolerancia máxima permitida: ${toleranciaGlobal.toFixed(2)} M³ de excedente.`);
     }
 
     const destinoBajas = document.getElementById('corte-destino-bajas').value;
     const tandaId = Date.now(); 
 
-    // 1. Dar de baja los bloques directo a Firebase
-    bloquesDisponibles.forEach(b => {
-        const isElegido = bloquesElegidosIds.some(id => String(id) === String(b.id));
-        if(isElegido) {
-            b.ubicacion = 'PROCESADO'; b.tandaProceso = tandaId; b.fechaModificado = new Date().toLocaleString();
-            db.collection("bloques_inventario").doc(String(b.id)).set(b);
+    // 1. DAR DE BAJA MATERIA PRIMA DIRECTO EN FIREBASE
+    if (corteOperacionActiva.modoInput === 'BLOQUES') {
+        dbBloques.forEach(b => {
+            const isElegido = bloquesElegidosIds.some(id => String(id) === String(b.id));
+            if(isElegido) {
+                b.ubicacion = 'PROCESADO'; b.tandaProceso = tandaId; b.fechaModificado = new Date().toLocaleString();
+                db.collection("bloques_inventario").doc(String(b.id)).set(b);
+            }
+        });
+    } else {
+        // Descontar PT del inventario
+        const pMatriz = products.find(p => p.name === corteOperacionActiva.ptInputName);
+        if(pMatriz) {
+            pMatriz.stock = (parseInt(pMatriz.stock) || 0) - corteOperacionActiva.ptInputQty;
+            registrarMovimientoInventario(pMatriz.name, corteOperacionActiva.ptInputQty, 'EGRESO', 'Usado como Matriz de Reproceso');
         }
-    });
+    }
 
-    // 2. Mermas y Bajas
+    // 2. Mermas y Retazos DIRECTOS EN FIREBASE
     let mermaPerfiladoYSobranza = diff > 0 ? diff : 0; 
     let volumenTotalDesperdicio = volBajasTotal + mermaPerfiladoYSobranza;
     
@@ -7466,63 +7549,79 @@ function procesarEjecucionCorte() {
     }
     
     if(destinoBajas === 'RETASO') {
-        const densPrincipal = Array.from(setDensidadesBloques)[0] || 'D8';
+        const densPrincipal = Array.from(setDensidadesOrigen)[0] || 'D8';
         if(dbBancoRetazos[densPrincipal] !== undefined) {
             dbBancoRetazos[densPrincipal] += volumenTotalDesperdicio;
         } else {
             dbBancoRetazos[densPrincipal] = volumenTotalDesperdicio;
         }
-        save(); // Guarda el banco de retazos en el documento central
     }
 
-    // 3. Excedente y Cierre de Órdenes
-    let ordenParaCerrar = null;
+    // 3. EXCEDENTE Y CIERRE DE ÓRDENES (REPARTO FANTASMA AVANZADO PARA MÚLTIPLES MEDIDAS)
+    let ordenesParaRevisarCierre = new Set();
 
     corteCart.forEach((it) => {
         const prodCat = products.find(p => p.name === it.name);
-        let qtyParaOrden = 0;
-        let qtyParaStock = 0;
+        let qtySobranteStock = it.qtyBuenas;
 
         if(it.isMainOrder && !corteOperacionActiva.isStock) {
-            if(it.qtyBuenas >= corteOperacionActiva.qtyRequerida) {
-                qtyParaOrden = corteOperacionActiva.qtyRequerida;
-                qtyParaStock = it.qtyBuenas - corteOperacionActiva.qtyRequerida; 
-            } else {
-                qtyParaOrden = it.qtyBuenas;
-            }
-
-            const s = dbSchedules.find(x => x.id === corteOperacionActiva.schedId);
-            if(s) {
-                const faltante = s.qty - qtyParaOrden;
-                if(faltante > 0) {
-                    s.qty = faltante;
-                    s.volTotal = Math.max(0, s.volTotal - (qtyParaOrden * it.volUnit));
+            const destinos = it.targets || [];
+            
+            destinos.forEach(destino => {
+                if (qtySobranteStock <= 0) return; // Ya no quedan piezas para repartir
+                
+                let qtyAAsignar = 0;
+                if (qtySobranteStock >= destino.qtyRequerida) {
+                    qtyAAsignar = destino.qtyRequerida;
+                    qtySobranteStock -= destino.qtyRequerida;
                 } else {
-                    ordenParaCerrar = s.orderId;
-                    s.status = 'FINALIZADO';
-                    s.fabricadoQty = corteOperacionActiva.qtyRequerida;
-                    s.tandaId = tandaId;
+                    qtyAAsignar = qtySobranteStock;
+                    qtySobranteStock = 0;
                 }
-                db.collection("cortes_programados").doc(String(s.id)).set(s);
+
+                // Descontar al pedido correcto y enviar a la base de datos
+                const schedIdx = dbSchedules.findIndex(s => s.id === destino.schedId);
+                if(schedIdx > -1) {
+                    const s = dbSchedules[schedIdx];
+                    const faltante = s.qty - qtyAAsignar;
+                    if(faltante > 0) {
+                        s.qty = faltante;
+                        s.volTotal = Math.max(0, s.volTotal - (qtyAAsignar * it.volUnit));
+                    } else {
+                        ordenesParaRevisarCierre.add(destino.orderId);
+                        s.status = 'FINALIZADO';
+                        s.fabricadoQty = destino.qtyRequerida; 
+                        s.tandaId = tandaId;
+                    }
+                    db.collection("cortes_programados").doc(String(s.id)).set(s);
+                }
+
+                reportLogData.push({
+                    item: it.name, qtyOrder: qtyAAsignar, qtyStock: 0,
+                    isPedido: true, orderIdStr: destino.orderId, clientStr: destino.client || 'Cliente',
+                    volUnit: it.volUnit, schedId: destino.schedId, qtyMalas: 0
+                });
+            });
+        }
+        
+        // El excedente o stock libre va al inventario
+        if (qtySobranteStock > 0 || it.qtyMalas > 0 || !it.isMainOrder) {
+            if(prodCat && qtySobranteStock > 0) {
+                prodCat.stock = (parseInt(prodCat.stock) || 0) + qtySobranteStock;
+                registrarMovimientoInventario(prodCat.name, qtySobranteStock, 'INGRESO', 'Producción de Corte (Stock)');
             }
-        } else {
-            qtyParaStock = it.qtyBuenas;
+            if(qtySobranteStock > 0 || it.qtyMalas > 0) {
+                reportLogData.push({
+                    item: it.name, qtyOrder: 0, qtyStock: qtySobranteStock, qtyMalas: it.qtyMalas,
+                    isPedido: false, volUnit: it.volUnit, schedId: null
+                });
+            }
         }
-
-        if(prodCat && qtyParaStock > 0) {
-            prodCat.stock = (parseInt(prodCat.stock) || 0) + qtyParaStock;
-        }
-
-        reportLogData.push({
-            item: it.name, qtyOrder: qtyParaOrden, qtyStock: qtyParaStock,
-            qtyMalas: it.qtyMalas, volUnit: it.volUnit,
-            volUtil: (qtyParaOrden + qtyParaStock) * it.volUnit,
-            schedId: corteOperacionActiva.isStock ? null : corteOperacionActiva.schedId
-        });
     });
 
-    if(ordenParaCerrar) {
-        const o = orders.find(x => x.id === ordenParaCerrar);
+    // Validar cierre global de pedidos afectados
+    ordenesParaRevisarCierre.forEach(orderId => {
+        const o = orders.find(x => x.id === orderId);
         if(o) {
             let todoCortado = true;
             dbSchedules.filter(sx => sx.orderId === o.id).forEach(sx => {
@@ -7533,19 +7632,22 @@ function procesarEjecucionCorte() {
                 db.collection("pedidos").doc(String(o.id).replace(/\//g, '-')).set(o);
             }
         }
-    }
+    });
 
-    // 4. Reporte Diario
-    const codigosUsados = dbBloques.filter(b => bloquesElegidosIds.includes(b.id)).map(b => b.codigo).join(', ');
+    // 4. Reporte Diario a Firebase
+    let codigosUsados = "";
+    if (corteOperacionActiva.modoInput === 'BLOQUES') {
+        codigosUsados = dbBloques.filter(b => bloquesElegidosIds.includes(b.id)).map(b => b.codigo).join(', ');
+    } else {
+        codigosUsados = `REPROCESO PT: ${corteOperacionActiva.ptInputQty}x ${corteOperacionActiva.ptInputName}`;
+    }
+    
     const userReg = currentUser ? currentUser.name : 'Sistema';
     
     const stringResumen = reportLogData.map(i => {
         let lineas = [];
         if (i.qtyOrder > 0) {
-            const o = orders.find(x => x.id === (corteOperacionActiva ? corteOperacionActiva.orderId : null));
-            const clientName = o ? o.client : 'Cliente';
-            const orderId = o ? o.id : 'N/A';
-            lineas.push(`<div class="mb-1.5"><span class="bg-blue-100 text-blue-700 px-1.5 py-0.5 rounded text-[8px] uppercase font-black tracking-widest border border-blue-200">Pedido: ${orderId}</span> <span class="text-[9px] font-bold text-slate-500 ml-1">${clientName}</span><br><span class="font-black text-slate-800">${i.qtyOrder}x ${i.item}</span></div>`);
+            lineas.push(`<div class="mb-1.5"><span class="bg-blue-100 text-blue-700 px-1.5 py-0.5 rounded text-[8px] uppercase font-black tracking-widest border border-blue-200">Pedido: ${i.orderIdStr}</span> <span class="text-[9px] font-bold text-slate-500 ml-1">${i.clientStr}</span><br><span class="font-black text-slate-800">${i.qtyOrder}x ${i.item}</span></div>`);
         }
         if (i.qtyStock > 0) {
             lineas.push(`<div class="mb-1.5"><span class="bg-green-100 text-green-700 px-1.5 py-0.5 rounded text-[8px] uppercase font-black tracking-widest border border-green-200">Stock Libre</span><br><span class="font-black text-slate-800">${i.qtyStock}x ${i.item}</span></div>`);
@@ -7565,7 +7667,7 @@ function procesarEjecucionCorte() {
     
     db.collection("cortes_reportes").doc(String(nuevoReporte.id)).set(nuevoReporte);
 
-    save(); // Guardar productos
+    save(); // Guardar catálogo y retazos al documento central
     cerrarAsistenteCorte(); 
     showToast("Tanda procesada! Se enviaron las piezas al inventario.");
 }
