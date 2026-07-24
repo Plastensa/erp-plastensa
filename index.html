@@ -6769,7 +6769,7 @@ function renderInventarioBloques() {
     let timeDesde = dateDesdeStr ? new Date(dateDesdeStr + "T00:00:00").getTime() : 0;
     let timeHasta = dateHastaStr ? new Date(dateHastaStr + "T23:59:59").getTime() : Infinity;
 
-  // --- NUEVO: CÁLCULO DE RESUMEN POR TIPOS Y DENSIDAD (CORREGIDO PARA LAZY LOADING) ---
+  // --- CÁLCULO DE RESUMEN POR TIPOS Y DENSIDAD (LÓGICA ORIGINAL RESTAURADA) ---
     let sumDesde = timeDesde;
     let sumHasta = timeHasta;
     if (!dateDesdeStr && !dateHastaStr) {
@@ -6780,28 +6780,26 @@ function renderInventarioBloques() {
 
     const resumen = {};
     dbBloques.forEach(b => {
+        let bTime = getFilterableDate(b.fecha);
+        
+        // Filtro estricto por la fecha de fabricación del bloque (Restaura la lógica original)
+        if (bTime < sumDesde || bTime > sumHasta) return;
+
         const clave = `${b.densFinal} | ${b.tipo}`;
         if (!resumen[clave]) resumen[clave] = { inicial: 0, producidos: 0, cortados: 0, total: 0 };
-
-        let bTime = getFilterableDate(b.fecha);
-        const isIngresoInicial = (b.operador === 'Sistema' || (b.estado && b.estado.toUpperCase().includes('INICIAL')));
         
-        // 1. SALDO INICIAL: Si se fabricó ANTES del periodo actual, o si se metió manual como Saldo Inicial
-        if (bTime < sumDesde || (bTime >= sumDesde && bTime <= sumHasta && isIngresoInicial)) {
+        const isInicial = (b.operador === 'Sistema' || (b.estado && b.estado.toUpperCase().includes('INICIAL')));
+        
+        if (isInicial) {
             resumen[clave].inicial++;
-        } 
-        // 2. PRODUCIDOS: Si se fabricó en la máquina DURANTE este mes
-        else if (bTime >= sumDesde && bTime <= sumHasta) {
+        } else {
             resumen[clave].producidos++;
         }
 
-        // 3. CORTADOS: Si se metió a la cortadora DURANTE este mes
-        if (b.ubicacion === 'PROCESADO' && b.fechaModificado) {
-            let cTime = getFilterableDate(b.fechaModificado.split(',')[0].trim());
-            if (cTime >= sumDesde && cTime <= sumHasta) resumen[clave].cortados++;
+        if (b.ubicacion === 'PROCESADO') {
+            resumen[clave].cortados++;
         }
-
-        // 4. SALDO TOTAL: Si hoy, en este instante, el bloque sigue vivo en el galpón
+        
         if (b.ubicacion === 'PLANTA' || b.ubicacion === 'CORTADO') {
             resumen[clave].total++;
         }
