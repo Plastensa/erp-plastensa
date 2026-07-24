@@ -2454,6 +2454,16 @@
                                 <span>RESET DE FÁBRICA</span>
                             </button>
 
+			    <button onclick="robotEtiquetarMes()" class="col-span-1 md:col-span-2 w-full bg-blue-600 text-white px-8 py-6 rounded-xl font-black hover:bg-blue-700 transition-colors flex flex-col items-center justify-center gap-3 shadow-lg border-2 border-blue-400 border-dashed mt-4">
+    <i data-lucide="tag" class="w-8 h-8 animate-pulse"></i> 
+    <span>ROBOT: INYECTAR ETIQUETAS "MES REGISTRO" A HISTÓRICO ACTUAL</span>
+</button>
+			    
+			    <button onclick="robotEtiquetarBloques()" class="col-span-1 md:col-span-2 w-full bg-cyan-600 text-white px-8 py-6 rounded-xl font-black hover:bg-cyan-700 transition-colors flex flex-col items-center justify-center gap-3 shadow-lg border-2 border-cyan-400 border-dashed mt-4">
+    <i data-lucide="tag" class="w-8 h-8 animate-pulse"></i> 
+    <span>ROBOT: INYECTAR ETIQUETAS "MES REGISTRO" A BLOQUES</span>
+</button>
+
                             <!-- BOTÓN TEMPORAL MIGRACIÓN A COLECCIONES -->
                             <button onclick="robotMigrador()" class="col-span-1 md:col-span-2 w-full bg-purple-600 text-white px-8 py-6 rounded-xl font-black hover:bg-purple-700 transition-colors flex flex-col items-center justify-center gap-3 shadow-lg border-2 border-purple-400 border-dashed mt-4">
                                 <i data-lucide="bot" class="w-8 h-8 animate-bounce"></i> 
@@ -3106,22 +3116,30 @@ function iniciarRadar(userEmail) {
     });
     // ==================================================
 
-    // RADARES INDIVIDUALES: COTIZACIONES Y PEDIDOS
-    db.collection("cotizaciones").onSnapshot((snapshot) => {
-        let tempQ = [];
-        snapshot.forEach(doc => tempQ.push(doc.data()));
-        quotes = tempQ.sort((a,b) => String(b.id).localeCompare(String(a.id)));
-        if(erpDataLoaded && currentUser) { renderQuotes(); iniciarAsistente(); }
-    });
+   // RADARES INDIVIDUALES: COTIZACIONES Y PEDIDOS (OPTIMIZADO FASE 4)
+    let ordersMap = new Map();
+    let quotesMap = new Map();
+    const mesActualCalculado = `${String(new Date().getMonth() + 1).padStart(2, '0')}/${new Date().getFullYear()}`;
 
-    db.collection("pedidos").onSnapshot((snapshot) => {
-        let tempO = [];
-        snapshot.forEach(doc => tempO.push(doc.data()));
-        orders = tempO.sort((a,b) => String(b.id).localeCompare(String(a.id)));
-        if(erpDataLoaded && currentUser) { 
-            renderTesoreria(); renderRegistroVentas(); renderProduction(); renderInventory(); renderHistorialAdmin();
-        }
-    });
+    const procesarPedidos = () => {
+        orders = Array.from(ordersMap.values()).sort((a,b) => String(b.id).localeCompare(String(a.id)));
+        if(erpDataLoaded && currentUser) { renderTesoreria(); renderRegistroVentas(); renderProduction(); renderInventory(); renderHistorialAdmin(); }
+    };
+
+    const procesarCotizaciones = () => {
+        quotes = Array.from(quotesMap.values()).sort((a,b) => String(b.id).localeCompare(String(a.id)));
+        if(erpDataLoaded && currentUser) { renderQuotes(); iniciarAsistente(); }
+    };
+
+    // Radares de Pedidos
+    db.collection("pedidos").where("mesRegistro", "==", mesActualCalculado).onSnapshot(snap => { snap.forEach(doc => ordersMap.set(doc.id, doc.data())); procesarPedidos(); });
+    db.collection("pedidos").where("status", "in", ["PRODUCCION", "INVENTARIO"]).onSnapshot(snap => { snap.forEach(doc => ordersMap.set(doc.id, doc.data())); procesarPedidos(); });
+    db.collection("pedidos").where("estadoPago", "in", ["PARCIAL", "NO PAGADO"]).onSnapshot(snap => { snap.forEach(doc => ordersMap.set(doc.id, doc.data())); procesarPedidos(); });
+
+    // Radares de Cotizaciones
+    db.collection("cotizaciones").where("mesRegistro", "==", mesActualCalculado).onSnapshot(snap => { snap.forEach(doc => quotesMap.set(doc.id, doc.data())); procesarCotizaciones(); });
+    db.collection("cotizaciones").where("status", "==", "SEGUIMIENTO").onSnapshot(snap => { snap.forEach(doc => quotesMap.set(doc.id, doc.data())); procesarCotizaciones(); });
+
 
     // RADARES INDIVIDUALES: PRODUCCIÓN FASE 1 (MATERIA PRIMA Y SILOS)
     db.collection("mp_ingresos").onSnapshot((snapshot) => {
@@ -3165,12 +3183,23 @@ function iniciarRadar(userEmail) {
         if(erpDataLoaded && currentUser) renderHistorialSilos();
     });
 
-    // RADARES INDIVIDUALES: PRODUCCIÓN FASE 2 (BLOQUERA, CORTES Y DESPACHOS)
-    db.collection("bloques_inventario").onSnapshot((snapshot) => {
-        let tempB = [];
-        snapshot.forEach(doc => tempB.push(doc.data()));
-        dbBloques = tempB; 
+   // RADARES INDIVIDUALES: PRODUCCIÓN FASE 2 (BLOQUERA, CORTES Y DESPACHOS)
+    let bloquesMap = new Map();
+    const procesarBloques = () => {
+        dbBloques = Array.from(bloquesMap.values());
         if(erpDataLoaded && currentUser) { renderInventarioBloques(); renderVolumenMaquina(); renderSalaCorte(); }
+    };
+
+    // 1. Descarga todos los bloques "Vivos" (En planta o listos para corte)
+    db.collection("bloques_inventario").where("ubicacion", "in", ["PLANTA", "CORTADO"]).onSnapshot(snap => {
+        snap.forEach(doc => bloquesMap.set(doc.id, doc.data()));
+        procesarBloques();
+    });
+
+    // 2. Descarga los bloques de este mes (Para que la matemática del "Resumen del Periodo" no falle)
+    db.collection("bloques_inventario").where("mesRegistro", "==", mesActualCalculado).onSnapshot(snap => {
+        snap.forEach(doc => bloquesMap.set(doc.id, doc.data()));
+        procesarBloques();
     });
 
     db.collection("cortes_programados").onSnapshot((snapshot) => {
@@ -3866,6 +3895,7 @@ function handleFileUpload(e) {
 
     const q = {
         id: editingQuoteId ? editingQuoteId : generarCorrelativoMensual(),
+	mesRegistro: `${String(new Date().getMonth() + 1).padStart(2, '0')}/${new Date().getFullYear()}`, // <--- LÍNEA NUEVA
         status: 'SEGUIMIENTO', 
         descuentoPorcentaje: dPct,
         requiereAprobacion: requiereAprobacion, 
@@ -4109,6 +4139,7 @@ function submitPayment(e) {
 
                 const newOrder = { 
                     ...q, id: nuevoPedidoId, quoteReference: q.id, date: new Date().toLocaleDateString(), 
+		    mesRegistro: `${String(new Date().getMonth() + 1).padStart(2, '0')}/${new Date().getFullYear()}`, // <--- LÍNEA NUEVA
                     status: 'PRODUCCION', montoPagado: amount, saldo: q.total - amount, 
                     pagos: [pagoObj], estadoPago: (q.total - amount) <= 0 ? 'COMPLETO' : 'PARCIAL', pagoRechazado: false
                 };
@@ -6660,9 +6691,10 @@ function registrarBloque() {
     const correlativo = String(produccionActiva.listaSesion.length + 1).padStart(2, '0');
     const codigoUnico = `${hoy.replace(/\//g, '').slice(0, 4)}-${densFinal}-${produccionActiva.tipo}-#${Date.now().toString().slice(-4)}`;
 
-    const nuevoBloque = {
+   const nuevoBloque = {
         id: Date.now(), codigo: codigoUnico, tipo: produccionActiva.tipo, densFinal: densFinal, peso: peso,
         densReal: densReal.toFixed(2), volReal: produccionActiva.volReal, volNeto: produccionActiva.volNeto, siloOrigen: produccionActiva.silo,
+        mesRegistro: `${String(new Date().getMonth() + 1).padStart(2, '0')}/${new Date().getFullYear()}`,
         estado: estado, colorEstado: colorEstado, ubicacion: 'PLANTA', fecha: hoy, operador: currentUser ? currentUser.name : 'Sistema'
     };
 
@@ -8622,7 +8654,7 @@ function ingresoInicialBloques() {
         const codFecha = hoy.replace(/\//g, '').slice(0, 4);
         const codigoUnico = `${codFecha}-${densidad.toUpperCase()}-${datosBloque.tipo}-INI#${correlativo}`;
 
-        dbBloques.push({
+        const nuevoBloqueIni = {
             id: Date.now() + i, 
             codigo: codigoUnico,
             tipo: datosBloque.tipo,
@@ -8632,15 +8664,18 @@ function ingresoInicialBloques() {
             volReal: datosBloque.volReal,
             volNeto: datosBloque.volNeto,
             siloOrigen: 'SALDO INICIAL',
+            mesRegistro: `${String(new Date().getMonth() + 1).padStart(2, '0')}/${new Date().getFullYear()}`,
             estado: 'SALDO INICIAL',
             colorEstado: 'text-blue-600 font-black',
             ubicacion: 'PLANTA',
             fecha: hoy,
             operador: currentUser.name
-        });
+        };
+        dbBloques.push(nuevoBloqueIni);
+        db.collection("bloques_inventario").doc(String(nuevoBloqueIni.id)).set(nuevoBloqueIni); // <-- CORRECCIÓN CRÍTICA DE MIGRACIÓN
     }
 
-    localStorage.setItem('plast_bloques', JSON.stringify(dbBloques)); save();
+    save();
     renderInventarioBloques();
     showToast(`${cantidad} bloques inyectados al inventario físico.`);
 }
@@ -9539,6 +9574,86 @@ function emitirFacturaPiloto(orderId) {
         console.error("Error en facturación API:", error);
         alert("❌ Ocurrió un error de red al intentar facturar. Revisa tu conexión a internet.");
     });
+}
+
+// ==========================================
+// ROBOT ETIQUETADOR Y BUSCADOR HISTÓRICO
+// ==========================================
+async function robotEtiquetarMes() {
+    if(!confirm("¿Deseas etiquetar todos los pedidos y cotizaciones actuales con su mes respectivo para que los nuevos radares funcionen?")) return;
+    
+    showToast("Etiquetando Pedidos en la Nube...");
+    for(let o of orders) {
+        const parts = o.date.split('/');
+        if(parts.length === 3) {
+            const mesT = `${parts[1].padStart(2,'0')}/${parts[2]}`;
+            await db.collection("pedidos").doc(String(o.id).replace(/\//g, '-')).update({mesRegistro: mesT});
+        }
+    }
+    
+    showToast("Etiquetando Cotizaciones en la Nube...");
+    for(let q of quotes) {
+        const parts = q.date.split('/');
+        if(parts.length === 3) {
+            const mesT = `${parts[1].padStart(2,'0')}/${parts[2]}`;
+            await db.collection("cotizaciones").doc(String(q.id).replace(/\//g, '-')).update({mesRegistro: mesT});
+        }
+    }
+    alert("✅ Etiquetado 100% exitoso. Tu sistema ya está completamente optimizado.");
+}
+
+async function buscarPedidoAntiguo() {
+    const terminoBusqueda = prompt("🔍 BUSCADOR EN LA NUBE\n\nIngresa el nombre del cliente o número de orden del mes pasado que deseas traer a la pantalla:");
+    if (!terminoBusqueda) return;
+    
+    showToast("Buscando en los archivos de la nube...");
+    
+    try {
+        const snapshot = await db.collection("pedidos").get();
+        let encontrados = [];
+        
+        snapshot.forEach(doc => {
+            const data = doc.data();
+            if (data.id.toLowerCase().includes(terminoBusqueda.toLowerCase()) || 
+                (data.client && data.client.toLowerCase().includes(terminoBusqueda.toLowerCase()))) {
+                encontrados.push(data);
+            }
+        });
+
+        if (encontrados.length > 0) {
+            encontrados.forEach(e => ordersMap.set(e.id, e));
+            orders = Array.from(ordersMap.values()).sort((a,b) => String(b.id).localeCompare(String(a.id)));
+            renderAll();
+            alert(`✅ Se encontraron y cargaron ${encontrados.length} pedidos históricos de "${terminoBusqueda}". Revisa tus tablas.`);
+        } else {
+            alert(`❌ No se encontró ningún registro histórico que coincida con "${terminoBusqueda}".`);
+        }
+    } catch (error) {
+        console.error("Error buscando:", error);
+        alert("Fallo de conexión al buscar.");
+    }
+}
+
+// Vinculamos el buscador al atajo del teclado "Ctrl + B" (Para no editar tu HTML)
+document.addEventListener('keydown', function(e) {
+    if (e.ctrlKey && e.key === 'b') {
+        e.preventDefault();
+        buscarPedidoAntiguo();
+    }
+});
+
+async function robotEtiquetarBloques() {
+    if(!confirm("¿Deseas etiquetar todos los bloques actuales con su mes respectivo para que los nuevos radares de producción funcionen?")) return;
+    
+    showToast("Etiquetando Bloques en la Nube...");
+    for(let b of dbBloques) {
+        const parts = b.fecha.split('/');
+        if(parts.length === 3) {
+            const mesT = `${parts[1].padStart(2,'0')}/${parts[2]}`;
+            await db.collection("bloques_inventario").doc(String(b.id)).update({mesRegistro: mesT});
+        }
+    }
+    alert("✅ Etiquetado de Bloques 100% exitoso. El inventario de bloques ya está optimizado.");
 }
 
 renderAll();
