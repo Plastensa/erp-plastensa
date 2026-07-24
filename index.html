@@ -3196,8 +3196,14 @@ function iniciarRadar(userEmail) {
         procesarBloques();
     });
 
-    // 2. Descarga los bloques de este mes (Para que la matemática del "Resumen del Periodo" no falle)
+   // 2. Descarga los bloques de este mes (Para que la matemática del "Resumen del Periodo" no falle)
     db.collection("bloques_inventario").where("mesRegistro", "==", mesActualCalculado).onSnapshot(snap => {
+        snap.forEach(doc => bloquesMap.set(doc.id, doc.data()));
+        procesarBloques();
+    });
+
+    // 3. Descarga los bloques CORTADOS este mes (Para que aparezcan en la columna "Cortados")
+    db.collection("bloques_inventario").where("mesProcesado", "==", mesActualCalculado).onSnapshot(snap => {
         snap.forEach(doc => bloquesMap.set(doc.id, doc.data()));
         procesarBloques();
     });
@@ -6763,23 +6769,42 @@ function renderInventarioBloques() {
     let timeDesde = dateDesdeStr ? new Date(dateDesdeStr + "T00:00:00").getTime() : 0;
     let timeHasta = dateHastaStr ? new Date(dateHastaStr + "T23:59:59").getTime() : Infinity;
 
-    // --- NUEVO: CÁLCULO DE RESUMEN POR TIPOS Y DENSIDAD ---
+  // --- NUEVO: CÁLCULO DE RESUMEN POR TIPOS Y DENSIDAD (CORREGIDO PARA LAZY LOADING) ---
+    let sumDesde = timeDesde;
+    let sumHasta = timeHasta;
+    if (!dateDesdeStr && !dateHastaStr) {
+        const now = new Date();
+        sumDesde = new Date(now.getFullYear(), now.getMonth(), 1).getTime();
+        sumHasta = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59).getTime();
+    }
+
     const resumen = {};
     dbBloques.forEach(b => {
-        let bTime = getFilterableDate(b.fecha);
-        if (bTime < timeDesde || bTime > timeHasta) return;
-
-        const clave = `${b.densFinal} | ${b.tipo}`; // Fusión de llave única
-
+        const clave = `${b.densFinal} | ${b.tipo}`;
         if (!resumen[clave]) resumen[clave] = { inicial: 0, producidos: 0, cortados: 0, total: 0 };
-        
-        const isInicial = (b.operador === 'Sistema' || (b.estado && b.estado.toUpperCase().includes('INICIAL')));
-        
-        if (isInicial) resumen[clave].inicial++;
-        else resumen[clave].producidos++;
 
-        if (b.ubicacion === 'PROCESADO') resumen[clave].cortados++;
-        if (b.ubicacion === 'PLANTA' || b.ubicacion === 'CORTADO') resumen[clave].total++;
+        let bTime = getFilterableDate(b.fecha);
+        const isIngresoInicial = (b.operador === 'Sistema' || (b.estado && b.estado.toUpperCase().includes('INICIAL')));
+        
+        // 1. SALDO INICIAL: Si se fabricó ANTES del periodo actual, o si se metió manual como Saldo Inicial
+        if (bTime < sumDesde || (bTime >= sumDesde && bTime <= sumHasta && isIngresoInicial)) {
+            resumen[clave].inicial++;
+        } 
+        // 2. PRODUCIDOS: Si se fabricó en la máquina DURANTE este mes
+        else if (bTime >= sumDesde && bTime <= sumHasta) {
+            resumen[clave].producidos++;
+        }
+
+        // 3. CORTADOS: Si se metió a la cortadora DURANTE este mes
+        if (b.ubicacion === 'PROCESADO' && b.fechaModificado) {
+            let cTime = getFilterableDate(b.fechaModificado.split(',')[0].trim());
+            if (cTime >= sumDesde && cTime <= sumHasta) resumen[clave].cortados++;
+        }
+
+        // 4. SALDO TOTAL: Si hoy, en este instante, el bloque sigue vivo en el galpón
+        if (b.ubicacion === 'PLANTA' || b.ubicacion === 'CORTADO') {
+            resumen[clave].total++;
+        }
     });
 
     let htmlResumen = '';
@@ -7623,12 +7648,14 @@ function procesarEjecucionCorte() {
     const destinoBajas = document.getElementById('corte-destino-bajas').value;
     const tandaId = Date.now(); 
 
-    // 1. DAR DE BAJA MATERIA PRIMA DIRECTO EN FIREBASE
+   // 1. DAR DE BAJA MATERIA PRIMA DIRECTO EN FIREBASE
     if (corteOperacionActiva.modoInput === 'BLOQUES') {
+        const mesActualCorte = `${String(new Date().getMonth() + 1).padStart(2, '0')}/${new Date().getFullYear()}`;
         dbBloques.forEach(b => {
             const isElegido = bloquesElegidosIds.some(id => String(id) === String(b.id));
             if(isElegido) {
                 b.ubicacion = 'PROCESADO'; b.tandaProceso = tandaId; b.fechaModificado = new Date().toLocaleString();
+                b.mesProcesado = mesActualCorte;
                 db.collection("bloques_inventario").doc(String(b.id)).set(b);
             }
         });
@@ -9647,10 +9674,19 @@ async function robotEtiquetarBloques() {
     
     showToast("Etiquetando Bloques en la Nube...");
     for(let b of dbBloques) {
+        let updates = {};
         const parts = b.fecha.split('/');
         if(parts.length === 3) {
-            const mesT = `${parts[1].padStart(2,'0')}/${parts[2]}`;
-            await db.collection("bloques_inventario").doc(String(b.id)).update({mesRegistro: mesT});
+            updates.mesRegistro = `${parts[1].padStart(2,'0')}/${parts[2]}`;
+        }
+        if(b.ubicacion === 'PROCESADO' && b.fechaModificado) {
+            const fMod = b.fechaModificado.split(',')[0].trim().split('/');
+            if(fMod.length === 3) {
+                updates.mesProcesado = `${fMod[1].padStart(2,'0')}/${fMod[2]}`;
+            }
+        }
+        if(Object.keys(updates).length > 0) {
+            await db.collection("bloques_inventario").doc(String(b.id)).update(updates);
         }
     }
     alert("✅ Etiquetado de Bloques 100% exitoso. El inventario de bloques ya está optimizado.");
