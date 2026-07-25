@@ -9355,9 +9355,20 @@ window.addEventListener('beforeunload', function (e) {
 // ==========================================
 
 function enviarRespaldoSilencioso() {
+    // 1. OBLIGATORIO: Solo el Administrador dispara el respaldo
+    if (!currentUser || currentUser.role !== 'ADMIN') return;
+
+    // 2. Revisar cuándo fue la última vez que este navegador envió un correo
+    const ultimoRespaldo = localStorage.getItem('plast_ultimo_respaldo');
+    const ahora = Date.now();
+
+    // 3. Si no han pasado 4 horas (14400000 ms), abortamos silenciosamente
+    if (ultimoRespaldo && (ahora - parseInt(ultimoRespaldo)) < 14400000) {
+        return; 
+    }
+
     console.log("Iniciando respaldo automático en segundo plano...");
 
-    // 1. Empaquetamos todo exactamente igual que en tu botón de emergencia
     const backup = { 
         fechaRespaldo: new Date().toLocaleString(),
         products, quotes, orders, dbMovimientosCaja, dbClients, dbExtSellers, 
@@ -9366,17 +9377,18 @@ function enviarRespaldoSilencioso() {
         dbDespachos, dbBloques, dbKardex, dbSilos, dbSilosHistory 
     };
 
-    // 2. PEGA AQUÍ LA URL QUE COPIASTE DE GOOGLE APPS SCRIPT
     const urlGoogleScript = "https://script.google.com/macros/s/AKfycbzDjmWalQbHTLp-4vMwLT63txZuvCt0N03KptGRzF-D3D5r98_NJ1AS1jRt3rBVe6jU/exec";
 
-    // 3. Lo enviamos silenciosamente sin interrumpir la pantalla del usuario
     fetch(urlGoogleScript, {
         method: 'POST',
-        // Usamos text/plain para evitar bloqueos de seguridad del navegador (CORS)
         headers: { 'Content-Type': 'text/plain;charset=utf-8' }, 
         body: JSON.stringify(backup)
     })
-    .then(response => console.log("Respaldo automático enviado con éxito al correo."))
+    .then(response => {
+        console.log("Respaldo automático enviado con éxito al correo.");
+        // 4. Guardamos la hora exacta en la que se logró enviar
+        localStorage.setItem('plast_ultimo_respaldo', ahora.toString());
+    })
     .catch(error => console.error("Fallo al enviar el respaldo automático: ", error));
 }
 
