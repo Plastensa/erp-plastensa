@@ -6037,6 +6037,20 @@ renderAll = function() {
             if(!matchOrden && !matchCliente && !matchItems) return false;
         }
         return true;
+    }).sort((a, b) => {
+        // Función ultra-precisa para convertir tu formato "DD/MM/YYYY, HH:MM:SS" a un valor ordenable
+        const parseFechaExacta = (fechaStr) => {
+            const partes = fechaStr.split(', ');
+            if (partes.length < 2) return new Date(fechaStr).getTime();
+            
+            const [dia, mes, ano] = partes[0].split('/');
+            const tiempo = partes[1]; // ej: "16:45:00"
+            // Se arma el string "YYYY-MM-DDTHH:MM:SS"
+            return new Date(`${ano}-${mes.padStart(2, '0')}-${dia.padStart(2, '0')}T${tiempo}`).getTime();
+        };
+
+        // Orden DESCENDENTE: El mayor (más reciente) va primero
+        return parseFechaExacta(b.fecha) - parseFechaExacta(a.fecha);
     });
     
     if(filtrados.length === 0) {
