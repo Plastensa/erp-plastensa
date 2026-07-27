@@ -469,7 +469,14 @@
                         </div>
                     </div>
 
-                    <div class="flex flex-col md:flex-row gap-4 mb-8 bg-white p-5 rounded-[24px] border border-slate-200 shadow-sm items-end">
+                   <div class="flex flex-col md:flex-row gap-4 mb-8 bg-white p-5 rounded-[24px] border border-slate-200 shadow-sm items-end">
+                        <div class="flex-1 w-full">
+                            <label class="text-[10px] font-black uppercase text-slate-400 ml-2 block mb-1">Buscar</label>
+                            <div class="relative">
+                                <i data-lucide="search" class="absolute left-3 top-3.5 w-4 h-4 text-slate-400"></i>
+                                <input type="text" id="filter-reg-texto" onkeyup="renderRegistroVentas()" placeholder="Orden, Cliente o NIT..." class="w-full pl-9 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-xl font-bold text-sm text-slate-700 outline-none focus:ring-2 focus:ring-blue-500">
+                            </div>
+                        </div>
                         <div class="flex-1 w-full">
                             <label class="text-[10px] font-black uppercase text-slate-400 ml-2 block mb-1">Filtrar por Mes</label>
                             <select id="filter-reg-mes" onchange="renderRegistroVentas()" class="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl font-bold text-slate-700 outline-none focus:ring-2 focus:ring-blue-500">
@@ -3876,7 +3883,7 @@ function handleFileUpload(e) {
             recalculateCart(); 
         }
 
-       function saveQuote() { 
+      function saveQuote() { 
     if(cart.length === 0) { alert("Debes añadir al menos un producto al carrito."); return; }
     
     const cName = document.getElementById('cot-client').value.trim() || 'Cliente Mostrador';
@@ -3889,11 +3896,24 @@ function handleFileUpload(e) {
     }
     
     const cNext = document.getElementById('cot-next-contact')?.value;
-    if (!cNext) {
+    if (!cNext && !editingIsOrder) {
         alert("OBLIGATORIO: Como vendedor, debes agendar una fecha de 'Próxima Llamada' para hacer seguimiento.");
         return;
     }
     
+    // 🛡️ ESCUDO DE PRODUCCIÓN: Validar que no bajen la cantidad de lo que ya se cortó
+    if (editingIsOrder) {
+        let errorProduccion = false;
+        cart.forEach((it, idx) => {
+            const pzasCortadas = dbSchedules.filter(s => s.orderId === editingQuoteId && s.itemIdx === idx && (s.status === 'FINALIZADO' || s.status === 'COMPLETADO')).reduce((sum, s) => sum + (s.fabricadoQty || s.qty), 0);
+            if (it.qty < pzasCortadas) {
+                alert(`🛑 ERROR DE PRODUCCIÓN:\n\nEl ítem [${it.name}] ya tiene ${pzasCortadas} piezas fabricadas en planta.\nNo puedes reducir la cantidad del pedido a ${it.qty}.`);
+                errorProduccion = true;
+            }
+        });
+        if (errorProduccion) return;
+    }
+
     const cMapa = document.getElementById('cot-mapa') ? document.getElementById('cot-mapa').value.trim() : '';
     const vendedorSeleccionado = document.getElementById('cot-interno').value;
     const existingClientIndex = dbClients.findIndex(x => x.name.toLowerCase() === cName.toLowerCase() || (x.nit && x.nit === cNit));
@@ -3933,9 +3953,7 @@ function handleFileUpload(e) {
         retencionCalculada = grossComm * 0.17;
     }
 
-    const q = {
-        id: editingQuoteId ? editingQuoteId : generarCorrelativoMensual(),
-        status: 'SEGUIMIENTO', 
+    const qData = {
         descuentoPorcentaje: dPct,
         requiereAprobacion: requiereAprobacion, 
         justificacionDesc: justificacionTexto, 
@@ -3943,30 +3961,58 @@ function handleFileUpload(e) {
         client: cName, nit: cNit, phone: cPhone, mapa: cMapa,
         vendedorExterno: extSellerName, vendedorInterno: document.getElementById('cot-interno').value,
         validezDias: document.getElementById('cot-validez').value || 15,
-        nextContactDate: document.getElementById('cot-next-contact').value,
+        nextContactDate: document.getElementById('cot-next-contact')?.value || '',
         type: currentType, items: JSON.parse(JSON.stringify(cart)), 
         volGlobalCotizacion: globalCartVol,
         trans: parseFloat(document.getElementById('inp-trans').value)||0, 
-        comm: grossComm, // Comision Bruta
+        comm: grossComm, 
         extra: parseFloat(document.getElementById('inp-extra').value)||0, 
-        retencion: retencionCalculada, // NUEVO: Guardamos la retención aplicada
-        total: totalFinal, date: new Date().toLocaleDateString()
+        retencion: retencionCalculada, 
+        total: totalFinal, 
+        date: new Date().toLocaleDateString()
     };
-    
+
     if (editingQuoteId) {
-        const idx = quotes.findIndex(x => x.id === editingQuoteId);
-        quotes[idx] = q; 
-        editingQuoteId = null; 
+        qData.id = editingQuoteId;
+        
+        if (editingIsOrder) {
+            // ES UN PEDIDO YA CONFIRMADO: Heredamos datos intocables
+            const oldOrder = orders.find(x => x.id === editingQuoteId);
+            qData.quoteReference = oldOrder.quoteReference || '';
+            qData.status = oldOrder.status; // Mantiene PRODUCCION o INVENTARIO
+            qData.date = oldOrder.date; // Respeta la fecha en que se vendió
+            qData.montoPagado = oldOrder.montoPagado || 0;
+            qData.pagos = oldOrder.pagos || [];
+            qData.pagoRechazado = oldOrder.pagoRechazado || false;
+            qData.justificacionCredito = oldOrder.justificacionCredito || '';
+            
+            // Recalcular saldo y estado del semáforo
+            qData.saldo = qData.total - qData.montoPagado;
+            qData.estadoPago = qData.saldo <= 0 ? 'COMPLETO' : 'PARCIAL';
+
+            const idx = orders.findIndex(x => x.id === editingQuoteId);
+            orders[idx] = qData;
+            db.collection("pedidos").doc(String(qData.id).replace(/\//g, '-')).set(qData)
+                .then(() => showToast("Pedido actualizado en la nube."));
+        } else {
+            // ES UNA COTIZACIÓN NORMAL
+            qData.status = 'SEGUIMIENTO';
+            const idx = quotes.findIndex(x => x.id === editingQuoteId);
+            quotes[idx] = qData;
+            db.collection("cotizaciones").doc(String(qData.id).replace(/\//g, '-')).set(qData)
+                .then(() => showToast("Cotización actualizada en la nube."));
+        }
+        editingQuoteId = null;
+        editingIsOrder = false;
     } else {
-        quotes.unshift(q); 
+        qData.id = generarCorrelativoMensual();
+        qData.status = 'SEGUIMIENTO';
+        quotes.unshift(qData); 
+        db.collection("cotizaciones").doc(String(qData.id).replace(/\//g, '-')).set(qData)
+            .then(() => showToast("Cotización nueva guardada en la nube."));
     }
     
-    // GUARDADO DIRECTO A CARPETA INDIVIDUAL
-    db.collection("cotizaciones").doc(String(q.id).replace(/\//g, '-')).set(q)
-        .then(() => showToast("Cotización guardada en la nube."))
-        .catch(err => alert("Error de conexión al guardar. Revisa tu internet."));
-    
-    save(); // Para guardar el nuevo cliente
+    save(); 
     cart = []; 
     document.getElementById('cot-client').value = ''; 
     document.getElementById('cot-nit').value = '';
@@ -3982,7 +4028,7 @@ function handleFileUpload(e) {
     document.getElementById('lbl-total-vol').innerText = '0.00 M3';
     
     recalculateCart(); 
-    showTab('cotizaciones'); 
+    showTab(editingIsOrder ? 'registro-ventas' : 'cotizaciones'); 
 }
 
         // ==========================================
@@ -5515,6 +5561,7 @@ renderAll = function() {
             const tbody = document.getElementById('registro-ventas-body');
             const selectMes = document.getElementById('filter-reg-mes');
             const selectVend = document.getElementById('filter-reg-vendedor');
+            const inputTexto = document.getElementById('filter-reg-texto'); // <-- NUEVO BUSCADOR
 
             let meses = new Set();
             let vendedores = new Set();
@@ -5527,6 +5574,7 @@ renderAll = function() {
 
             const valMes = selectMes.value || 'ALL';
             const valVend = selectVend.value || 'ALL';
+            const valTexto = inputTexto ? inputTexto.value.toLowerCase() : '';
 
             let optionsMes = `<option value="ALL">Todos los meses</option>`;
             Array.from(meses).sort().reverse().forEach(m => { optionsMes += `<option value="${m}" ${valMes === m ? 'selected' : ''}>${m}</option>`; });
@@ -5538,14 +5586,23 @@ renderAll = function() {
 
             let html = '';
             orders.filter(o => {
-                let matchMes = true; let matchVend = true;
-                if (selectMes.value !== 'ALL') {
+                let matchMes = true; let matchVend = true; let matchTexto = true;
+                if (valMes !== 'ALL') {
                     const parts = o.date.split('/');
-                    if(parts.length === 3 && `${parts[1].padStart(2, '0')}/${parts[2]}` !== selectMes.value) matchMes = false;
+                    if(parts.length === 3 && `${parts[1].padStart(2, '0')}/${parts[2]}` !== valMes) matchMes = false;
                     else if (parts.length !== 3) matchMes = false;
                 }
-                if (selectVend.value !== 'ALL' && o.vendedorInterno !== selectVend.value) matchVend = false;
-                return matchMes && matchVend;
+                if (valVend !== 'ALL' && o.vendedorInterno !== valVend) matchVend = false;
+                
+                // NUEVA LÓGICA DE BÚSQUEDA INTELIGENTE
+                if (valTexto) {
+                    const enOrden = o.id.toLowerCase().includes(valTexto);
+                    const enCliente = o.client.toLowerCase().includes(valTexto);
+                    const enNit = (o.nit || '').toLowerCase().includes(valTexto);
+                    if (!enOrden && !enCliente && !enNit) matchTexto = false;
+                }
+
+                return matchMes && matchVend && matchTexto;
             }).forEach(o => {
                 // Cálculo de comisión neta (idéntico al del CSV)
                 const baseTotal = o.items.reduce((s, i) => s + i.subtotal, 0);
@@ -5575,6 +5632,11 @@ renderAll = function() {
                     payStatusBadge = `<span class="bg-red-100 text-red-600 px-2 py-1 rounded text-[9px] font-black uppercase tracking-widest shadow-sm block w-max mx-auto border border-red-200">NO PAGADO</span>`;
                 }
 
+                // NUEVO BOTÓN DE EDICIÓN: Solo aparece si NO está despachado
+                const btnEditar = (o.status !== 'DESPACHADO' && currentUser && (currentUser.role === 'ADMIN' || currentUser.role === 'VENDEDOR')) 
+                    ? `<button onclick="editQuote('${o.id}')" class="bg-yellow-500 hover:bg-yellow-600 text-white px-3 py-1.5 rounded-lg text-[9px] font-black shadow-sm transition-colors inline-flex items-center gap-1" title="Editar Pedido"><i data-lucide="edit-3" class="w-3 h-3"></i> Editar</button>` 
+                    : '';
+
                 html += `
                     <tr class="hover:bg-slate-50 transition-colors border-b border-slate-100">
                         <td class="p-4 text-slate-500 font-bold">${o.date}</td>
@@ -5596,22 +5658,24 @@ renderAll = function() {
                         <td class="p-4 text-[10px] font-black uppercase text-slate-500">${metodosStr}</td>
                         <td class="p-4 text-center">${payStatusBadge}</td>
                         <td class="p-4 text-center">
-    <div class="flex flex-col items-center justify-center gap-2">
-        <div class="flex gap-2">
-            <button onclick="printQuote('${o.id}')" class="bg-blue-600 hover:bg-blue-700 text-white px-3 py-1.5 rounded-lg text-[9px] font-black shadow-sm transition-colors inline-flex items-center gap-1">
-                <i data-lucide="printer" class="w-3 h-3"></i> PDF
-            </button>
-            ${(currentUser && currentUser.role === 'ADMIN') ? `<button onclick="anularPedido('${o.id}')" class="bg-red-50 hover:bg-red-100 text-red-600 border border-red-200 px-3 py-1.5 rounded-lg text-[9px] font-black shadow-sm transition-colors inline-flex items-center gap-1" title="Anular Pedido"><i data-lucide="trash-2" class="w-3 h-3"></i> Anular</button>` : ''}
-        </div>
-        ${(o.type === 'CF' && currentUser && currentUser.role === 'ADMIN') ? `
-        <button onclick="emitirFacturaPiloto('${o.id}')" class="w-full bg-purple-600 hover:bg-purple-700 text-white px-3 py-1.5 rounded-lg text-[9px] font-black shadow-sm transition-colors flex items-center justify-center gap-1 mt-1">
-            <i data-lucide="send" class="w-3 h-3"></i> FACTURAR (PILOTO)
-        </button>` : ''}
-    </div>
-</td>
+                            <div class="flex flex-col items-center justify-center gap-2">
+                                <div class="flex gap-2">
+                                    <button onclick="printQuote('${o.id}')" class="bg-blue-600 hover:bg-blue-700 text-white px-3 py-1.5 rounded-lg text-[9px] font-black shadow-sm transition-colors inline-flex items-center gap-1">
+                                        <i data-lucide="printer" class="w-3 h-3"></i> PDF
+                                    </button>
+                                    ${btnEditar}
+                                    ${(currentUser && currentUser.role === 'ADMIN') ? `<button onclick="anularPedido('${o.id}')" class="bg-red-50 hover:bg-red-100 text-red-600 border border-red-200 px-3 py-1.5 rounded-lg text-[9px] font-black shadow-sm transition-colors inline-flex items-center gap-1" title="Anular Pedido"><i data-lucide="trash-2" class="w-3 h-3"></i> Anular</button>` : ''}
+                                </div>
+                                ${(o.type === 'CF' && currentUser && currentUser.role === 'ADMIN') ? `
+                                <button onclick="emitirFacturaPiloto('${o.id}')" class="w-full bg-purple-600 hover:bg-purple-700 text-white px-3 py-1.5 rounded-lg text-[9px] font-black shadow-sm transition-colors flex items-center justify-center gap-1 mt-1">
+                                    <i data-lucide="send" class="w-3 h-3"></i> FACTURAR (PILOTO)
+                                </button>` : ''}
+                            </div>
+                        </td>
                     </tr>`;
             });
-            tbody.innerHTML = html || `<tr><td colspan="16" class="p-10 text-center font-bold text-slate-400 italic">No hay ventas que coincidan con el filtro.</td></tr>`;
+            tbody.innerHTML = html || `<tr><td colspan="19" class="p-10 text-center font-bold text-slate-400 italic">No hay ventas que coincidan con el filtro.</td></tr>`;
+            if(window.lucide) lucide.createIcons();
         }
 
         function renderMasterLog() {
@@ -5776,10 +5840,8 @@ renderAll = function() {
                    const badge = remQty <= 0 ? `<span class="text-green-500"><i data-lucide="check-circle" class="w-5 h-5"></i></span>` : `<button onclick="openScheduleModal('${o.id}', ${idx})" class="bg-orange-100 hover:bg-orange-200 text-orange-700 px-3 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-widest transition-colors border border-orange-200 shadow-sm">Programar</button>`;
                     const obsTag = item.obs ? `<div class="w-full mt-1 p-1.5 bg-red-50 border-l-2 border-red-500 text-red-700 text-[9px] font-black uppercase tracking-widest rounded-r-lg">⚠️ CORTE: ${item.obs}</div>` : '';
                     
-                    // Bloqueo de seguridad: El lápiz de edición solo sale para Admin o Vendedor
-                    const btnEditItem = (currentUser && (currentUser.role === 'ADMIN' || currentUser.role === 'VENDEDOR'))
-                        ? `<button onclick="openEditItemModal('${o.id}', ${idx}, 'orders')" class="text-indigo-400 hover:text-indigo-600 bg-white border border-slate-200 hover:bg-slate-100 transition-colors p-1.5 rounded-lg shadow-sm"><i data-lucide="edit-3" class="w-3.5 h-3.5"></i></button>`
-                        : '';
+                   // Lápiz de edición retirado de Producción. Ahora se edita desde el Registro de Ventas.
+                    const btnEditItem = '';
 
                     itemsHtml += `
                     <div class="flex flex-col bg-slate-50 p-3 rounded-xl border border-slate-100 mb-2 w-full max-w-sm whitespace-normal shadow-sm">
@@ -8641,9 +8703,18 @@ function redirigirADespacho(idOrden) {
     }
 }
 
+let editingIsOrder = false; // Variable global para saber si editamos orden o cotización
+
 function editQuote(id) {
-    const q = quotes.find(x => x.id === id);
-    if (!q) return alert("Cotización no encontrada");
+    let q = quotes.find(x => x.id === id);
+    editingIsOrder = false;
+
+    if (!q) {
+        q = orders.find(x => x.id === id);
+        if (q) editingIsOrder = true;
+    }
+
+    if (!q) return alert("Cotización o Pedido no encontrado");
 
     // 1. Cargar datos básicos y activar modo edición
     cart = JSON.parse(JSON.stringify(q.items)); 
@@ -8663,12 +8734,13 @@ function editQuote(id) {
     if(document.getElementById('inp-notas')) document.getElementById('inp-notas').value = q.notasComerciales || '';
     document.getElementById('cot-validez').value = q.validezDias || 15;
     if(document.getElementById('cot-next-contact')) document.getElementById('cot-next-contact').value = q.nextContactDate || '';
+    
     // 3. Cambiar de vista y recalcular
-    showTab('ventas'); // <--- CORRECCIÓN: Tu ID es "ventas"
-    setInvoiceType(q.type); // Ajustar visualmente botones de factura
+    showTab('ventas'); 
+    setInvoiceType(q.type); 
     renderCart();
     calculateFinals();
-    showToast("Editando cotización: " + id);
+    showToast(editingIsOrder ? "Editando PEDIDO CONFIRMADO: " + id : "Editando COTIZACIÓN: " + id);
 }
 
 // ==========================================
