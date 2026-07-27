@@ -2034,14 +2034,22 @@
                     
                    <h3 class="font-black text-blue-500 uppercase tracking-widest text-xs mb-4 border-b border-slate-200 pb-2">2. Stock Físico Disponible (Venta Libre / Mostrador)</h3>
                     <div class="bg-white rounded-[32px] border border-slate-200 overflow-hidden shadow-sm">
-                        <div class="p-4 bg-slate-50 border-b border-slate-100 flex items-center gap-2">
+                       <div class="p-4 bg-slate-50 border-b border-slate-100 flex items-center gap-2">
                             <i data-lucide="search" class="w-5 h-5 text-slate-400"></i>
-                            <input type="text" id="buscar-stock-input" onkeyup="renderAll()" placeholder="Buscar ítem por nombre o medida..." class="w-full bg-transparent border-none outline-none font-bold text-sm text-slate-700">
+                            <input type="text" id="buscar-stock-input" onkeyup="renderStockFisico()" placeholder="Buscar ítem por nombre o medida..." class="w-full bg-transparent border-none outline-none font-bold text-sm text-slate-700">
                         </div>
                         <div class="overflow-x-auto">
                             <table class="w-full text-left text-xs whitespace-nowrap">
-                                <thead class="bg-slate-50 border-b border-slate-100 text-[10px] font-black text-slate-400 uppercase tracking-widest">
-                                    <tr><th class="p-4">Ítem / Descripción</th><th class="p-4">Densidad</th><th class="p-4 text-right">Volumen Unitario</th><th class="p-4 text-center text-blue-600">Stock Actual (Pzas)</th><th class="p-4 text-right text-blue-600">Total M³</th></tr>
+                               <thead class="bg-slate-50 border-b border-slate-100 text-[10px] font-black text-slate-400 uppercase tracking-widest">
+                                    <tr>
+                                        <th class="p-4">Ítem / Descripción</th>
+                                        <th class="p-4">Densidad</th>
+                                        <th class="p-4 text-center text-slate-400">Inv. Inicial</th>
+                                        <th class="p-4 text-center text-green-500">Ingresos (Corte)</th>
+                                        <th class="p-4 text-center text-red-400">Salidas (Despachos)</th>
+                                        <th class="p-4 text-center text-blue-600">Stock Actual</th>
+                                        <th class="p-4 text-right text-blue-600">Total M³</th>
+                                    </tr>
                                 </thead>
                                 <tbody id="stock-fisico-body" class="divide-y divide-slate-50"></tbody>
                             </table>
@@ -8159,54 +8167,94 @@ function exportarReporteCorteCSV() {
     document.body.appendChild(link); link.click(); document.body.removeChild(link);
 }
 
-// Interceptamos la función renderAll existente para añadir las nuevas tablas
+// --- NUEVO MOTOR VELOZ PARA STOCK FÍSICO ---
+function renderStockFisico() {
+    const stockBody = document.getElementById('stock-fisico-body');
+    if(!stockBody) return;
+
+    // 1. Recopilar Estadísticas Rápidas (Evita lentitud)
+    const stats = {};
+
+    // A) Inventario Inicial desde el Kardex
+    dbKardex.forEach(k => {
+        const nombre = normalizarNombre(k.item);
+        if(!stats[nombre]) stats[nombre] = { ini: 0, inCorte: 0, outDesp: 0 };
+        if(k.motivo.includes('Inicial') || k.motivo.includes('Reescritura') || k.motivo.includes('Ajuste')) {
+            if(k.tipo === 'INGRESO') stats[nombre].ini += k.qty;
+            else stats[nombre].ini -= k.qty;
+        }
+    });
+
+    // B) Ingresos por Producción/Cortes
+    dbReportesCorte.forEach(r => {
+        if(r.detalleCortes && r.detalleCortes.length > 0) {
+            r.detalleCortes.forEach(c => {
+                const nombre = normalizarNombre(c.item);
+                if(!stats[nombre]) stats[nombre] = { ini: 0, inCorte: 0, outDesp: 0 };
+                stats[nombre].inCorte += (parseFloat(c.qtyStock) || 0) + (parseFloat(c.qtyOrder) || 0);
+            });
+        }
+    });
+
+    // C) Salidas por Despachos
+    dbDespachos.forEach(d => {
+        if(d.items) {
+            d.items.forEach(it => {
+                const nombre = normalizarNombre(it.name);
+                if(!stats[nombre]) stats[nombre] = { ini: 0, inCorte: 0, outDesp: 0 };
+                stats[nombre].outDesp += (parseFloat(it.qtyDespachada) || 0);
+            });
+        }
+    });
+
+    // 2. Filtrar y Ordenar Catálogo
+    let prodConStock = products.filter(p => p.stock !== 0 && p.stock !== undefined);
+
+    const searchInput = document.getElementById('buscar-stock-input');
+    if (searchInput && searchInput.value) {
+        const term = searchInput.value.toLowerCase();
+        prodConStock = prodConStock.filter(p => p.name.toLowerCase().includes(term));
+    }
+
+    if(prodConStock.length === 0) {
+        stockBody.innerHTML = `<tr><td colspan="7" class="p-8 text-center text-slate-400 font-bold italic">Inventario físico en cero o sin resultados de búsqueda.</td></tr>`;
+    } else {
+        prodConStock.sort((a, b) => {
+            if (a.stock < 0 && b.stock >= 0) return -1;
+            if (b.stock < 0 && a.stock >= 0) return 1;
+            return a.name.localeCompare(b.name);
+        });
+        
+        stockBody.innerHTML = prodConStock.map(p => {
+            const esNegativo = p.stock < 0;
+            const colorFila = esNegativo ? 'bg-red-50/50 hover:bg-red-100/50' : 'hover:bg-slate-50';
+            const colorTexto = esNegativo ? 'text-red-600' : 'text-blue-600';
+            const iconoAlerta = esNegativo ? `<i data-lucide="alert-triangle" class="inline w-4 h-4 text-red-500 mr-1 mb-1"></i>` : '';
+            
+            const miStat = stats[normalizarNombre(p.name)] || { ini: 0, inCorte: 0, outDesp: 0 };
+
+            return `
+            <tr class="border-b border-slate-100 transition-colors ${colorFila}">
+                <td class="p-4 font-black text-slate-800">${iconoAlerta}${p.name}</td>
+                <td class="p-4 font-bold text-slate-500">${p.density}</td>
+                <td class="p-4 text-center font-bold text-slate-400">${miStat.ini}</td>
+                <td class="p-4 text-center font-black text-green-600">+${miStat.inCorte}</td>
+                <td class="p-4 text-center font-black text-red-500">-${miStat.outDesp}</td>
+                <td class="p-4 text-center font-black ${colorTexto} text-lg">${p.stock}</td>
+                <td class="p-4 text-right font-black text-slate-700">${(p.stock * Number(p.vol)).toFixed(3)} M³</td>
+            </tr>`;
+        }).join('');
+    }
+    if(window.lucide) lucide.createIcons();
+}
+
+// Interceptamos la función renderAll existente 
 const originalRenderAll = renderAll;
 renderAll = function() {
     originalRenderAll();
 
-    // 1. Renderizar Stock Físico (Con alertas de Desviación en Rojo)
-    const stockBody = document.getElementById('stock-fisico-body');
-    if(stockBody) {
-        // Filtrar TODOS los productos que tengan un stock distinto de 0 (Positivos y Negativos)
-        let prodConStock = products.filter(p => p.stock !== 0 && p.stock !== undefined);
-
-        // --- NUEVA LÓGICA DE BÚSQUEDA ---
-        const searchInput = document.getElementById('buscar-stock-input');
-        if (searchInput && searchInput.value) {
-            const term = searchInput.value.toLowerCase();
-            prodConStock = prodConStock.filter(p => p.name.toLowerCase().includes(term));
-        }
-
-        if(prodConStock.length === 0) {
-            stockBody.innerHTML = `<tr><td colspan="5" class="p-8 text-center text-slate-400 font-bold italic">Inventario físico en cero o sin resultados de búsqueda.</td></tr>`;
-        } else {
-            // --- NUEVO ORDENAMIENTO (Alfabético + Alertas Negativas Arriba) ---
-            prodConStock.sort((a, b) => {
-                // 1º Prioridad: Si uno es negativo (alerta) y el otro no, el negativo va primero
-                if (a.stock < 0 && b.stock >= 0) return -1;
-                if (b.stock < 0 && a.stock >= 0) return 1;
-                // 2º Prioridad: Si ambos son normales o ambos son alerta, ordenamos alfabéticamente
-                return a.name.localeCompare(b.name);
-            });
-            
-            stockBody.innerHTML = prodConStock.map(p => {
-                const esNegativo = p.stock < 0;
-                const colorFila = esNegativo ? 'bg-red-50/50 hover:bg-red-100/50' : 'hover:bg-slate-50';
-                const colorTexto = esNegativo ? 'text-red-600' : 'text-blue-600';
-                const iconoAlerta = esNegativo ? `<i data-lucide="alert-triangle" class="inline w-4 h-4 text-red-500 mr-1 mb-1"></i>` : '';
-                
-               return `
-                <tr class="border-b border-slate-100 transition-colors ${colorFila}">
-                    <td class="p-4 font-black text-slate-800">${iconoAlerta}${p.name}</td>
-                    <td class="p-4 font-bold text-slate-500">${p.density}</td>
-                    <td class="p-4 text-right font-medium">${Number(p.vol).toFixed(3)} M³</td>
-                    <td class="p-4 text-center font-black ${colorTexto} text-lg">${p.stock} Pzas</td>
-                    <td class="p-4 text-right font-black text-slate-700">${(p.stock * Number(p.vol)).toFixed(3)} M³</td>
-                </tr>
-            `;
-            }).join('');
-        }
-    }
+    // 1. Usar la nueva función ultrarrápida
+    renderStockFisico();
     
     // 2. Renderizar Reporte
     renderReporteCorte();
