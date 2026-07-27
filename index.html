@@ -2001,10 +2001,15 @@
                             <button onclick="downloadInventarioTemplate()" class="bg-blue-100 text-blue-700 hover:bg-blue-200 px-4 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest shadow-sm transition-colors flex items-center gap-2">
                                 <i data-lucide="download" class="w-4 h-4"></i> Bajar Plantilla Inicial
                             </button>
-                            <button onclick="document.getElementById('csvInventarioInput').click()" class="bg-blue-600 text-white hover:bg-blue-700 px-4 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest shadow-lg transition-colors flex items-center gap-2">
-                                <i data-lucide="upload-cloud" class="w-4 h-4"></i> Subir Inventario CSV
+                            <button onclick="document.getElementById('csvInventarioInput').click()" class="bg-blue-600 text-white hover:bg-blue-700 px-4 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest shadow-lg transition-colors flex items-center gap-2" title="Suma las cantidades del archivo al stock actual">
+                                <i data-lucide="plus-circle" class="w-4 h-4"></i> AÑADIR INVENTARIO
                             </button>
                             <input type="file" id="csvInventarioInput" accept=".csv" class="hidden" onchange="handleInventarioUpload(event)" />
+
+                            <button onclick="document.getElementById('csvInventarioReescribir').click()" class="bg-red-600 text-white hover:bg-red-700 px-4 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest shadow-lg transition-colors flex items-center gap-2" title="Reemplaza el stock actual con las cantidades del archivo">
+                                <i data-lucide="alert-triangle" class="w-4 h-4"></i> REESCRIBIR INVENTARIO
+                            </button>
+                            <input type="file" id="csvInventarioReescribir" accept=".csv" class="hidden" onchange="handleInventarioReescribir(event)" />
                         </div>
                     </div>
                     
@@ -2881,6 +2886,62 @@ function registrarMovimientoInventario(itemName, qty, tipo, motivo) {
                 
                 let msg = `✅ Carga completada. ${actualizados} ítems actualizados.`;
                 if(errores.length > 0) msg += `\n\n❌ Ítems no encontrados (asegúrate de copiarlos tal cual están en el catálogo):\n${errores.slice(0,5).join(', ')}`;
+                alert(msg);
+            }; 
+            reader.readAsText(file); e.target.value = ''; 
+        }
+function handleInventarioReescribir(e) {
+            const file = e.target.files[0]; if(!file) return; 
+            if(!confirm("⚠️ PELIGRO: Esta acción REESCRIBIRÁ el inventario.\n\nSe reemplazará el stock actual EXACTAMENTE por los valores del archivo (incluso los que estén vacíos o en 0). Los ítems que no estén en tu archivo de Excel se mantendrán intactos.\n\n¿Estás seguro de continuar?")) { e.target.value = ''; return; }
+            
+            const reader = new FileReader();
+            reader.onload = (event) => {
+                const lines = event.target.result.split(/\r?\n/); 
+                let actualizados = 0;
+                let errores = [];
+
+                for(let i = 1; i < lines.length; i++){
+                    const line = lines[i].trim(); 
+                    if(!line || line.toUpperCase().startsWith('NOTA:')) continue;
+                    
+                    let cols = line.split(','); 
+                    if (cols.length >= 3) {
+                        const itemName = cols[0].replace(/^"|"$/g, '').trim().toLowerCase();
+                        
+                        // Convertir a número: si está vacío (ej: ,D10,) o es 0, lo toma como 0.
+                        let rawStock = cols[2] ? cols[2].replace(/^"|"$/g, '').trim() : '';
+                        let newStock = rawStock === '' ? 0 : parseInt(rawStock);
+                        if (isNaN(newStock)) newStock = 0;
+                        
+                        if (itemName) {
+                            const prodIndex = products.findIndex(p => (p.name || '').trim().toLowerCase() === itemName);
+                            if (prodIndex !== -1) {
+                                const currentStock = parseInt(products[prodIndex].stock) || 0;
+                                const diff = newStock - currentStock;
+                                
+                                // Solo actualiza y guarda en Kardex si hubo un cambio real
+                                if (diff !== 0) {
+                                    products[prodIndex].stock = newStock;
+                                    actualizados++;
+                                    
+                                    // Determina si sobró o faltó material para el Kardex
+                                    const tipoMov = diff > 0 ? 'INGRESO' : 'EGRESO';
+                                    const motivo = diff > 0 ? 'Ajuste Físico Positivo (Reescritura CSV)' : 'Ajuste Físico Negativo (Reescritura CSV)';
+                                    
+                                    registrarMovimientoInventario(products[prodIndex].name, Math.abs(diff), tipoMov, motivo);
+                                }
+                            } else {
+                                errores.push(cols[0].replace(/^"|"$/g, ''));
+                            }
+                        }
+                    }
+                }
+                
+                save(); 
+                if(typeof renderAll === 'function') renderAll(); 
+                
+                let msg = `✅ Reescritura completada con éxito.\nSe corrigió el stock de ${actualizados} ítems de tu lista.`;
+                if(errores.length > 0) msg += `\n\n❌ Ítems ignorados por no existir en el catálogo:\n${errores.slice(0,5).join(', ')}`;
                 alert(msg);
             }; 
             reader.readAsText(file); e.target.value = ''; 
