@@ -7793,8 +7793,17 @@ function procesarEjecucionCorte() {
         return alert(`❌ IMPOSIBLE: La materia prima suma ${volEntradaReal.toFixed(2)} M³, pero intenta generar ${volTotalSalida.toFixed(2)} M³.\n\nTolerancia máxima permitida: ${toleranciaGlobal.toFixed(2)} M³ de excedente.`);
     }
 
-    const destinoBajas = document.getElementById('corte-destino-bajas').value;
+   const destinoBajas = document.getElementById('corte-destino-bajas').value;
     const tandaId = Date.now(); 
+
+    // --- NUEVO POKA-YOKE: BLOQUEO DE RECICLAJE EXCESIVO ---
+    let mermaPerfiladoYSobranza = diff > 0 ? diff : 0; 
+    let volumenTotalDesperdicio = volBajasTotal + mermaPerfiladoYSobranza;
+    
+    if (destinoBajas === 'RECICLAJE' && volumenTotalDesperdicio > 1.5) {
+        return alert(`🛑 BLOQUEO DE SEGURIDAD:\n\nEstás intentando enviar ${volumenTotalDesperdicio.toFixed(2)} M³ a RECICLAJE.\nEl límite máximo para basura es 1.5 M³ por tanda.\n\n👉 Por favor cambia el "Destino Bajas" a SALVAR EN BANCO DE RETAZOS si son despuntes o material útil.`);
+    }
+    // -------------------------------------------------------
 
     // 1. DAR DE BAJA MATERIA PRIMA DIRECTO EN FIREBASE
     if (corteOperacionActiva.modoInput === 'BLOQUES') {
@@ -7814,9 +7823,7 @@ function procesarEjecucionCorte() {
         }
     }
 
-    // 2. Mermas y Retazos DIRECTOS EN FIREBASE
-    let mermaPerfiladoYSobranza = diff > 0 ? diff : 0; 
-    let volumenTotalDesperdicio = volBajasTotal + mermaPerfiladoYSobranza;
+    // 2. Mermas y Retazos DIRECTOS EN FIREBASE (Variables ya calculadas arriba)
     
     if(typeof dbSilos !== 'undefined') {
         const siloRec = dbSilos.find(s => s.id === 'REC');
@@ -8100,16 +8107,17 @@ function procesarRecuperacionRetazo() {
     dbBancoRetazos[dens] -= volTotal; if(dbBancoRetazos[dens] < 0) dbBancoRetazos[dens] = 0;
     prodCatalogo.stock = (parseInt(prodCatalogo.stock) || 0) + qty;
 
-    dbReportesCorte.unshift({
+    const nuevoReporte = {
         id: Date.now(), fecha: new Date().toLocaleDateString(), hora: new Date().toLocaleTimeString(),
         bloques: `RECUPERADO DE BANCO ${dens}`, item: prodCatalogo.name, pzas: qty,
         volUtil: volTotal, volReciclaje: 0, volRetazo: -volTotal, mermaPerfilado: 0, operador: currentUser ? currentUser.name : 'Sistema'
-    });
+    };
+    db.collection("cortes_reportes").doc(String(nuevoReporte.id)).set(nuevoReporte);
 
     save(); localStorage.setItem('plast_products', JSON.stringify(products));
     document.getElementById('ret-rec-item').value = ''; document.getElementById('ret-rec-qty').value = '';
     document.getElementById('panel-recuperar-retazo').classList.add('hidden');
-    renderAll(); showToast(`Éxito: ${qty} piezas de ${prodCatalogo.name} sumadas al Stock.`);
+    showToast(`Éxito: ${qty} piezas de ${prodCatalogo.name} sumadas al Stock.`);
 }
 
 function procesarMoliendaRetazo() {
@@ -8127,15 +8135,16 @@ function procesarMoliendaRetazo() {
         if(siloRec) siloRec.vol += vol;
     }
 
-    dbReportesCorte.unshift({
+   const nuevoReporte = {
         id: Date.now(), fecha: new Date().toLocaleDateString(), hora: new Date().toLocaleTimeString(),
         bloques: `MOLIENDA DE BANCO ${dens}`, item: "BASURA EPS - A RECICLAJE", pzas: 0,
         volUtil: 0, volReciclaje: vol, volRetazo: -vol, mermaPerfilado: 0, operador: currentUser ? currentUser.name : 'Sistema'
-    });
+    };
+    db.collection("cortes_reportes").doc(String(nuevoReporte.id)).set(nuevoReporte);
 
     save(); document.getElementById('ret-mol-vol').value = '';
     document.getElementById('panel-moler-retazo').classList.add('hidden');
-    renderAll(); showToast(`Éxito: ${vol} M³ enviados al Silo de Reciclaje.`);
+    showToast(`Éxito: ${vol} M³ enviados al Silo de Reciclaje.`);
 }
 
 
