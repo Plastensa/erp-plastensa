@@ -3986,9 +3986,46 @@ function handleFileUpload(e) {
             qData.pagoRechazado = oldOrder.pagoRechazado || false;
             qData.justificacionCredito = oldOrder.justificacionCredito || '';
             
-            // Recalcular saldo y estado del semáforo
+            // NUEVO: Marcamos el pedido como alterado y guardamos la hora del suceso
+            qData.editado = true;
+            qData.fechaEdicion = new Date().toLocaleString();
+            
+           // Recalcular saldo y estado del semáforo
             qData.saldo = qData.total - qData.montoPagado;
             qData.estadoPago = qData.saldo <= 0 ? 'COMPLETO' : 'PARCIAL';
+
+            // --- NUEVO: SINCRONIZADOR DE TARJETAS DE CORTE ---
+            // Si alteramos las cantidades en la orden, debemos ajustar las tarjetas pendientes en Sala de Corte
+            qData.items.forEach((item, indexItem) => {
+                let pendingSchedules = dbSchedules.filter(s => s.orderId === editingQuoteId && s.itemIdx === indexItem && s.status === 'PENDIENTE');
+                let finishedQty = dbSchedules.filter(s => s.orderId === editingQuoteId && s.itemIdx === indexItem && (s.status === 'FINALIZADO' || s.status === 'COMPLETADO')).reduce((sum, s) => sum + (s.fabricadoQty || s.qty), 0);
+                
+                let qtyRestante = item.qty - finishedQty;
+                if (qtyRestante < 0) qtyRestante = 0; // Por si acaso
+
+                if (pendingSchedules.length > 0) {
+                    if (qtyRestante > 0) {
+                        // Ajustamos la primera tarjeta pendiente a la nueva cantidad exacta
+                        let sMain = pendingSchedules[0];
+                        sMain.qty = qtyRestante;
+                        sMain.volTotal = qtyRestante * (item.volUnit || 0);
+                        db.collection("cortes_programados").doc(String(sMain.id)).set(sMain);
+
+                        // Borramos si hay más tarjetas pendientes para limpiar basuras
+                        for (let i = 1; i < pendingSchedules.length; i++) {
+                            db.collection("cortes_programados").doc(String(pendingSchedules[i].id)).delete();
+                            dbSchedules = dbSchedules.filter(sx => sx.id !== pendingSchedules[i].id);
+                        }
+                    } else {
+                        // Si con la edición ya no falta cortar nada, borramos las tarjetas pendientes
+                        pendingSchedules.forEach(ps => {
+                            db.collection("cortes_programados").doc(String(ps.id)).delete();
+                            dbSchedules = dbSchedules.filter(sx => sx.id !== ps.id);
+                        });
+                    }
+                }
+            });
+            // ---------------------------------------------------
 
             const idx = orders.findIndex(x => x.id === editingQuoteId);
             orders[idx] = qData;
@@ -5632,15 +5669,20 @@ renderAll = function() {
                     payStatusBadge = `<span class="bg-red-100 text-red-600 px-2 py-1 rounded text-[9px] font-black uppercase tracking-widest shadow-sm block w-max mx-auto border border-red-200">NO PAGADO</span>`;
                 }
 
-                // NUEVO BOTÓN DE EDICIÓN: Solo aparece si NO está despachado
+               // NUEVO BOTÓN DE EDICIÓN: Solo aparece si NO está despachado
                 const btnEditar = (o.status !== 'DESPACHADO' && currentUser && (currentUser.role === 'ADMIN' || currentUser.role === 'VENDEDOR')) 
                     ? `<button onclick="editQuote('${o.id}')" class="bg-yellow-500 hover:bg-yellow-600 text-white px-3 py-1.5 rounded-lg text-[9px] font-black shadow-sm transition-colors inline-flex items-center gap-1" title="Editar Pedido"><i data-lucide="edit-3" class="w-3 h-3"></i> Editar</button>` 
+                    : '';
+
+                // NUEVO: Etiqueta visual de auditoría si el pedido fue modificado
+                const badgeEditado = o.editado 
+                    ? `<br><span class="bg-purple-100 text-purple-700 border border-purple-200 px-1.5 py-0.5 rounded text-[8px] font-black uppercase tracking-widest mt-1.5 inline-block shadow-sm" title="Editado el ${o.fechaEdicion || 'fecha desconocida'}"><i data-lucide="edit-2" class="w-2.5 h-2.5 inline mr-1 -mt-0.5"></i>Editado</span>` 
                     : '';
 
                 html += `
                     <tr class="hover:bg-slate-50 transition-colors border-b border-slate-100">
                         <td class="p-4 text-slate-500 font-bold">${o.date}</td>
-                        <td class="p-4 font-black text-slate-800">${o.id}</td>
+                        <td class="p-4 font-black text-slate-800 align-top">${o.id} ${badgeEditado}</td>
                         <td class="p-4 font-bold text-slate-600">${o.nit || '-'}</td>
                         <td class="p-4 font-black text-blue-600">${o.client}</td>
                         <td class="p-4 text-right font-medium">Bs ${baseTotal.toFixed(2)}</td>
