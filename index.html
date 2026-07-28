@@ -444,7 +444,7 @@
 
         <div class="flex-1 flex flex-col h-full w-full overflow-hidden relative">
             
-            <header class="md:hidden bg-white border-b border-slate-200 px-4 py-3 flex items-center justify-between shadow-sm z-40 shrink-0">
+           <header class="bg-white border-b border-slate-200 px-4 py-3 flex items-center justify-between shadow-sm z-40 shrink-0">
                 <div class="flex items-center gap-2">
                     <div class="bg-blue-600 p-1.5 rounded-lg shadow-sm"><i data-lucide="database" class="w-4 h-4 text-white"></i></div>
                     <h1 class="text-lg font-black tracking-tighter uppercase text-slate-800">PLASTENSA</h1>
@@ -2296,9 +2296,34 @@
                     <label class="text-[10px] font-black uppercase text-slate-400 ml-2 block mb-1">Monto Neto</label>
                     <input type="number" id="caja-mov-monto" step="0.01" required placeholder="0.00" class="w-full p-4 bg-slate-50 border border-slate-200 rounded-xl font-black text-lg outline-none focus:ring-2 focus:ring-blue-500 text-slate-800">
                 </div>
-                <div class="col-span-2">
-                    <label class="text-[10px] font-black uppercase text-slate-400 ml-2 block mb-1">Descripción / Motivo / A nombre de</label>
-                    <input type="text" id="caja-mov-desc" required placeholder="Ej. Pago Proveedores, Gas, etc." class="w-full p-4 bg-slate-50 border border-slate-200 rounded-xl font-bold outline-none focus:ring-2 focus:ring-blue-500 text-slate-700 uppercase">
+               <div>
+                    <label class="text-[10px] font-black uppercase text-slate-400 ml-2 block mb-1">Categoría del Gasto/Ingreso</label>
+                    <select id="caja-mov-categoria" required class="w-full p-4 bg-slate-50 border border-slate-200 rounded-xl font-bold outline-none focus:ring-2 focus:ring-blue-500 text-slate-700 text-xs">
+                        <option value="">-- Seleccionar Categoría --</option>
+                        <option value="💡 Servicios Básicos">💡 Servicios Básicos (Agua, Luz, Gas, Int.)</option>
+                        <option value="👥 Planilla y Anticipos">👥 Planilla y Anticipos</option>
+                        <option value="🚗 Transporte y Logística">🚗 Transporte y Logística</option>
+                        <option value="🏭 Mantenimiento y Planta">🏭 Mantenimiento y Planta</option>
+                        <option value="💼 Retiro de Socios">💼 Retiro de Socios</option>
+                        <option value="📦 Proveedores Externos">📦 Proveedores Externos</option>
+                        <option value="🔄 Traspaso entre Cuentas">🔄 Traspaso entre Cuentas</option>
+                        <option value="📌 Otros Gastos/Ingresos">📌 Otros Gastos/Ingresos</option>
+                    </select>
+                </div>
+                <div>
+                    <label class="text-[10px] font-black uppercase text-slate-400 ml-2 block mb-1">Descripción / Motivo</label>
+                    <input type="text" id="caja-mov-desc" list="caja-desc-sugerencias" required placeholder="Ej. Pago Combustible..." class="w-full p-4 bg-slate-50 border border-slate-200 rounded-xl font-bold outline-none focus:ring-2 focus:ring-blue-500 text-slate-700 uppercase">
+                    <datalist id="caja-desc-sugerencias">
+                        <option value="PAGO LUZ CRE">
+                        <option value="PAGO AGUA SAGUAPAC">
+                        <option value="PAGO COMBUSTIBLE SURTIDOR">
+                        <option value="ANTICIPO SUELDO">
+                        <option value="PAGO PLANILLA">
+                        <option value="COMPRA REPUESTOS">
+                        <option value="TRASPASO">
+                        <option value="RETIRO SOCIOS">
+                        <option value="SALDO INICIAL">
+                    </datalist>
                 </div>
                 <div>
                     <label class="text-[10px] font-black uppercase text-red-500 ml-2 block mb-1">Cuenta de Salida (Egreso)</label>
@@ -2356,8 +2381,12 @@
             </div>
         </div>
         
-        <!-- Controles y Filtros -->
-        <div class="flex flex-wrap gap-2 items-center bg-white p-3 rounded-[24px] border border-slate-200 shadow-sm">
+       <!-- Controles y Filtros -->
+        <div class="flex flex-wrap gap-2 items-center bg-white p-3 rounded-[24px] border border-slate-200 shadow-sm w-full">
+            <div class="relative flex-1 min-w-[150px]">
+                <i data-lucide="search" class="absolute left-3 top-2.5 w-4 h-4 text-slate-400"></i>
+                <input type="text" id="caja-buscar-input" onkeyup="renderCajaGeneral()" placeholder="Buscar por motivo, categoría, monto..." class="w-full pl-9 pr-3 py-2 bg-slate-50 border border-slate-200 rounded-xl font-bold text-xs text-slate-700 outline-none focus:ring-2 focus:ring-blue-500">
+            </div>
             <div class="flex items-center gap-2 px-2">
                 <div>
                     <label class="text-[9px] font-black uppercase text-slate-400 block ml-1">Desde</label>
@@ -3035,15 +3064,22 @@ function handleInventarioReescribir(e) {
             const t = document.getElementById('toast'); document.getElementById('toast-msg').innerText = msg; t.classList.remove('hidden'); setTimeout(() => t.classList.add('hidden'), 3000); 
         }
 
-        function toggleMenu() {
+       function toggleMenu() {
     const sidebar = document.getElementById('sidebar');
     const overlay = document.getElementById('mobile-overlay');
-    if (sidebar.classList.contains('-translate-x-full')) {
-        sidebar.classList.remove('-translate-x-full');
-        overlay.classList.remove('hidden');
+    
+    // Si estamos en celular (pantalla pequeña)
+    if (window.innerWidth < 768) {
+        if (sidebar.classList.contains('-translate-x-full')) {
+            sidebar.classList.remove('-translate-x-full');
+            overlay.classList.remove('hidden');
+        } else {
+            sidebar.classList.add('-translate-x-full');
+            overlay.classList.add('hidden');
+        }
     } else {
-        sidebar.classList.add('-translate-x-full');
-        overlay.classList.add('hidden');
+        // Si estamos en Computadora/Laptop (Esconde la barra y estira la tabla)
+        sidebar.classList.toggle('md:hidden');
     }
 }
 
@@ -9269,6 +9305,7 @@ function cambiarZoomCaja(delta) {
 function openSaldoInicialCaja() {
     document.getElementById('caja-mov-fecha').valueAsDate = new Date();
     document.getElementById('caja-mov-desc').value = 'SALDO INICIAL';
+    if(document.getElementById('caja-mov-categoria')) document.getElementById('caja-mov-categoria').value = '📌 Otros Gastos/Ingresos';
     document.getElementById('caja-mov-salida').value = '';
     document.getElementById('caja-mov-entrada').value = '';
     document.getElementById('caja-mov-monto').value = '';
@@ -9289,12 +9326,12 @@ function renderCajaGeneral() {
     
     let movimientos = [];
     
-    // 1. Integrar cobros liquidados automáticos de ventas
+   // 1. Integrar cobros liquidados automáticos de ventas
     orders.forEach(o => {
         if(o.pagos && o.pagos.length > 0) {
             o.pagos.filter(p => p.verificado).forEach(p => {
                 movimientos.push({
-                    fecha: p.fecha, orden: o.id, desc: o.client, totalCobrar: o.total,
+                    fecha: p.fecha, orden: o.id, desc: o.client, categoria: '📦 VENTA (ERP)', totalCobrar: o.total,
                     monto: parseFloat(p.monto), cuenta: p.cuenta, tipo: 'INGRESO'
                 });
             });
@@ -9303,8 +9340,8 @@ function renderCajaGeneral() {
 
    // 2. Integrar movimientos manuales (Egresos, Traspasos)
     dbMovimientosCaja.forEach(m => {
-        if(m.salida) movimientos.push({ id: m.id, fecha: m.fecha, orden: '-', desc: m.desc, totalCobrar: 0, monto: parseFloat(m.monto), cuenta: m.salida, tipo: 'EGRESO' });
-        if(m.entrada) movimientos.push({ id: m.id, fecha: m.fecha, orden: '-', desc: m.desc, totalCobrar: 0, monto: parseFloat(m.monto), cuenta: m.entrada, tipo: 'INGRESO' });
+        if(m.salida) movimientos.push({ id: m.id, fecha: m.fecha, orden: '-', desc: m.desc, categoria: m.categoria, totalCobrar: 0, monto: parseFloat(m.monto), cuenta: m.salida, tipo: 'EGRESO' });
+        if(m.entrada) movimientos.push({ id: m.id, fecha: m.fecha, orden: '-', desc: m.desc, categoria: m.categoria, totalCobrar: 0, monto: parseFloat(m.monto), cuenta: m.entrada, tipo: 'INGRESO' });
     });
 
     // 3. Ordenar por fecha cronológica y aplicar preferencia Ascendente/Descendente
@@ -9314,17 +9351,29 @@ function renderCajaGeneral() {
         return cajaSortOrder === 'DESC' ? -diff : diff;
     });
 
-    // 4. Aplicar Filtro de Fechas (Si están seleccionadas)
+    // 4. Aplicar Filtros (Fechas y Búsqueda Inteligente)
     const dDesde = document.getElementById('caja-filter-desde').value;
     const dHasta = document.getElementById('caja-filter-hasta').value;
+    const textoBuscador = document.getElementById('caja-buscar-input') ? document.getElementById('caja-buscar-input').value.toLowerCase() : '';
     
     let movimientosFiltrados = movimientos;
+    
     if(dDesde && dHasta) {
         const tDesde = parseDate(dDesde).getTime();
         const tHasta = parseDate(dHasta).getTime();
-        movimientosFiltrados = movimientos.filter(m => {
+        movimientosFiltrados = movimientosFiltrados.filter(m => {
             const tM = parseDate(m.fecha).getTime();
             return tM >= tDesde && tM <= tHasta;
+        });
+    }
+
+    if(textoBuscador) {
+        movimientosFiltrados = movimientosFiltrados.filter(m => {
+            const catStr = m.categoria ? m.categoria.toLowerCase() : '';
+            return (m.desc || '').toLowerCase().includes(textoBuscador) || 
+                   (m.orden || '').toLowerCase().includes(textoBuscador) || 
+                   catStr.includes(textoBuscador) || 
+                   m.monto.toString().includes(textoBuscador);
         });
     }
     
@@ -9372,14 +9421,15 @@ function renderCajaGeneral() {
         // EFECTO CEBRA: Determinar el color de fondo usando el índice (par/impar)
         const rowBg = idx % 2 === 0 ? 'bg-white' : 'bg-slate-50';
 
-        html += `
+       html += `
         <tr class="hover:bg-blue-50 transition-colors border-b border-slate-100 text-[10px] ${rowBg}">
             <td class="p-2 border-r border-slate-200 ${rowBg} sticky left-0 z-10 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)] min-w-[250px] max-w-[300px]">
-                <div class="flex justify-between items-center w-full">
+                <div class="flex justify-between items-center w-full gap-2">
                     <div class="truncate flex-1" title="${m.desc}">
                         <span class="font-bold text-slate-500">${displayDate}</span> 
                         <span class="font-black ml-1">${m.orden}</span> 
                         <span class="font-bold ml-1 text-slate-800">${m.desc}</span> 
+                        ${m.categoria ? `<br><span class="inline-block mt-1 bg-slate-100 border border-slate-200 text-slate-600 px-1.5 py-0.5 rounded text-[8px] font-black uppercase tracking-widest">${m.categoria}</span>` : ''}
                     </div>
                     ${btnEliminar}
                 </div>
@@ -9434,6 +9484,7 @@ function submitMovimientoCaja(e) {
             fecha: formattedDate,
             monto: parseFloat(document.getElementById('caja-mov-monto').value),
             desc: document.getElementById('caja-mov-desc').value,
+            categoria: document.getElementById('caja-mov-categoria') ? document.getElementById('caja-mov-categoria').value : '',
             salida: salida,
             entrada: entrada
         });
