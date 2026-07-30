@@ -144,11 +144,16 @@
                             <p id="sched-qty-total" class="text-lg font-black text-slate-700">0 Pz</p>
                             <p id="sched-vol-total" class="text-[10px] font-bold text-slate-500 mt-1">0.00 M3</p>
                         </div>
-                        <div>
+                       <div>
                             <p class="text-[9px] font-black text-orange-400 uppercase tracking-widest">Falta Asignar</p>
                             <p id="sched-qty-remain" class="text-2xl font-black text-orange-600">0 Pz</p>
                         </div>
                     </div>
+                </div>
+
+                <div>
+                    <label class="text-[10px] font-black text-orange-500 uppercase block mb-1 tracking-widest pl-2 border-l-2 border-orange-400">Observaciones / Corte Especial</label>
+                    <input type="text" id="sched-obs" placeholder="Ej: Cortar a 1.20m x 0.60m..." autocomplete="off" class="w-full px-4 py-3 bg-orange-50/50 border border-orange-100 rounded-xl font-bold text-sm outline-none focus:ring-2 focus:ring-orange-400 text-slate-700 placeholder-slate-400 transition-all">
                 </div>
 
                 <div class="grid grid-cols-2 gap-4">
@@ -4404,9 +4409,10 @@ function submitPayment(e) {
 
             const volUnitCalc = Number(item.volUnit) || (item.qty > 0 ? Number(item.volTotal) / item.qty : 0);
 
-            document.getElementById('sched-order-id').value = orderId;
+           document.getElementById('sched-order-id').value = orderId;
             document.getElementById('sched-item-idx').value = itemIdx;
             document.getElementById('sched-vol-unit').value = volUnitCalc;
+            document.getElementById('sched-obs').value = item.obs || '';
             
             document.getElementById('sched-modal-order').innerText = `${o.client} • ${o.id}`;
             document.getElementById('sched-item-name').innerText = item.name;
@@ -4455,13 +4461,14 @@ function submitPayment(e) {
         }
 
         function submitSchedule(e) {
-    e.preventDefault();
+   e.preventDefault();
     const orderId = document.getElementById('sched-order-id').value;
     const itemIdx = parseInt(document.getElementById('sched-item-idx').value);
     const dateStr = document.getElementById('sched-date').value;
     const qty = parseFloat(document.getElementById('sched-qty').value);
     const volUnit = parseFloat(document.getElementById('sched-vol-unit').value);
     const volTotal = qty * volUnit;
+    const obs = document.getElementById('sched-obs').value.trim();
 
     const check = checkCapacity(dateStr, volTotal);
     if(!check.allowed) {
@@ -4470,10 +4477,20 @@ function submitPayment(e) {
         return;
     }
 
+   // Guardar la observación en el pedido general de Firebase
+    const targetOrder = orders.find(o => o.id === orderId);
+    if (targetOrder && targetOrder.items[itemIdx]) {
+        targetOrder.items[itemIdx].obs = obs;
+        db.collection("pedidos").doc(String(targetOrder.id).replace(/\//g, '-')).set(targetOrder);
+        save();
+    }
+
     const nuevoCorte = { id: Date.now(), orderId: orderId, itemIdx: itemIdx, date: dateStr, qty: qty, volTotal: volTotal, status: 'PENDIENTE' };
     db.collection("cortes_programados").doc(String(nuevoCorte.id)).set(nuevoCorte);
     
-    closeScheduleModal(); showToast("Corte programado exitosamente.");
+    closeScheduleModal(); 
+    renderProduction(); 
+    showToast("Corte programado y pedido actualizado exitosamente.");
 }
 
         function finishSchedule(schedId) {
