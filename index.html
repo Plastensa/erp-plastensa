@@ -1881,6 +1881,24 @@
                         <div id="dash-motivos" class="space-y-3"></div>
                     </div>
                 </div>
+<!-- MODAL VOUCHER LIQUIDACIÓN -->
+                <div id="modal-liquidacion" class="hidden fixed inset-0 bg-slate-900/80 backdrop-blur-sm z-[9999] flex items-center justify-center p-4 no-print">
+                    <div class="bg-white rounded-[32px] shadow-2xl w-full max-w-xl overflow-hidden flex flex-col max-h-[90vh]">
+                        <div class="bg-yellow-500 p-6 text-white flex justify-between items-center shrink-0">
+                            <div>
+                                <h3 class="font-black text-xl tracking-tight">Voucher de Liquidación</h3>
+                                <p id="liq-modal-subtitle" class="text-[10px] font-bold uppercase tracking-widest text-yellow-100 mt-1">--</p>
+                            </div>
+                            <button type="button" onclick="document.getElementById('modal-liquidacion').classList.add('hidden')" class="text-yellow-100 hover:text-white"><i data-lucide="x" class="w-6 h-6"></i></button>
+                        </div>
+                        <div class="p-8 overflow-y-auto flex-1">
+                            <div id="liq-modal-content" class="space-y-4"></div>
+                        </div>
+                        <div id="liq-modal-actions" class="p-6 bg-slate-50 border-t border-slate-100 flex gap-4 shrink-0">
+                            <!-- Los botones se inyectan automáticamente desde JavaScript -->
+                        </div>
+                    </div>
+                </div>
 
                 <div id="close-quote-modal" class="hidden fixed inset-0 bg-slate-900/80 backdrop-blur-sm z-[9999] flex items-center justify-center p-4">
                     <div class="bg-white rounded-[32px] p-8 w-full max-w-sm shadow-2xl">
@@ -2252,9 +2270,27 @@
                         </div>
                     </div>
 
+                   <!-- ARCHIVO DE LIQUIDACIONES -->
+                    <div class="bg-white p-6 rounded-[32px] border border-slate-200 shadow-sm mt-8">
+                        <div class="flex justify-between items-center mb-6 border-b border-slate-100 pb-4">
+                            <h3 class="font-black text-slate-800 uppercase text-sm flex items-center gap-2"><i data-lucide="folder-open" class="text-yellow-600"></i> Archivo de Liquidaciones Generadas</h3>
+                        </div>
+                        <div class="overflow-x-auto">
+                            <table class="w-full text-left text-xs whitespace-nowrap">
+                                <thead class="bg-slate-50 border-b border-slate-100 text-[10px] font-black text-slate-400 uppercase tracking-widest">
+                                    <tr><th class="p-4">ID Liq. / Fecha</th><th class="p-4">Chofer</th><th class="p-4 text-center">Viajes</th><th class="p-4 text-right">Total a Pagar</th><th class="p-4 text-center">Estado</th><th class="p-4 text-center">Acción</th></tr>
+                                </thead>
+                                <tbody id="transporte-liq-generadas-body" class="divide-y divide-slate-50"></tbody>
+                            </table>
+                        </div>
+                    </div>
+
                     <div class="bg-white p-6 rounded-[32px] border border-slate-200 shadow-sm mt-8">
                         <div class="flex flex-col md:flex-row justify-between items-start md:items-center mb-6 gap-4 border-b border-slate-100 pb-4">
-                            <h3 class="font-black text-slate-800 uppercase text-sm flex items-center gap-2"><i data-lucide="file-text" class="text-yellow-500"></i> Bitácora Detallada de Viajes</h3>
+                            <div class="flex items-center gap-4">
+                                <h3 class="font-black text-slate-800 uppercase text-sm flex items-center gap-2"><i data-lucide="file-text" class="text-yellow-500"></i> Bitácora Detallada de Viajes</h3>
+                                <button id="btn-generar-liq-masiva" onclick="generarLiquidacion()" class="hidden bg-yellow-500 hover:bg-yellow-600 text-white px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest shadow-md transition-colors animate-pulse">Generar Pago (<span id="lbl-count-viajes">0</span>)</button>
+                            </div>
                             <div class="flex flex-wrap gap-2 w-full md:w-auto items-center">
                                 <input type="date" id="filtro-trans-desde" onchange="renderTransporteDetail()" class="p-2 bg-slate-50 rounded-xl border border-slate-200 font-bold text-xs outline-none">
                                 <input type="date" id="filtro-trans-hasta" onchange="renderTransporteDetail()" class="p-2 bg-slate-50 rounded-xl border border-slate-200 font-bold text-xs outline-none">
@@ -2269,8 +2305,8 @@
                         </div>
                         <div class="overflow-x-auto">
                             <table class="w-full text-left text-xs whitespace-nowrap">
-                                <thead class="bg-slate-50 border-b border-slate-100 text-[9px] font-black text-slate-400 uppercase tracking-widest">
-                                    <tr><th class="p-4">Fecha</th><th class="p-4">N° Orden</th><th class="p-4">Cliente</th><th class="p-4">Material (EPS)</th><th class="p-4 text-right">Vol. M3 (Viaje)</th><th class="p-4 text-right">Precio/M3 (Base)</th><th class="p-4 text-right bg-yellow-50 text-yellow-700">Total a Pagar</th></tr>
+                               <thead class="bg-slate-50 border-b border-slate-100 text-[9px] font-black text-slate-400 uppercase tracking-widest">
+                                    <tr><th class="p-4 w-10 text-center">Sel.</th><th class="p-4">Fecha</th><th class="p-4">N° Orden</th><th class="p-4">Cliente</th><th class="p-4">Material (EPS)</th><th class="p-4 text-right">Vol. M3 (Viaje)</th><th class="p-4 text-right">Precio/M3 (Base)</th><th class="p-4 text-right bg-yellow-50 text-yellow-700">Total a Pagar</th></tr>
                                 </thead>
                                 <tbody id="transporte-detail-body" class="divide-y divide-slate-50"></tbody>
                             </table>
@@ -2585,9 +2621,11 @@
             { marca: 'SUNCHEM B-104 (BIGBAG)', peso: 850 }
         ];
         let html5QrcodeScanner = null; let html5QrcodeScannerExp = null;
-        let dbExpansion = { jarritas: [], consumos: [] };
+       let dbExpansion = { jarritas: [], consumos: [] };
         let dbPreciosBase = { ajusteGlobal: 0, matriz: [] };
         let dbBancoRetazos = { D8: 0, D10: 0, D13: 0, D15: 0, D20: 0 };
+        let dbLiquidaciones = [];
+        let liquidacionEnProceso = null; // Memoria oculta para cerrar el círculo del pago
 
         // VARIABLES DE MEMORIA DEL SISTEMA Y CARRITO
         let cart = [];
@@ -2617,8 +2655,9 @@ function save() {
         dbIntSellers: JSON.stringify(dbIntSellers),
         dbPendingVerifications: JSON.stringify(dbPendingVerifications),
         dbMpTipos: JSON.stringify(dbMpTipos),
-        dbPreciosBase: JSON.stringify(dbPreciosBase),
+       dbPreciosBase: JSON.stringify(dbPreciosBase),
         dbBancoRetazos: JSON.stringify(dbBancoRetazos),
+        dbLiquidaciones: JSON.stringify(dbLiquidaciones),
         dbTolva: dbTolva
     }).catch(error => console.error("Error guardando centrales: ", error));
 
@@ -3178,7 +3217,8 @@ function iniciarRadar(userEmail) {
             dbPendingVerifications = data.dbPendingVerifications ? JSON.parse(data.dbPendingVerifications) : [];
             
             dbMpTipos = data.dbMpTipos ? JSON.parse(data.dbMpTipos) : [];
-            dbPreciosBase = data.dbPreciosBase ? JSON.parse(data.dbPreciosBase) : { ajusteGlobal: 0, matriz: [] };
+           dbPreciosBase = data.dbPreciosBase ? JSON.parse(data.dbPreciosBase) : { ajusteGlobal: 0, matriz: [] };
+            dbLiquidaciones = data.dbLiquidaciones ? JSON.parse(data.dbLiquidaciones) : [];
             let tempRetazos = data.dbBancoRetazos ? JSON.parse(data.dbBancoRetazos) : null;
             dbBancoRetazos = (!tempRetazos || Array.isArray(tempRetazos)) ? { D8: 0, D10: 0, D13: 0, D15: 0, D20: 0 } : tempRetazos;
             
@@ -6349,8 +6389,19 @@ function renderTransporteDetail() {
         const precioPorM3 = (o.trans > 0 && volTotalPedido > 0) ? (o.trans / volTotalPedido) : 0;
         const totalPagar = precioPorM3 * t.volM3;
 
+        let estadoFlete = t.estadoFlete || 'PENDIENTE';
+        let checkboxHtml = '';
+        if (estadoFlete === 'PAGADO') {
+            checkboxHtml = `<span class="bg-green-100 text-green-700 px-2 py-1 rounded text-[8px] font-black uppercase">PAGADO</span>`;
+        } else if (estadoFlete === 'EN LIQUIDACIÓN') {
+            checkboxHtml = `<span class="bg-orange-100 text-orange-700 px-2 py-1 rounded text-[8px] font-black uppercase">EN LIQ.</span>`;
+        } else {
+            checkboxHtml = `<input type="checkbox" value="${t.idTicket}" data-chofer="${t.conductor}" class="viaje-chk w-4 h-4 cursor-pointer accent-yellow-500" onchange="toggleViajeLiq(this)">`;
+        }
+
         return `
         <tr class="hover:bg-slate-50 transition-colors border-b border-slate-100">
+            <td class="p-4 text-center">${checkboxHtml}</td>
             <td class="p-4 font-bold text-slate-600">${t.fecha.split(',')[0]}</td>
             <td class="p-4 font-black text-slate-800">${t.orderId}</td>
             <td class="p-4 font-bold text-slate-700">${t.cliente}</td>
@@ -9501,10 +9552,26 @@ function submitMovimientoCaja(e) {
             fecha: formattedDate,
             monto: parseFloat(document.getElementById('caja-mov-monto').value),
             desc: document.getElementById('caja-mov-desc').value,
-            categoria: document.getElementById('caja-mov-categoria') ? document.getElementById('caja-mov-categoria').value : '',
+           categoria: document.getElementById('caja-mov-categoria') ? document.getElementById('caja-mov-categoria').value : '',
             salida: salida,
             entrada: entrada
         });
+
+    // MAGIA DE LA LIQUIDACIÓN: Cierre del círculo
+    if (window.liquidacionEnProceso) {
+        let liq = dbLiquidaciones.find(l => l.id === window.liquidacionEnProceso);
+        if (liq) {
+            liq.estado = 'PAGADO';
+            liq.viajesIds.forEach(idTicket => {
+                let desp = dbDespachos.find(d => d.idTicket === idTicket);
+                if (desp) {
+                    desp.estadoFlete = 'PAGADO';
+                    db.collection("despachos_tickets").doc(String(desp.idTicket).replace(/\//g, '-')).set(desp);
+                }
+            });
+        }
+        window.liquidacionEnProceso = null;
+    }
 
     save();
     document.getElementById('modal-caja-movimiento').classList.add('hidden');
@@ -9917,6 +9984,217 @@ function emitirFacturaPiloto(orderId) {
         alert("❌ Ocurrió un error de red al intentar facturar. Revisa tu conexión a internet.");
     });
 }
+
+// ===============================================
+// SISTEMA DE LIQUIDACIÓN Y PAGO DE FLETES (NUEVO)
+// ===============================================
+let choferLiquidacionActiva = null;
+
+function toggleViajeLiq(chk) {
+    const todosSeleccionados = document.querySelectorAll('.viaje-chk:checked');
+    const choferFila = chk.getAttribute('data-chofer');
+
+    if (todosSeleccionados.length === 0) {
+        choferLiquidacionActiva = null;
+        document.getElementById('btn-generar-liq-masiva').classList.add('hidden');
+        document.querySelectorAll('.viaje-chk').forEach(c => c.disabled = false); // Desbloquea a todos
+        return;
+    }
+
+    if (todosSeleccionados.length === 1 && chk.checked) {
+        choferLiquidacionActiva = choferFila;
+        // Bloquea los viajes de otros choferes
+        document.querySelectorAll('.viaje-chk').forEach(c => {
+            if (c.getAttribute('data-chofer') !== choferLiquidacionActiva) c.disabled = true;
+        });
+    }
+
+    document.getElementById('lbl-count-viajes').innerText = todosSeleccionados.length;
+    document.getElementById('btn-generar-liq-masiva').classList.remove('hidden');
+}
+
+function generarLiquidacion() {
+    const seleccionados = Array.from(document.querySelectorAll('.viaje-chk:checked')).map(cb => cb.value);
+    if(seleccionados.length === 0) return;
+
+    if(!confirm(`¿Desea generar una planilla de liquidación para los ${seleccionados.length} viajes seleccionados de ${choferLiquidacionActiva}?`)) return;
+
+    let sumaTotal = 0;
+    let viajesDetalle = [];
+
+    seleccionados.forEach(idTkt => {
+        let t = dbDespachos.find(d => d.idTicket === idTkt);
+        if(t) {
+            t.estadoFlete = 'EN LIQUIDACIÓN';
+            db.collection("despachos_tickets").doc(String(t.idTicket).replace(/\//g, '-')).set(t);
+            
+            const o = orders.find(x => x.id === t.orderId);
+            const volTotalPedido = o ? (o.volGlobalCotizacion || 0) : 0;
+            const precioPorM3 = (o && o.trans > 0 && volTotalPedido > 0) ? (o.trans / volTotalPedido) : 0;
+            const pago = precioPorM3 * t.volM3;
+            sumaTotal += pago;
+
+            viajesDetalle.push({
+                ticket: t.idTicket,
+                fecha: t.fecha.split(',')[0],
+                orden: t.orderId,
+                cliente: t.cliente,
+                pago: pago
+            });
+        }
+    });
+
+    const nuevaLiq = {
+        id: Date.now(),
+        fechaReg: new Date().toLocaleDateString(),
+        chofer: choferLiquidacionActiva,
+        total: sumaTotal,
+        viajesIds: seleccionados,
+        detalle: viajesDetalle,
+        estado: 'PENDIENTE',
+        operador: currentUser ? currentUser.name : 'Sistema'
+    };
+
+    dbLiquidaciones.unshift(nuevaLiq);
+    save();
+
+    choferLiquidacionActiva = null;
+    document.getElementById('btn-generar-liq-masiva').classList.add('hidden');
+    renderTransporteDetail();
+    renderLiquidaciones();
+    showToast("Liquidación generada con éxito.");
+}
+
+function renderLiquidaciones() {
+    const tbody = document.getElementById('transporte-liq-generadas-body');
+    if(!tbody) return;
+
+    if (dbLiquidaciones.length === 0) {
+        tbody.innerHTML = `<tr><td colspan="6" class="p-6 text-center text-slate-400 font-bold italic">No hay liquidaciones generadas.</td></tr>`;
+        return;
+    }
+
+    tbody.innerHTML = dbLiquidaciones.map(l => {
+        const colorEstado = l.estado === 'PAGADO' ? 'bg-green-100 text-green-700 border-green-200' : 'bg-orange-100 text-orange-700 border-orange-200';
+        const iconoEstado = l.estado === 'PAGADO' ? 'check-circle' : 'clock';
+        
+        return `
+        <tr class="hover:bg-slate-50 transition-colors border-b border-slate-100">
+            <td class="p-4 font-black text-slate-800">LIQ-${l.id}<br><span class="text-[9px] font-bold text-slate-400 uppercase tracking-widest">${l.fechaReg}</span></td>
+            <td class="p-4 font-bold text-slate-700">${l.chofer}</td>
+            <td class="p-4 text-center font-black text-slate-600">${l.viajesIds.length}</td>
+            <td class="p-4 text-right font-black text-yellow-600 text-sm">Bs ${l.total.toFixed(2)}</td>
+            <td class="p-4 text-center"><span class="px-2 py-1 rounded text-[9px] font-black uppercase border ${colorEstado}"><i data-lucide="${iconoEstado}" class="w-3 h-3 inline mr-1 -mt-0.5"></i> ${l.estado}</span></td>
+            <td class="p-4 text-center">
+                <button onclick="verLiquidacion(${l.id})" class="bg-blue-50 hover:bg-blue-100 text-blue-600 border border-blue-200 px-3 py-1.5 rounded-lg text-[9px] font-black shadow-sm transition-colors uppercase"><i data-lucide="eye" class="w-3 h-3 inline mr-1 -mt-0.5"></i> Revisar / Pagar</button>
+            </td>
+        </tr>`;
+    }).join('');
+    if(window.lucide) lucide.createIcons();
+}
+
+function verLiquidacion(id) {
+    const l = dbLiquidaciones.find(x => x.id === id);
+    if(!l) return;
+
+    document.getElementById('liq-modal-subtitle').innerText = `LIQ-${l.id} | ${l.fechaReg}`;
+    
+    let htmlContent = `
+        <div class="text-center mb-6">
+            <p class="text-[10px] font-black text-slate-400 uppercase tracking-widest">Liquidación a nombre de:</p>
+            <h4 class="text-2xl font-black text-slate-800">${l.chofer}</h4>
+        </div>
+        <table class="w-full text-left text-xs mb-6 border border-slate-200 rounded-xl overflow-hidden shadow-sm">
+            <thead class="bg-slate-100 text-[10px] font-black text-slate-500 uppercase">
+                <tr><th class="p-3">Ticket / Fecha</th><th class="p-3">Cliente (Orden)</th><th class="p-3 text-right">Pago Viaje</th></tr>
+            </thead>
+            <tbody class="divide-y divide-slate-100">
+                ${l.detalle.map(d => `
+                <tr>
+                    <td class="p-3 font-bold text-slate-600">${d.ticket}<br><span class="text-[9px]">${d.fecha}</span></td>
+                    <td class="p-3 font-bold text-slate-800">${d.cliente}<br><span class="text-[9px] text-slate-400">${d.orden}</span></td>
+                    <td class="p-3 text-right font-black text-slate-600">Bs ${d.pago.toFixed(2)}</td>
+                </tr>`).join('')}
+            </tbody>
+        </table>
+        <div class="flex justify-between items-end border-t border-slate-200 pt-4">
+            <span class="text-[10px] font-black text-slate-400 uppercase tracking-widest">Total Aprobado</span>
+            <span class="text-3xl font-black text-yellow-600">Bs ${l.total.toFixed(2)}</span>
+        </div>
+    `;
+
+    document.getElementById('liq-modal-content').innerHTML = htmlContent;
+
+    let actionsHtml = `<button onclick="imprimirLiquidacionPDF(${l.id})" class="flex-1 bg-slate-800 text-white p-4 rounded-xl font-black text-xs hover:bg-slate-700 transition-colors uppercase flex items-center justify-center gap-2 shadow-md"><i data-lucide="printer" class="w-4 h-4"></i> Imprimir Voucher</button>`;
+
+    if (l.estado === 'PENDIENTE') {
+        actionsHtml += `<button onclick="prepararPagoLiquidacion(${l.id})" class="flex-1 bg-green-600 text-white p-4 rounded-xl font-black text-xs hover:bg-green-700 transition-colors uppercase flex items-center justify-center gap-2 shadow-lg shadow-green-200"><i data-lucide="wallet" class="w-4 h-4"></i> Confirmar y Pasar a Caja</button>`;
+    } else {
+        actionsHtml += `<div class="flex-1 bg-green-50 text-green-700 p-4 rounded-xl font-black text-xs uppercase flex items-center justify-center gap-2 border border-green-200"><i data-lucide="check-circle" class="w-4 h-4"></i> Liquidación Pagada</div>`;
+    }
+
+    document.getElementById('liq-modal-actions').innerHTML = actionsHtml;
+    document.getElementById('modal-liquidacion').classList.remove('hidden');
+    lucide.createIcons();
+}
+
+function prepararPagoLiquidacion(id) {
+    let liq = dbLiquidaciones.find(l => l.id === id);
+    if(!liq) return;
+    
+    document.getElementById('modal-liquidacion').classList.add('hidden');
+    showTab('caja-general');
+    
+    openSaldoInicialCaja();
+    document.getElementById('caja-mov-fecha').valueAsDate = new Date();
+    if(document.getElementById('caja-mov-categoria')) { document.getElementById('caja-mov-categoria').value = '🚗 Transporte y Logística'; }
+    document.getElementById('caja-mov-desc').value = `PAGO FLETE: ${liq.chofer} (LIQ-${liq.id})`;
+    document.getElementById('caja-mov-monto').value = liq.total.toFixed(2);
+    document.getElementById('caja-mov-salida').value = '';
+    document.getElementById('caja-mov-entrada').value = '';
+    
+    window.liquidacionEnProceso = liq.id; // Activamos la trampa para el guardado
+    showToast("Datos copiados a la Caja. Elige la cuenta de salida y guarda.");
+}
+
+function imprimirLiquidacionPDF(id) {
+    const l = dbLiquidaciones.find(x => x.id === id);
+    if(!l) return;
+    
+    const html = `
+    <html><head><title>Voucher Liquidacion</title>
+    <style>body{font-family: Arial, sans-serif; font-size:12px; color:#333; max-width:80mm; margin:0 auto; padding:10px;}</style>
+    </head><body>
+    <h3 style="text-align:center; margin-bottom:5px;">PLASTENSA</h3>
+    <h4 style="text-align:center; margin-top:0; border-bottom:1px dashed #000; padding-bottom:10px;">LIQUIDACIÓN TRANSPORTE</h4>
+    <p><b>Chofer:</b> ${l.chofer}</p>
+    <p><b>Fecha:</b> ${l.fechaReg}</p>
+    <p><b>ID Liq:</b> LIQ-${l.id}</p>
+    <hr style="border:0; border-bottom:1px dashed #000; margin:10px 0;">
+    <table width="100%" style="font-size:11px;">
+        <thead><tr><th align="left">Ticket</th><th align="right">Monto</th></tr></thead>
+        <tbody>
+            ${l.detalle.map(d => `<tr><td style="padding-top:5px;">${d.ticket}<br><span style="font-size:9px;color:#666;">${d.cliente}</span></td><td align="right" valign="top">Bs ${d.pago.toFixed(2)}</td></tr>`).join('')}
+        </tbody>
+    </table>
+    <hr style="border:0; border-bottom:1px dashed #000; margin:15px 0;">
+    <h3 style="text-align:right; margin:0;">TOTAL: Bs ${l.total.toFixed(2)}</h3>
+    <div style="margin-top:50px; text-align:center; border-top:1px solid #000; width:80%; margin-left:auto; margin-right:auto; padding-top:5px;">
+        Firma Conductor (Recibí Conforme)
+    </div>
+    <div style="margin-top:20px; text-align:center;"><button onclick="window.print()" style="padding:10px; font-weight:bold;">IMPRIMIR</button></div>
+    </body></html>`;
+    const win = window.open('','','width=400,height=600'); 
+    win.document.write(html); 
+    win.document.close();
+}
+
+// Inyección para que renderice al abrir
+const lRenderAll = renderAll;
+renderAll = function() {
+    lRenderAll();
+    if(typeof renderLiquidaciones === 'function') renderLiquidaciones();
+};
 
 renderAll();
     </script>
