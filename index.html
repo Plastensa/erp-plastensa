@@ -6192,13 +6192,18 @@ renderAll = function() {
             
             if(esPrimeraFila) {
                 const btnAnular = (currentUser && currentUser.role === 'ADMIN') 
-                    ? `<button onclick="anularDespacho('${t.idTicket}')" class="mt-2 text-red-500 hover:text-red-700 bg-red-50 hover:bg-red-100 px-3 py-1.5 rounded-lg text-[9px] font-black uppercase tracking-widest block mx-auto transition-colors border border-red-100 shadow-sm"><i data-lucide="trash-2" class="w-3 h-3 inline"></i> Anular Despacho</button>`
+                    ? `<button onclick="anularDespacho('${t.idTicket}')" class="mt-2 text-red-500 hover:text-red-700 bg-red-50 hover:bg-red-100 px-3 py-1.5 rounded-lg text-[9px] font-black uppercase tracking-widest block mx-auto w-[120px] transition-colors border border-red-100 shadow-sm"><i data-lucide="trash-2" class="w-3 h-3 inline"></i> Anular</button>`
+                    : '';
+
+                const btnEditarChofer = (currentUser && currentUser.role === 'ADMIN' && (!t.estadoFlete || t.estadoFlete === 'PENDIENTE')) 
+                    ? `<button onclick="editarChoferDespacho('${t.idTicket}')" class="mt-2 text-blue-500 hover:text-blue-700 bg-blue-50 hover:bg-blue-100 px-3 py-1.5 rounded-lg text-[9px] font-black uppercase tracking-widest block mx-auto w-[120px] transition-colors border border-blue-100 shadow-sm"><i data-lucide="edit-3" class="w-3 h-3 inline"></i> Reasignar</button>`
                     : '';
 
                 html += `
                 <td ${rowSpanStr} class="p-4 text-right font-black text-slate-800 text-sm border-l border-slate-100 align-middle">${t.volM3.toFixed(2)} M³</td>
                 <td ${rowSpanStr} class="p-4 text-center border-l border-slate-100 align-middle">
                     <span class="inline-flex items-center gap-1 bg-green-100 text-green-700 px-3 py-1 rounded-lg text-[9px] font-black uppercase tracking-widest"><i data-lucide="check-circle-2" class="w-3 h-3"></i> Entregado</span>
+                    ${btnEditarChofer}
                     ${btnAnular}
                 </td>`;
             }
@@ -10318,6 +10323,49 @@ renderAll = function() {
     lRenderAll();
     if(typeof renderLiquidaciones === 'function') renderLiquidaciones();
 };
+
+// ===============================================
+// EDICIÓN DE CHOFERES EN DESPACHOS (SOLO ADMIN)
+// ===============================================
+function editarChoferDespacho(idTicket) {
+    const tIndex = dbDespachos.findIndex(x => x.idTicket === idTicket);
+    if (tIndex === -1) return alert("Ticket no encontrado.");
+    
+    const t = dbDespachos[tIndex];
+    
+    // Candado de seguridad para contabilidad
+    if (t.estadoFlete === 'PAGADO' || t.estadoFlete === 'EN LIQUIDACIÓN') {
+        return alert("🛑 DENEGADO:\nEste despacho ya se encuentra 'En Liquidación' o 'Pagado'.\n\nSi necesitas cambiar al chofer para que se le pague a otro, primero debes anular la liquidación pendiente en la pestaña 'Logística y Fletes'.");
+    }
+
+    // Armar la lista de opciones para el prompt
+    let listaTexto = dbTransportistas.map((tr, index) => `${index + 1}. ${tr.nombre}`).join('\n');
+    
+    const seleccion = prompt(`📝 REASIGNAR CHOFER - TICKET ${t.idTicket}\n\nEl chofer actual es: [ ${t.conductor} ]\n\nEscribe el NÚMERO del nuevo chofer correspondiente a esta lista:\n\n${listaTexto}\n`);
+    
+    if (!seleccion) return; // Si apreta cancelar o lo deja vacío
+
+    const indexSeleccionado = parseInt(seleccion) - 1;
+    if (isNaN(indexSeleccionado) || indexSeleccionado < 0 || indexSeleccionado >= dbTransportistas.length) {
+        return alert("❌ Selección inválida. Debes ingresar el número correcto de la lista.");
+    }
+
+    const nuevoChofer = dbTransportistas[indexSeleccionado].nombre;
+    
+    if (nuevoChofer === t.conductor) {
+        return alert("El chofer seleccionado es el mismo que ya estaba. No se hicieron cambios.");
+    }
+
+    if(confirm(`¿Estás seguro de reasignar la carrera del ticket ${t.idTicket} al chofer: ${nuevoChofer}?`)) {
+        t.conductor = nuevoChofer;
+        // Guardar disparo directo a Google Firebase
+        db.collection("despachos_tickets").doc(String(t.idTicket).replace(/\//g, '-')).set(t);
+        save();
+        renderDespacho();
+        if(typeof renderTransporteDetail === 'function') renderTransporteDetail();
+        showToast("Chofer reasignado con éxito.");
+    }
+}
 
 renderAll();
     </script>
