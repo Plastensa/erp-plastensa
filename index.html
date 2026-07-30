@@ -10034,11 +10034,17 @@ function generarLiquidacion() {
             const pago = precioPorM3 * t.volM3;
             sumaTotal += pago;
 
+            // Agregamos Material, Volumen y Precio M3
+            const materialStr = t.items.map(i => i.name).join(', ');
+
             viajesDetalle.push({
                 ticket: t.idTicket,
                 fecha: t.fecha.split(',')[0],
                 orden: t.orderId,
                 cliente: t.cliente,
+                material: materialStr,
+                volM3: t.volM3,
+                precioM3: precioPorM3,
                 pago: pago
             });
         }
@@ -10065,6 +10071,35 @@ function generarLiquidacion() {
     showToast("Liquidación generada con éxito.");
 }
 
+function eliminarLiquidacion(id) {
+    const liq = dbLiquidaciones.find(l => l.id === id);
+    if(!liq) return;
+
+    if (liq.estado === 'PAGADO') {
+        alert("🛑 OPERACIÓN DENEGADA:\nEsta liquidación ya fue PAGADA y el dinero salió de Caja.\nNo se puede eliminar para evitar descuadres contables.");
+        return;
+    }
+
+    if(!confirm("⚠️ ¿Estás seguro de ELIMINAR esta liquidación?\n\nLos viajes seleccionados volverán a estar 'DISPONIBLES' en la Bitácora para que puedas modificarlos o crear una nueva liquidación.")) return;
+
+    // 1. Liberar los viajes en la base de datos de Despachos
+    liq.viajesIds.forEach(idTicket => {
+        let t = dbDespachos.find(d => d.idTicket === idTicket);
+        if(t) {
+            t.estadoFlete = 'PENDIENTE';
+            db.collection("despachos_tickets").doc(String(t.idTicket).replace(/\//g, '-')).set(t);
+        }
+    });
+
+    // 2. Eliminar la liquidación de la memoria
+    dbLiquidaciones = dbLiquidaciones.filter(l => l.id !== id);
+    save();
+
+    renderTransporteDetail();
+    renderLiquidaciones();
+    showToast("Liquidación anulada. Viajes liberados en la bitácora.");
+}
+
 function renderLiquidaciones() {
     const tbody = document.getElementById('transporte-liq-generadas-body');
     if(!tbody) return;
@@ -10086,7 +10121,10 @@ function renderLiquidaciones() {
             <td class="p-4 text-right font-black text-yellow-600 text-sm">Bs ${l.total.toFixed(2)}</td>
             <td class="p-4 text-center"><span class="px-2 py-1 rounded text-[9px] font-black uppercase border ${colorEstado}"><i data-lucide="${iconoEstado}" class="w-3 h-3 inline mr-1 -mt-0.5"></i> ${l.estado}</span></td>
             <td class="p-4 text-center">
-                <button onclick="verLiquidacion(${l.id})" class="bg-blue-50 hover:bg-blue-100 text-blue-600 border border-blue-200 px-3 py-1.5 rounded-lg text-[9px] font-black shadow-sm transition-colors uppercase"><i data-lucide="eye" class="w-3 h-3 inline mr-1 -mt-0.5"></i> Revisar / Pagar</button>
+                <div class="flex gap-2 justify-center">
+                    <button onclick="verLiquidacion(${l.id})" class="bg-blue-50 hover:bg-blue-100 text-blue-600 border border-blue-200 px-3 py-1.5 rounded-lg text-[9px] font-black shadow-sm transition-colors uppercase" title="Revisar y Pagar"><i data-lucide="eye" class="w-3 h-3 inline mr-1 -mt-0.5"></i> Ver</button>
+                    ${l.estado === 'PENDIENTE' ? `<button onclick="eliminarLiquidacion(${l.id})" class="bg-red-50 hover:bg-red-100 text-red-600 border border-red-200 px-2.5 py-1.5 rounded-lg text-[9px] font-black shadow-sm transition-colors uppercase" title="Eliminar Liquidación"><i data-lucide="trash-2" class="w-3 h-3"></i></button>` : ''}
+                </div>
             </td>
         </tr>`;
     }).join('');
@@ -10104,19 +10142,29 @@ function verLiquidacion(id) {
             <p class="text-[10px] font-black text-slate-400 uppercase tracking-widest">Liquidación a nombre de:</p>
             <h4 class="text-2xl font-black text-slate-800">${l.chofer}</h4>
         </div>
-        <table class="w-full text-left text-xs mb-6 border border-slate-200 rounded-xl overflow-hidden shadow-sm">
-            <thead class="bg-slate-100 text-[10px] font-black text-slate-500 uppercase">
-                <tr><th class="p-3">Ticket / Fecha</th><th class="p-3">Cliente (Orden)</th><th class="p-3 text-right">Pago Viaje</th></tr>
-            </thead>
-            <tbody class="divide-y divide-slate-100">
-                ${l.detalle.map(d => `
-                <tr>
-                    <td class="p-3 font-bold text-slate-600">${d.ticket}<br><span class="text-[9px]">${d.fecha}</span></td>
-                    <td class="p-3 font-bold text-slate-800">${d.cliente}<br><span class="text-[9px] text-slate-400">${d.orden}</span></td>
-                    <td class="p-3 text-right font-black text-slate-600">Bs ${d.pago.toFixed(2)}</td>
-                </tr>`).join('')}
-            </tbody>
-        </table>
+        <div class="overflow-x-auto">
+            <table class="w-full text-left text-xs mb-6 border border-slate-200 rounded-xl overflow-hidden shadow-sm whitespace-nowrap">
+                <thead class="bg-slate-100 text-[10px] font-black text-slate-500 uppercase">
+                    <tr>
+                        <th class="p-3">Ticket / Fecha</th>
+                        <th class="p-3">Material</th>
+                        <th class="p-3 text-right">Vol (M³)</th>
+                        <th class="p-3 text-right">Precio/M³</th>
+                        <th class="p-3 text-right">Pago Viaje</th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-slate-100">
+                    ${l.detalle.map(d => `
+                    <tr class="hover:bg-slate-50 transition-colors">
+                        <td class="p-3 font-bold text-slate-600">${d.ticket}<br><span class="text-[9px] text-slate-400 font-bold">${d.fecha}</span></td>
+                        <td class="p-3 font-bold text-slate-800 truncate max-w-[150px]" title="${d.material || ''}">${d.material || '-'}</td>
+                        <td class="p-3 text-right font-black text-blue-600">${(d.volM3 || 0).toFixed(2)}</td>
+                        <td class="p-3 text-right font-bold text-slate-500">Bs ${(d.precioM3 || 0).toFixed(2)}</td>
+                        <td class="p-3 text-right font-black text-yellow-600">Bs ${d.pago.toFixed(2)}</td>
+                    </tr>`).join('')}
+                </tbody>
+            </table>
+        </div>
         <div class="flex justify-between items-end border-t border-slate-200 pt-4">
             <span class="text-[10px] font-black text-slate-400 uppercase tracking-widest">Total Aprobado</span>
             <span class="text-3xl font-black text-yellow-600">Bs ${l.total.toFixed(2)}</span>
@@ -10125,7 +10173,7 @@ function verLiquidacion(id) {
 
     document.getElementById('liq-modal-content').innerHTML = htmlContent;
 
-    let actionsHtml = `<button onclick="imprimirLiquidacionPDF(${l.id})" class="flex-1 bg-slate-800 text-white p-4 rounded-xl font-black text-xs hover:bg-slate-700 transition-colors uppercase flex items-center justify-center gap-2 shadow-md"><i data-lucide="printer" class="w-4 h-4"></i> Imprimir Voucher</button>`;
+    let actionsHtml = `<button onclick="imprimirLiquidacionPDF(${l.id})" class="flex-1 bg-slate-800 text-white p-4 rounded-xl font-black text-xs hover:bg-slate-700 transition-colors uppercase flex items-center justify-center gap-2 shadow-md"><i data-lucide="printer" class="w-4 h-4"></i> Imprimir Voucher (Carta)</button>`;
 
     if (l.estado === 'PENDIENTE') {
         actionsHtml += `<button onclick="prepararPagoLiquidacion(${l.id})" class="flex-1 bg-green-600 text-white p-4 rounded-xl font-black text-xs hover:bg-green-700 transition-colors uppercase flex items-center justify-center gap-2 shadow-lg shadow-green-200"><i data-lucide="wallet" class="w-4 h-4"></i> Confirmar y Pasar a Caja</button>`;
@@ -10162,29 +10210,88 @@ function imprimirLiquidacionPDF(id) {
     if(!l) return;
     
     const html = `
-    <html><head><title>Voucher Liquidacion</title>
-    <style>body{font-family: Arial, sans-serif; font-size:12px; color:#333; max-width:80mm; margin:0 auto; padding:10px;}</style>
+    <!DOCTYPE html>
+    <html><head><title>Planilla de Liquidación</title>
+    <style>
+        body { font-family: Arial, sans-serif; font-size: 12px; color: #0f172a; max-width: 1000px; margin: 0 auto; padding: 20px; }
+        table { width: 100%; border-collapse: collapse; margin-top: 20px; font-size: 11px; }
+        th, td { border: 1px solid #cbd5e1; padding: 10px; text-align: left; }
+        th { background-color: #f8fafc; text-transform: uppercase; font-size: 10px; color: #64748b;}
+        .text-right { text-align: right; }
+        .text-center { text-align: center; }
+        .header-container { display: flex; justify-content: space-between; align-items: flex-end; border-bottom: 2px solid #2563eb; padding-bottom: 10px; margin-bottom: 20px;}
+        @media print {
+            .no-print { display: none !important; }
+            @page { size: letter portrait; margin: 15mm; }
+        }
+    </style>
     </head><body>
-    <h3 style="text-align:center; margin-bottom:5px;">PLASTENSA</h3>
-    <h4 style="text-align:center; margin-top:0; border-bottom:1px dashed #000; padding-bottom:10px;">LIQUIDACIÓN TRANSPORTE</h4>
-    <p><b>Chofer:</b> ${l.chofer}</p>
-    <p><b>Fecha:</b> ${l.fechaReg}</p>
-    <p><b>ID Liq:</b> LIQ-${l.id}</p>
-    <hr style="border:0; border-bottom:1px dashed #000; margin:10px 0;">
-    <table width="100%" style="font-size:11px;">
-        <thead><tr><th align="left">Ticket</th><th align="right">Monto</th></tr></thead>
+    
+    <div class="header-container">
+        <div>
+            <h1 style="margin:0; color: #2563eb; font-size: 28px; font-weight: 900;">PLASTENSA</h1>
+            <p style="margin: 0; color: #64748b; font-size: 11px; font-weight: bold;">PLANILLA DE LIQUIDACIÓN DE TRANSPORTE</p>
+        </div>
+        <div style="text-align: right;">
+            <h2 style="margin:0; color: #0f172a; font-size: 20px;">LIQ-${l.id}</h2>
+            <p style="margin: 0; color: #64748b; font-size: 12px; font-weight: bold;">Fecha: ${l.fechaReg}</p>
+        </div>
+    </div>
+
+    <div style="background: #f8fafc; padding: 15px; border-radius: 8px; border: 1px solid #e2e8f0; margin-bottom: 20px;">
+        <p style="margin: 0; font-size: 14px;"><b>Conductor / Transportista:</b> <span style="font-size: 16px;">${l.chofer}</span></p>
+        <p style="margin: 5px 0 0 0; font-size: 12px; color: #64748b;"><b>Estado del Documento:</b> ${l.estado}</p>
+    </div>
+
+    <table>
+        <thead>
+            <tr>
+                <th>Nº Ticket</th>
+                <th>Fecha Viaje</th>
+                <th>Orden / Cliente</th>
+                <th>Material Transportado</th>
+                <th class="text-right">Volumen (M³)</th>
+                <th class="text-right">Tarifa (Bs/M³)</th>
+                <th class="text-right">Total a Pagar</th>
+            </tr>
+        </thead>
         <tbody>
-            ${l.detalle.map(d => `<tr><td style="padding-top:5px;">${d.ticket}<br><span style="font-size:9px;color:#666;">${d.cliente}</span></td><td align="right" valign="top">Bs ${d.pago.toFixed(2)}</td></tr>`).join('')}
+            ${l.detalle.map(d => `
+            <tr>
+                <td style="font-weight:900;">${d.ticket}</td>
+                <td>${d.fecha}</td>
+                <td><b>${d.orden}</b><br><span style="color:#64748b; font-size: 10px;">${d.cliente}</span></td>
+                <td>${d.material || '-'}</td>
+                <td class="text-right" style="color: #2563eb; font-weight: bold;">${(d.volM3 || 0).toFixed(2)} M³</td>
+                <td class="text-right">Bs ${(d.precioM3 || 0).toFixed(2)}</td>
+                <td class="text-right" style="font-weight:900; color: #16a34a;">Bs ${d.pago.toFixed(2)}</td>
+            </tr>`).join('')}
         </tbody>
     </table>
-    <hr style="border:0; border-bottom:1px dashed #000; margin:15px 0;">
-    <h3 style="text-align:right; margin:0;">TOTAL: Bs ${l.total.toFixed(2)}</h3>
-    <div style="margin-top:50px; text-align:center; border-top:1px solid #000; width:80%; margin-left:auto; margin-right:auto; padding-top:5px;">
-        Firma Conductor (Recibí Conforme)
+
+    <div style="margin-top: 20px; text-align: right;">
+        <h2 style="margin:0; color: #16a34a; font-size: 28px; font-weight: 900;">TOTAL LIQUIDADO: Bs ${l.total.toFixed(2)}</h2>
     </div>
-    <div style="margin-top:20px; text-align:center;"><button onclick="window.print()" style="padding:10px; font-weight:bold;">IMPRIMIR</button></div>
+
+    <div style="margin-top: 100px; display: flex; justify-content: space-around;">
+        <div style="text-align: center; width: 35%;">
+            <hr style="border: 0; border-bottom: 1px solid #000; margin-bottom: 8px;">
+            <b>Entregué Conforme</b><br>
+            <span style="font-size:10px; color:#666;">Firma y Sello (Despachos)</span>
+        </div>
+        <div style="text-align: center; width: 35%;">
+            <hr style="border: 0; border-bottom: 1px solid #000; margin-bottom: 8px;">
+            <b>Recibí Conforme</b><br>
+            <span style="font-size:10px; color:#666;">Firma Conductor: ${l.chofer}</span>
+        </div>
+    </div>
+
+    <div class="no-print" style="margin-top:60px; text-align:center;">
+        <button onclick="window.print()" style="padding:15px 30px; font-weight:900; cursor:pointer; background: #2563eb; color: white; border: none; border-radius: 8px; font-size: 14px;">IMPRIMIR FORMATO CARTA (A4)</button>
+    </div>
     </body></html>`;
-    const win = window.open('','','width=400,height=600'); 
+    
+    const win = window.open('','','width=900,height=800'); 
     win.document.write(html); 
     win.document.close();
 }
