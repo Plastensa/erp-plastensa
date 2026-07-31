@@ -2060,27 +2060,8 @@
                             <input type="file" id="csvInventarioReescribir" accept=".csv" class="hidden" onchange="handleInventarioReescribir(event)" />
                         </div>
                     </div>
-                    
-                    <h3 class="font-black text-slate-400 uppercase tracking-widest text-xs mb-4 border-b border-slate-200 pb-2">1. Pedidos Programados Listos para Despacho</h3>
-                    <div class="bg-white rounded-[32px] border border-slate-200 overflow-hidden shadow-sm mb-8">
-                        <div class="overflow-x-auto">
-                            <table class="w-full text-left text-xs whitespace-nowrap">
-                                <thead class="bg-slate-50 border-b border-slate-100 text-[10px] font-black text-slate-400 uppercase tracking-widest">
-                                    <tr>
-                                        <th class="p-4 pl-6">N° Orden</th>
-                                        <th class="p-4">Cliente / Tipo</th>
-                                        <th class="p-4">Vendedor</th>
-                                        <th class="p-4">Fecha Orden</th>
-                                        <th class="p-4 text-right">Volumen Total</th>
-                                        <th class="p-4 text-center">Acción</th>
-                                    </tr>
-                                </thead>
-                                <tbody id="ready-orders-table-body" class="divide-y divide-slate-50"></tbody>
-                            </table>
-                        </div>
-                    </div>
-                    
-                   <h3 class="font-black text-blue-500 uppercase tracking-widest text-xs mb-4 border-b border-slate-200 pb-2">2. Stock Físico Disponible (Venta Libre / Mostrador)</h3>
+                                 
+                   <h3 class="font-black text-blue-500 uppercase tracking-widest text-xs mb-4 border-b border-slate-200 pb-2">Stock Físico General de Planta</h3>
                     <div class="bg-white rounded-[32px] border border-slate-200 overflow-hidden shadow-sm">
                        <div class="p-4 bg-slate-50 border-b border-slate-100 flex items-center gap-2">
                             <i data-lucide="search" class="w-5 h-5 text-slate-400"></i>
@@ -5937,176 +5918,110 @@ renderAll = function() {
         }
 
         function renderProduction() {
-            // 1. AUTO-CORRECCIÓN (Self-Healing): Si algún pedido antiguo ya se cortó completo, lo movemos al inventario
-            let cambioEstado = false;
-            orders.forEach(o => {
-                if(o.status === 'PRODUCCION') {
-                    let todoCompletado = true;
-                    if(o.items && o.items.length > 0) {
-                        o.items.forEach((item, idx) => {
-                            const pzasCortadas = dbSchedules.filter(sx => sx.orderId === o.id && sx.itemIdx === idx && (sx.status === 'FINALIZADO' || sx.status === 'COMPLETADO')).reduce((sum, sx) => sum + (sx.fabricadoQty || sx.qty), 0);
-                            if(pzasCortadas < item.qty) todoCompletado = false;
-                        });
-                    } else { todoCompletado = false; }
-                    
-                    if(todoCompletado) {
-                        o.status = 'INVENTARIO';
-                        cambioEstado = true;
-                        db.collection("pedidos").doc(String(o.id).replace(/\//g, '-')).set(o);
-                    }
-                }
-            });
+    // 1. FILTROS DE BÚSQUEDA (Se eliminó la auto-corrección fantasma de aquí)
+    const search = (document.getElementById('filtro-prod-buscar')?.value || '').toLowerCase();
+    const filterDate = document.getElementById('filtro-prod-fecha')?.value || '';
+
+    let list = orders.filter(o => o.status === 'PRODUCCION');
+
+    if (search) {
+        list = list.filter(o => o.client.toLowerCase().includes(search) || o.id.toLowerCase().includes(search));
+    }
+    
+    if (filterDate) {
+        const [y, m, d] = filterDate.split('-');
+        const target1 = `${d}/${m}/${y}`;
+        const target2 = `${parseInt(d)}/${parseInt(m)}/${y}`;
+        list = list.filter(o => o.date === target1 || o.date === target2);
+    }
+
+    // 2. RENDERIZADO DE TABLA
+    const tbody = document.getElementById('production-list');
+    if(list.length === 0) { 
+        tbody.innerHTML = `<tr><td colspan="5" class="p-10 text-center text-slate-400 font-bold italic">No hay órdenes pendientes que coincidan con la búsqueda.</td></tr>`; 
+        return; 
+    }
+    
+    tbody.innerHTML = list.map(o => {
+        let itemsHtml = '';
+        let totalRestan = 0;
+        
+        o.items.forEach((item, idx) => {
+            const scheduledQty = dbSchedules.filter(s => s.orderId === o.id && s.itemIdx === idx).reduce((sum, s) => sum + s.qty, 0);
+            const remQty = item.qty - scheduledQty;
+            totalRestan += (remQty > 0 ? remQty : 0);
             
-            if(cambioEstado) {
-                localStorage.setItem('plast_orders', JSON.stringify(orders));
-            }
-
-            // 2. FILTROS DE BÚSQUEDA
-            const search = (document.getElementById('filtro-prod-buscar')?.value || '').toLowerCase();
-            const filterDate = document.getElementById('filtro-prod-fecha')?.value || '';
-
-            let list = orders.filter(o => o.status === 'PRODUCCION');
-
-            if (search) {
-                list = list.filter(o => o.client.toLowerCase().includes(search) || o.id.toLowerCase().includes(search));
-            }
+            const badge = remQty <= 0 ? `<span class="text-green-500"><i data-lucide="check-circle" class="w-5 h-5"></i></span>` : `<button onclick="openScheduleModal('${o.id}', ${idx})" class="bg-orange-100 hover:bg-orange-200 text-orange-700 px-3 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-widest transition-colors border border-orange-200 shadow-sm">Programar</button>`;
+            const obsTag = item.obs ? `<div class="w-full mt-1 p-1.5 bg-red-50 border-l-2 border-red-500 text-red-700 text-[9px] font-black uppercase tracking-widest rounded-r-lg">⚠️ CORTE: ${item.obs}</div>` : '';
             
-            if (filterDate) {
-                const [y, m, d] = filterDate.split('-');
-                const target1 = `${d}/${m}/${y}`;
-                const target2 = `${parseInt(d)}/${parseInt(m)}/${y}`;
-                list = list.filter(o => o.date === target1 || o.date === target2);
-            }
+            const btnEditItem = '';
 
-            // 3. RENDERIZADO DE TABLA
-            const tbody = document.getElementById('production-list');
-            if(list.length === 0) { 
-                tbody.innerHTML = `<tr><td colspan="5" class="p-10 text-center text-slate-400 font-bold italic">No hay órdenes pendientes que coincidan con la búsqueda.</td></tr>`; 
-                return; 
-            }
-            
-            tbody.innerHTML = list.map(o => {
-                let itemsHtml = '';
-                let totalRestan = 0;
-                
-                o.items.forEach((item, idx) => {
-                    const scheduledQty = dbSchedules.filter(s => s.orderId === o.id && s.itemIdx === idx).reduce((sum, s) => sum + s.qty, 0);
-                    const remQty = item.qty - scheduledQty;
-                    totalRestan += (remQty > 0 ? remQty : 0);
-                    
-                   const badge = remQty <= 0 ? `<span class="text-green-500"><i data-lucide="check-circle" class="w-5 h-5"></i></span>` : `<button onclick="openScheduleModal('${o.id}', ${idx})" class="bg-orange-100 hover:bg-orange-200 text-orange-700 px-3 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-widest transition-colors border border-orange-200 shadow-sm">Programar</button>`;
-                    const obsTag = item.obs ? `<div class="w-full mt-1 p-1.5 bg-red-50 border-l-2 border-red-500 text-red-700 text-[9px] font-black uppercase tracking-widest rounded-r-lg">⚠️ CORTE: ${item.obs}</div>` : '';
-                    
-                   // Lápiz de edición retirado de Producción. Ahora se edita desde el Registro de Ventas.
-                    const btnEditItem = '';
-
-                    itemsHtml += `
-                    <div class="flex flex-col bg-slate-50 p-3 rounded-xl border border-slate-100 mb-2 w-full max-w-sm whitespace-normal shadow-sm">
-                        <div class="flex justify-between items-center w-full gap-2">
-                            <div class="flex-1">
-                                <span class="text-xs font-black text-slate-800 block">${item.name}</span>
-                                <span class="text-[9px] font-bold text-slate-400">Pz Pedidas: ${item.qty} | Restan: <b class="${remQty>0?'text-orange-500':'text-green-500'}">${remQty} Pz</b></span>
-                            </div>
-                            <div class="flex items-center gap-2">
-                                ${badge}
-                                ${btnEditItem}
-                            </div>
-                        </div>
-                        ${obsTag}
-                    </div>`;
-                });
-                
-                let bottomBadge = '';
-                if(totalRestan <= 0) {
-                    bottomBadge = `<span class="bg-green-50 border border-green-200 text-green-700 px-3 py-1.5 rounded-xl font-black flex justify-center items-center gap-1 uppercase tracking-widest text-[9px] shadow-sm w-max mx-auto"><i data-lucide="settings" class="w-3 h-3 animate-spin"></i> EN CORTE</span>`;
-                } else {
-                    bottomBadge = `<span class="bg-slate-100 border border-slate-200 text-slate-400 px-3 py-1.5 rounded-xl font-black flex justify-center items-center gap-1 uppercase tracking-widest text-[9px] w-max mx-auto"><i data-lucide="calendar-clock" class="w-3 h-3"></i> FALTAN CORTES</span>`;
-                }
-
-                const tieneSinVerificar = o.pagos && o.pagos.some(p => !p.verificado);
-                let paymentBadge = '';
-                
-                if (tieneSinVerificar) {
-                    paymentBadge = `<span class="bg-yellow-100 text-yellow-700 border-yellow-300 px-2 py-1 rounded text-[9px] font-black uppercase tracking-widest shadow-sm block w-max mx-auto border">EN REVISIÓN</span>`;
-                } else if (o.estadoPago === 'COMPLETO') {
-                    paymentBadge = `<span class="bg-green-100 text-green-600 border-green-200 px-2 py-1 rounded text-[9px] font-black uppercase tracking-widest shadow-sm block w-max mx-auto border">PAGADO</span>`;
-                } else if (o.montoPagado > 0 && o.estadoPago !== 'COMPLETO') {
-                    paymentBadge = `<span class="bg-orange-100 text-orange-600 border-orange-200 px-2 py-1 rounded text-[9px] font-black uppercase tracking-widest shadow-sm block w-max mx-auto border">PARCIAL</span>`;
-                } else {
-                    paymentBadge = `<span class="bg-red-100 text-red-600 border-red-200 px-2 py-1 rounded text-[9px] font-black uppercase tracking-widest shadow-sm block w-max mx-auto border">NO PAGADO</span>`;
-                }
-
-                return `
-                <tr class="hover:bg-slate-50 transition-colors border-b border-slate-100">
-                    <td class="p-4 align-top">
-                        <span class="font-black text-orange-600 text-sm block tracking-widest">${o.id}</span>
-                        <span class="text-[10px] font-bold text-slate-400 mt-1 block">${o.date}</span>
-                    </td>
-                    <td class="p-4 align-top">
-                        <span class="font-black text-slate-800 text-sm block truncate max-w-[200px]">${o.client}</span>
-                        <span class="text-[9px] font-bold text-slate-400 uppercase mt-1 block">Vend: ${o.vendedorInterno || 'Planta'}</span>
-                    </td>
-                    <td class="p-4 align-top text-center">
-                        ${paymentBadge}
-                    </td>
-                    <td class="p-4 align-top">
-                        <div class="flex flex-col gap-1">
-                            ${itemsHtml}
-                        </div>
-                    </td>
-                    <td class="p-4 align-middle text-center">
-                        ${bottomBadge}
-                    </td>
-                </tr>`;
-            }).join('');
-            
-            if(window.lucide) lucide.createIcons();
+            itemsHtml += `
+            <div class="flex flex-col bg-slate-50 p-3 rounded-xl border border-slate-100 mb-2 w-full max-w-sm whitespace-normal shadow-sm">
+                <div class="flex justify-between items-center w-full gap-2">
+                    <div class="flex-1">
+                        <span class="text-xs font-black text-slate-800 block">${item.name}</span>
+                        <span class="text-[9px] font-bold text-slate-400">Pz Pedidas: ${item.qty} | Restan: <b class="${remQty>0?'text-orange-500':'text-green-500'}">${remQty} Pz</b></span>
+                    </div>
+                    <div class="flex items-center gap-2">
+                        ${badge}
+                        ${btnEditItem}
+                    </div>
+                </div>
+                ${obsTag}
+            </div>`;
+        });
+        
+        let bottomBadge = '';
+        if(totalRestan <= 0) {
+            bottomBadge = `<span class="bg-green-50 border border-green-200 text-green-700 px-3 py-1.5 rounded-xl font-black flex justify-center items-center gap-1 uppercase tracking-widest text-[9px] shadow-sm w-max mx-auto"><i data-lucide="settings" class="w-3 h-3 animate-spin"></i> EN CORTE</span>`;
+        } else {
+            bottomBadge = `<span class="bg-slate-100 border border-slate-200 text-slate-400 px-3 py-1.5 rounded-xl font-black flex justify-center items-center gap-1 uppercase tracking-widest text-[9px] w-max mx-auto"><i data-lucide="calendar-clock" class="w-3 h-3"></i> FALTAN CORTES</span>`;
         }
+
+        const tieneSinVerificar = o.pagos && o.pagos.some(p => !p.verificado);
+        let paymentBadge = '';
+        
+        if (tieneSinVerificar) {
+            paymentBadge = `<span class="bg-yellow-100 text-yellow-700 border-yellow-300 px-2 py-1 rounded text-[9px] font-black uppercase tracking-widest shadow-sm block w-max mx-auto border">EN REVISIÓN</span>`;
+        } else if (o.estadoPago === 'COMPLETO') {
+            paymentBadge = `<span class="bg-green-100 text-green-600 border-green-200 px-2 py-1 rounded text-[9px] font-black uppercase tracking-widest shadow-sm block w-max mx-auto border">PAGADO</span>`;
+        } else if (o.montoPagado > 0 && o.estadoPago !== 'COMPLETO') {
+            paymentBadge = `<span class="bg-orange-100 text-orange-600 border-orange-200 px-2 py-1 rounded text-[9px] font-black uppercase tracking-widest shadow-sm block w-max mx-auto border">PARCIAL</span>`;
+        } else {
+            paymentBadge = `<span class="bg-red-100 text-red-600 border-red-200 px-2 py-1 rounded text-[9px] font-black uppercase tracking-widest shadow-sm block w-max mx-auto border">NO PAGADO</span>`;
+        }
+
+        return `
+        <tr class="hover:bg-slate-50 transition-colors border-b border-slate-100">
+            <td class="p-4 align-top">
+                <span class="font-black text-orange-600 text-sm block tracking-widest">${o.id}</span>
+                <span class="text-[10px] font-bold text-slate-400 mt-1 block">${o.date}</span>
+            </td>
+            <td class="p-4 align-top">
+                <span class="font-black text-slate-800 text-sm block truncate max-w-[200px]">${o.client}</span>
+                <span class="text-[9px] font-bold text-slate-400 uppercase mt-1 block">Vend: ${o.vendedorInterno || 'Planta'}</span>
+            </td>
+            <td class="p-4 align-top text-center">
+                ${paymentBadge}
+            </td>
+            <td class="p-4 align-top">
+                <div class="flex flex-col gap-1">
+                    ${itemsHtml}
+                </div>
+            </td>
+            <td class="p-4 align-middle text-center">
+                ${bottomBadge}
+            </td>
+        </tr>`;
+    }).join('');
+    
+    if(window.lucide) lucide.createIcons();
+}
 
         function renderInventory() {
-            const tbody = document.getElementById('ready-orders-table-body');
-            if(!tbody) return;
-            
-            const list = orders.filter(o => o.status === 'INVENTARIO');
-            
-           // Mostrar solo órdenes que aún tienen saldo físico por recoger
-            const pendientes = list.filter(o => {
-                let tieneSaldo = false;
-                o.items.forEach(it => { 
-                    // Tolerancia de 0.01 para ignorar errores de redondeo
-                    if((it.qty - (it.entregado || 0)) > 0.01) tieneSaldo = true; 
-                });
-                return tieneSaldo;
-            });
-
-            if(pendientes.length === 0) {
-                tbody.innerHTML = `<tr><td colspan="6" class="p-8 text-center text-slate-400 font-bold italic">No hay pedidos listos pendientes de entrega.</td></tr>`;
-                return;
-            }
-
-            tbody.innerHTML = pendientes.map(o => {
-                const volTotalTeorico = o.items.reduce((sum, item) => sum + (item.volTotal || 0), 0);
-                const volMostrar = o.volGlobalCotizacion > 0 ? o.volGlobalCotizacion : volTotalTeorico;
-                
-                return `
-                <tr class="hover:bg-slate-50 transition-colors border-b border-slate-100">
-                    <td class="p-4 pl-6 font-black text-blue-600 text-sm">${o.id}</td>
-                    <td class="p-4">
-                        <span class="font-black text-slate-800 text-xs block">${o.client}</span>
-                        <span class="text-[9px] text-slate-400 font-bold uppercase tracking-widest">${o.type || 'Venta Regular'}</span>
-                    </td>
-                    <td class="p-4 font-bold text-slate-500 text-xs">${o.vendedorInterno || 'Planta'}</td>
-                    <td class="p-4 font-medium text-slate-400 text-xs">${o.date || '-'}</td>
-                    <td class="p-4 text-right font-black text-slate-700">${volMostrar.toFixed(2)} M³</td>
-                    <td class="p-4 text-center">
-                        <button onclick="redirigirADespacho('${o.id}')" class="bg-blue-600 hover:bg-blue-700 text-white font-black text-[9px] uppercase tracking-wider px-4 py-2 rounded-xl shadow-md transition-colors mx-auto flex items-center gap-2">
-                            <i data-lucide="truck" class="w-3.5 h-3.5"></i> Despachar Material
-                        </button>
-                    </td>
-                </tr>`;
-            }).join('');
-            lucide.createIcons();
-        }
+    // Eliminada por el nuevo flujo: Ahora todo se maneja en el Stock Físico General
+}
 
        function renderDespacho() {
     const tbody = document.getElementById('desp-list');
@@ -7316,8 +7231,7 @@ function renderPreciosBase() {
 
 // ==========================================
 // MOTOR VISUAL DE LA SALA DE CORTE
-// ==========================================
-function renderSalaCorte() {
+// ==========================================function renderSalaCorte() {
     const tbodyBloques = document.getElementById('corte-bloques-list');
     const listOrdenes = document.getElementById('corte-ordenes-list');
     const dashRetazos = document.getElementById('retazos-dashboard');
@@ -7327,14 +7241,13 @@ function renderSalaCorte() {
 
     // --- MEMORIA ANTI-RADAR ---
     const bloquesSeleccionados = Array.from(document.querySelectorAll('#corte-bloques-list input[type="checkbox"]:checked')).map(cb => cb.id);
-    const multiOrdenesSeleccionadas = Array.from(document.querySelectorAll('.multi-sched-chk:checked')).map(cb => cb.value);
 
     // Llenar el buscador inteligente de Retazos con todo el catálogo disponible
     if(datalistGlobal) {
         datalistGlobal.innerHTML = products.map(p => `<option value="${p.name}">${p.name}</option>`).join('');
     }
 
-    // 1. Mostrar Bloques Enviados a Corte (Aplicando Filtros Inteligentes)
+    // 1. Mostrar Bloques Enviados a Corte
     const fDens = document.getElementById('filtro-corte-dens') ? document.getElementById('filtro-corte-dens').value : 'ALL';
     const fTipo = document.getElementById('filtro-corte-tipo') ? document.getElementById('filtro-corte-tipo').value.toLowerCase() : '';
 
@@ -7347,7 +7260,6 @@ function renderSalaCorte() {
     if(bloquesDisponibles.length === 0) {
         tbodyBloques.innerHTML = `<tr><td colspan="5" class="p-6 text-center font-bold text-slate-400 italic">No hay bloques en sala de corte. Envíalos desde "Inv. Bloques".</td></tr>`;
     } else {
-        // NOTA: Se corrigió un error visual de tu código original donde había doble <td><td>
         tbodyBloques.innerHTML = bloquesDisponibles.map(b => `
             <tr class="hover:bg-slate-50 border-b border-slate-100 cursor-pointer transition-colors">
                 <td class="p-3 pl-4 text-center"><input type="checkbox" id="corte-chk-${b.id}" class="w-4 h-4 cursor-pointer" onchange="calcVolCorteDin()"></td>
@@ -7359,12 +7271,11 @@ function renderSalaCorte() {
         `).join('');
     }
     
-    // 2. Filtro Anti-Errores: Mostrar TODO lo que no esté 100% finalizado
+    // 2. Filtro Anti-Errores: Mostrar TODO lo que no esté finalizado
     let pendingSchedules = dbSchedules.filter(s => s.status !== 'FINALIZADO' && s.status !== 'COMPLETADO').sort((a, b) => {
         return new Date(a.date) - new Date(b.date);
     });
 
-    // --- NUEVO: FILTRO POR BÚSQUEDA EN TARJETAS ---
     const searchOrdenes = document.getElementById('filtro-corte-ordenes') ? document.getElementById('filtro-corte-ordenes').value.toLowerCase() : '';
     if(searchOrdenes) {
         pendingSchedules = pendingSchedules.filter(s => {
@@ -7381,46 +7292,61 @@ function renderSalaCorte() {
         });
     }
     
-    // --- MAGIA DEL MULTI-CORTE: BOTÓN OCULTO ---
-    let btnMultiHtml = `<button id="btn-multi-corte" onclick="iniciarCorteMulti()" class="hidden w-full mb-3 bg-red-600 text-white p-3 rounded-xl font-black text-xs shadow-lg hover:bg-red-700 transition-colors uppercase tracking-widest flex justify-center items-center gap-2"><i data-lucide="layers" class="w-4 h-4"></i> CORTAR SELECCIONADOS (<span id="count-multi-corte">0</span>)</button>`;
+    // === LA REVOLUCIÓN: AGRUPAR TARJETAS ===
+    let agrupados = {};
+    
+    pendingSchedules.forEach(s => {
+        const o = orders.find(x => x.id === s.orderId);
+        const item = o ? o.items[s.itemIdx] : null;
+        if(!item) return;
 
-    if(pendingSchedules.length === 0) {
-        listOrdenes.innerHTML = `<div class="p-6 text-center font-bold text-slate-400 italic border-2 border-dashed border-slate-200 rounded-2xl">No hay órdenes pendientes.</div>`;
+        const match = item.name.match(/^([A-Z]+)(\d+|SR)/);
+        const densRequerida = match ? (match[2] === 'SR' ? 'SR' : 'D' + match[2]) : 'D8';
+        const obsKey = (item.obs || '').trim();
+        
+        // Llave maestra de agrupación: Une por Nombre + Densidad + Corte Especial
+        const key = `${item.name}|${densRequerida}|${obsKey}`;
+
+        if(!agrupados[key]) {
+            agrupados[key] = {
+                name: item.name,
+                dens: densRequerida,
+                obs: obsKey,
+                qtyTotal: 0,
+                volTotal: 0,
+                schedulesList: [] // Guardamos todos los IDs fusionados
+            };
+        }
+        
+        agrupados[key].qtyTotal += s.qty;
+        agrupados[key].volTotal += Number(s.volTotal) || 0;
+        agrupados[key].schedulesList.push(s.id);
+    });
+
+    if(Object.keys(agrupados).length === 0) {
+        listOrdenes.innerHTML = `<div class="p-6 text-center font-bold text-slate-400 italic border-2 border-dashed border-slate-200 rounded-2xl">La planta no tiene cortes pendientes.</div>`;
     } else {
-        listOrdenes.innerHTML = btnMultiHtml + pendingSchedules.map(s => {
-            const o = orders.find(x => x.id === s.orderId);
-            const item = o ? o.items[s.itemIdx] : null;
-            if(!item) return '';
-
-            // Lógica para detectar vencidos (Rojo)
-            const hoy = new Date(); hoy.setHours(0,0,0,0);
-            const fechaPedido = new Date(s.date + "T00:00:00"); 
-            const esVencido = fechaPedido < hoy;
+        listOrdenes.innerHTML = Object.values(agrupados).map(grupo => {
+            // Si tiene observación el borde es naranja, sino es azul
+            const borderClass = grupo.obs ? 'border-orange-400 bg-orange-50 shadow-md hover:border-orange-500' : 'border-slate-200 bg-white hover:border-blue-400 shadow-sm';
+            const tagEspecial = grupo.obs ? `<div class="mt-2 p-2 bg-orange-100 border border-orange-300 text-orange-800 text-[10px] font-black uppercase rounded-lg shadow-sm"><i data-lucide="scissors" class="w-3 h-3 inline mr-1"></i>CORTE ESPECIAL: ${grupo.obs}</div>` : '';
             
-            const borderClass = esVencido ? 'border-red-500 bg-red-50 shadow-md' : 'border-slate-200 bg-white';
-            const tagVencido = esVencido ? `<span class="bg-red-600 text-white animate-pulse px-2 py-1 rounded text-[9px] font-black uppercase tracking-widest ml-2">¡VENCIDO!</span>` : '';
+            const idsString = grupo.schedulesList.join(',');
 
-            // --- MAGIA DEL MULTI-CORTE: CHECKBOX EN LA TARJETA ---
             return `
-            <div class="${borderClass} border p-4 rounded-xl hover:border-red-400 transition-all group relative">
-                <div class="absolute top-3 right-3 z-10">
-                    <input type="checkbox" value="${s.id}" class="multi-sched-chk w-5 h-5 cursor-pointer accent-red-600 shadow-sm" onchange="toggleMultiCorteBtn()">
+            <div class="${borderClass} border p-5 rounded-xl cursor-pointer group relative transition-all" onclick="iniciarCorteAgrupado('${idsString}')">
+                <div class="flex justify-between items-start mb-2">
+                    <span class="text-[10px] font-black uppercase bg-slate-900 text-white px-2 py-1 rounded-md shadow-sm">LOTE CONSOLIDADO</span>
                 </div>
-                <div class="cursor-pointer pr-8" onclick="iniciarCortePedido(${s.id})">
-                    <div class="flex justify-between items-center mb-2">
-                        <div>
-                            <span class="text-[10px] font-black uppercase bg-slate-900 text-white px-2 py-1 rounded-md shadow-sm">${s.date}</span>
-                            ${tagVencido}
-                        </div>
-                    </div>
-                    <p class="font-black text-slate-800 text-sm mb-1 group-hover:text-red-600 transition-colors">${item.name}</p>
-                    ${item.obs ? `<div class="mt-2 p-1.5 bg-yellow-100 border border-yellow-300 text-yellow-800 text-[9px] font-black uppercase rounded shadow-sm"><i data-lucide="scissors" class="w-3 h-3 inline mr-1"></i>${item.obs}</div>` : ''}
-                    <div class="flex justify-between items-end mt-3">
-                        <p class="text-[10px] font-black text-slate-500 truncate max-w-[130px] uppercase">${o.client} <br><span class="text-[8px]">Ord: ${o.id}</span></p>
-                        <div class="text-right">
-                            <p class="font-black text-red-600 text-lg leading-none">${s.qty} <span class="text-[10px] text-slate-400 uppercase">Pzas</span></p>
-                            <p class="text-[9px] font-bold text-slate-400 mt-1">${Number(s.volTotal).toFixed(2)} M³</p>
-                        </div>
+                <p class="font-black text-slate-800 text-base mb-1 group-hover:text-blue-600 transition-colors">${grupo.name}</p>
+                
+                ${tagEspecial}
+                
+                <div class="flex justify-between items-end mt-4 pt-3 border-t border-slate-200/60">
+                    <p class="text-[10px] font-black text-slate-500 uppercase leading-tight">Total a Fabricar<br><span class="text-[8px] text-slate-400">Agrupa ${grupo.schedulesList.length} Pedido(s)</span></p>
+                    <div class="text-right">
+                        <p class="font-black text-blue-600 text-2xl leading-none">${grupo.qtyTotal} <span class="text-[10px] text-slate-400 uppercase">Pzas</span></p>
+                        <p class="text-[9px] font-bold text-slate-400 mt-1">${grupo.volTotal.toFixed(2)} M³</p>
                     </div>
                 </div>
             </div>`;
@@ -7430,7 +7356,6 @@ function renderSalaCorte() {
     // 3. Renderizar Banco de Retazos
     const densidades = ['D8', 'D10', 'D13', 'D15', 'D20'];
     let htmlRetazos = densidades.map(dens => {
-        // Forzamos a que si el valor no existe o es undefined, sea 0.00
         const valor = Number(dbBancoRetazos[dens]) || 0;
         return `
         <div class="bg-slate-800 p-2 rounded-xl border border-slate-700 text-center shadow-inner flex flex-col justify-center">
@@ -7455,57 +7380,18 @@ function renderSalaCorte() {
 
     // --- RESTAURAR MEMORIA ANTI-RADAR ---
     bloquesSeleccionados.forEach(id => {
-        const cb = document.getElementById(id);
-        if (cb) cb.checked = true;
-    });
-    multiOrdenesSeleccionadas.forEach(val => {
-        const cb = document.querySelector(`.multi-sched-chk[value="${val}"]`);
+        const cb = document.getElementById(id); 
         if (cb) cb.checked = true;
     });
     
     if(typeof calcVolCorteDin === 'function') calcVolCorteDin();
-    if(typeof toggleMultiCorteBtn === 'function') toggleMultiCorteBtn();
+    if(window.lucide) lucide.createIcons();
 }
 
 // Variables de control de la operación en curso
 let corteOperacionActiva = null;
 let corteCart = []; // EL CARRITO
 
-function iniciarCortePedido(scheduleId) {
-    const sched = dbSchedules.find(s => s.id === scheduleId);
-    if(!sched) return;
-    const ord = orders.find(o => o.id === sched.orderId);
-    const item = ord ? ord.items[sched.itemIdx] : null;
-    if(!item) return;
-
-    const match = item.name.match(/^([A-Z]+)(\d+|SR)/);
-    const densRequerida = match ? (match[2] === 'SR' ? 'SR' : 'D' + match[2]) : 'D8';
-
-    corteOperacionActiva = {
-        schedId: scheduleId,
-        orderId: ord.id,
-        isStock: false,
-        isMulti: false, // <-- AÑADIDO PARA EVITAR ERRORES
-        itemName: item.name,
-        qtyRequerida: sched.qty,
-        obs: item.obs || '',
-        dens: densRequerida
-    };
-
-    corteCart = [{
-        name: item.name,
-        dens: densRequerida,
-        volUnit: sched.volTotal / sched.qty,
-        qtyBuenas: sched.qty,
-        qtyMalas: 0,
-        isMainOrder: true,
-        obs: item.obs || '',
-        // <-- AÑADIDA LA MEMORIA OCULTA PARA QUE FUNCIONE IGUAL QUE EL MULTI-CORTE
-        targets: [{ schedId: scheduleId, orderId: ord.id, qtyRequerida: sched.qty, client: ord.client }]
-    }];
-
-    abrirPanelAsistente(`ORDEN: ${ord.id} - ${ord.client}`);
-}
 
 function iniciarCorteStock() {
     corteOperacionActiva = { schedId: null, isStock: true, itemName: 'STOCK MÚLTIPLE', qtyRequerida: 0 };
@@ -7513,36 +7399,20 @@ function iniciarCorteStock() {
     abrirPanelAsistente("CORTE PARA STOCK GENERAL");
 }
 
-function toggleMultiCorteBtn() {
-    const checkboxes = document.querySelectorAll('.multi-sched-chk:checked');
-    const btn = document.getElementById('btn-multi-corte');
-    const countSpan = document.getElementById('count-multi-corte');
-    
-    if(btn && countSpan) {
-        if(checkboxes.length > 1) {
-            countSpan.innerText = checkboxes.length;
-            btn.classList.remove('hidden');
-        } else {
-            btn.classList.add('hidden');
-        }
-    }
-}
-
-function iniciarCorteMulti() {
-    const checkboxes = document.querySelectorAll('.multi-sched-chk:checked');
-    if(checkboxes.length < 2) return;
+function iniciarCorteAgrupado(idsString) {
+    const schedIds = idsString.split(',').map(id => parseInt(id));
+    if(schedIds.length === 0) return;
 
     corteOperacionActiva = {
         isStock: false,
-        isMulti: true, 
-        titulo: 'Corte Consolidado (Varios Pedidos)'
+        isMulti: true, // Esto le dice al asistente que va a procesar múltiples pedidos
+        titulo: 'Corte de Lote Consolidado'
     };
 
     corteCart = [];
-    let fusionMapa = {}; // Licuadora: agrupa items iguales
+    let fusionMapa = {};
 
-    checkboxes.forEach(cb => {
-        const schedId = parseInt(cb.value);
+    schedIds.forEach(schedId => {
         const sched = dbSchedules.find(s => s.id === schedId);
         if(!sched) return;
         const ord = orders.find(o => o.id === sched.orderId);
@@ -7553,25 +7423,27 @@ function iniciarCorteMulti() {
         const densRequerida = match ? (match[2] === 'SR' ? 'SR' : 'D' + match[2]) : 'D8';
         const volUnitCalc = sched.volTotal / sched.qty;
 
-        // Llave única (Para que mezcle solo los que son exactamente iguales)
         const fusionKey = `${item.name}-${densRequerida}-${item.obs || ''}`;
 
         if(!fusionMapa[fusionKey]) {
             fusionMapa[fusionKey] = {
                 name: item.name, dens: densRequerida, volUnit: volUnitCalc,
                 qtyBuenas: 0, qtyMalas: 0, isMainOrder: true, obs: item.obs || '',
-                targets: [] // Memoria oculta de a quién le pertenece cada pieza
+                targets: [] 
             };
         }
         
         fusionMapa[fusionKey].qtyBuenas += sched.qty;
+        // Guardamos a quién le pertenece en el fondo para que cuando se guarde el corte, se descuente correctamente
         fusionMapa[fusionKey].targets.push({
             schedId: schedId, orderId: ord.id, qtyRequerida: sched.qty, client: ord.client
         });
     });
 
     Object.values(fusionMapa).forEach(grupo => corteCart.push(grupo));
-    abrirPanelAsistente(`CONSOLIDADO: ${checkboxes.length} PEDIDOS`);
+    
+    // Abre el panel asistente usando el nombre de la tarjeta fusionada
+    abrirPanelAsistente(`FABRICAR: ${corteCart[0].qtyBuenas} PZAS DE ${corteCart[0].name}`);
 }
 
 function abrirPanelAsistente(titulo = "CORTE PARA STOCK GENERAL") {
@@ -8680,7 +8552,7 @@ function forzarDespachoAdmin() {
     }
 }
 
-function ejecutarDespacho() {
+async function ejecutarDespacho() {
     if (!pedidoDespachoActivo) return;
     const o = pedidoDespachoActivo;
     const conductor = document.getElementById('desp-conductor').value;
@@ -8706,23 +8578,13 @@ function ejecutarDespacho() {
                 volTotalDespachoM3 += volDespachado;
                 itemsDespachados.push({ name: it.name, qtyComprada: it.qty, qtyDespachada: aDespachar, volDespachadoM3: volDespachado });
 
-                // INVENTARIO NEGATIVO
+                // INVENTARIO NEGATIVO (Se mantiene la resta directa al catálogo)
                 const prodCat = products.find(p => normalizarNombre(p.name) === normalizarNombre(it.name));
                 if(prodCat) {
                     prodCat.stock = (parseFloat(prodCat.stock) || 0) - aDespachar; 
                 }
-
-                // BACKFLUSHING (Auto-Limpieza) directo a Firebase
-                const scheduledQty = dbSchedules.filter(s => s.orderId === o.id && s.itemIdx === idx).reduce((sum, s) => sum + s.qty, 0);
-                if (it.entregado > scheduledQty) {
-                    const diff = it.entregado - scheduledQty;
-                    const nuevoCorteFantasma = { 
-                        id: Date.now() + Math.floor(Math.random() * 1000), 
-                        orderId: o.id, itemIdx: idx, date: new Date().toLocaleDateString(), 
-                        qty: diff, volTotal: diff * volUnit, status: 'FINALIZADO', auto: true 
-                    };
-                    db.collection("cortes_programados").doc(String(nuevoCorteFantasma.id)).set(nuevoCorteFantasma);
-                }
+                
+                // === AQUÍ SE EXTIRPÓ EL CÓDIGO DEL CORTE FANTASMA (BACKFLUSHING) ===
             }
         }
     });
@@ -8756,16 +8618,31 @@ function ejecutarDespacho() {
         operador: currentUser ? currentUser.name : 'Sistema'
     };
 
-    // Subir a Firebase Despacho y Pedido actualizado
-    db.collection("despachos_tickets").doc(String(ticket.idTicket).replace(/\//g, '-')).set(ticket);
-    db.collection("pedidos").doc(String(o.id).replace(/\//g, '-')).set(o);
-    
-    save(); // Guardar inventario de catalogo
-    document.getElementById('panel-despacho-activo').classList.add('hidden');
-    pedidoDespachoActivo = null;
-    document.getElementById('buscador-despacho').value = '';
-    
-    imprimirTicketTermico(ticket);
+    // === NUEVO SISTEMA BLINDADO (BATCH) PARA EVITAR CORTES DE RED ===
+    try {
+        const batch = db.batch();
+        
+        const ticketRef = db.collection("despachos_tickets").doc(String(ticket.idTicket).replace(/\//g, '-'));
+        batch.set(ticketRef, ticket);
+        
+        const pedidoRef = db.collection("pedidos").doc(String(o.id).replace(/\//g, '-'));
+        batch.set(pedidoRef, o);
+        
+        // Empaquetamos y enviamos a Google en un solo movimiento
+        await batch.commit(); 
+        
+        save(); // Guardar inventario de catalogo (para que el descuento de stock se guarde)
+        
+        document.getElementById('panel-despacho-activo').classList.add('hidden');
+        pedidoDespachoActivo = null;
+        document.getElementById('buscador-despacho').value = '';
+        
+        imprimirTicketTermico(ticket);
+        
+    } catch (error) {
+        console.error("Error al procesar el despacho en la nube:", error);
+        alert("❌ Error de red: Google no pudo procesar el despacho. Intente darle al botón nuevamente.");
+    }
 }
 
 function imprimirTicketTermico(t) {
