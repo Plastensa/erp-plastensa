@@ -2565,6 +2565,12 @@
     <span>ROBOT: MIGRAR BLOQUERA, CORTES Y DESPACHOS (FASE 3)</span>
 </button>
 
+<!-- BOTÓN TEMPORAL ROBOT LIMPIADOR DE DESPACHOS -->
+<button onclick="robotLimpiadorDespachos()" class="col-span-1 md:col-span-2 w-full bg-emerald-600 text-white px-8 py-6 rounded-xl font-black hover:bg-emerald-700 transition-colors flex flex-col items-center justify-center gap-3 shadow-lg border-2 border-emerald-400 border-dashed mt-4">
+    <i data-lucide="shield-check" class="w-8 h-8 animate-pulse"></i> 
+    <span>ROBOT: AUDITAR Y LIMPIAR DESPACHOS FANTASMAS</span>
+</button>
+
                         </div>
                     </div>
                 </div>
@@ -10244,6 +10250,61 @@ function editarChoferDespacho(idTicket) {
         if(typeof renderTransporteDetail === 'function') renderTransporteDetail();
         showToast("Chofer reasignado con éxito.");
     }
+}
+
+async function robotLimpiadorDespachos() {
+    const confirmacion = confirm("🤖 ROBOT LIMPIADOR DE DESPACHOS\n\nEste robot revisará TODOS los tickets de despacho emitidos históricamente y corregirá los pedidos que se quedaron atascados como 'Fantasmas' por fallas de internet.\n\n¿Deseas iniciar la limpieza?");
+    if(!confirmacion) return;
+
+    showToast("Iniciando auditoría de despachos... Por favor espera.");
+    let pedidosCorregidos = 0;
+
+    // Recorremos todos los pedidos actuales
+    for (let o of orders) {
+        // Buscamos todos los tickets de despacho reales que le pertenecen a este pedido
+        const ticketsDelPedido = dbDespachos.filter(t => t.orderId === o.id);
+        
+        if (ticketsDelPedido.length > 0) {
+            let huboCambios = false;
+
+            // 1. Enceramos el contador para recalcular desde cero con datos 100% reales
+            o.items.forEach(it => { it.entregado = 0; });
+
+            // 2. Sumamos todo lo que realmente salió en los tickets
+            ticketsDelPedido.forEach(t => {
+                t.items.forEach(tItem => {
+                    // Emparejamos el ítem del ticket con el ítem del pedido
+                    const orderItem = o.items.find(oi => normalizarNombre(oi.name) === normalizarNombre(tItem.name));
+                    if (orderItem) {
+                        orderItem.entregado += (parseFloat(tItem.qtyDespachada) || 0);
+                        huboCambios = true;
+                    }
+                });
+            });
+
+            // 3. Revisamos si el pedido ya se entregó por completo
+            let pedidoCompletado = true;
+            o.items.forEach(it => { 
+                if((it.qty - (it.entregado || 0)) > 0.01) pedidoCompletado = false; 
+            });
+
+            // 4. Si la matemática demuestra que se entregó todo, curamos el pedido
+            if (pedidoCompletado && o.status !== 'DESPACHADO') {
+                o.status = 'DESPACHADO';
+                huboCambios = true;
+            }
+
+            // Si el robot hizo alguna corrección de estado o cantidad, sobreescribe el pedido atascado en la nube
+            if (huboCambios) {
+                await db.collection("pedidos").doc(String(o.id).replace(/\//g, '-')).set(o);
+                pedidosCorregidos++;
+            }
+        }
+    }
+
+    save(); // Guardado local final
+    alert(`✅ LIMPIEZA COMPLETADA CON ÉXITO\n\nEl sistema auditó todos los tickets y curó ${pedidosCorregidos} pedidos atascados en la nube.\n\nEl sistema se actualizará ahora para reflejar los cambios.`);
+    window.location.reload();
 }
 
 renderAll();
