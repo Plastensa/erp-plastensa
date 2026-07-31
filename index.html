@@ -2610,6 +2610,7 @@
         let dbSchedules = []; let dbReportesCorte = []; let dbDespachos = []; let dbBloques = [];
         let dbKardex = []; // NUEVO: Historial de Inventario PT
         let dbTolva = 0; // Tolva en la Nube (Sin límite de llenado)
+        let pizarraMateriaPrima = {}; // Pizarra de Saldos en tiempo real
 	let dbMateriaPrima = { historial: [], saldoActual: 0 };
         let dbMpTipos = [
             { marca: 'STYROPEK BF195', peso: 800 }, { marca: 'STYROPEK BF295', peso: 800 },
@@ -2652,10 +2653,11 @@ function save() {
         dbIntSellers: JSON.stringify(dbIntSellers),
         dbPendingVerifications: JSON.stringify(dbPendingVerifications),
         dbMpTipos: JSON.stringify(dbMpTipos),
-       dbPreciosBase: JSON.stringify(dbPreciosBase),
+        dbPreciosBase: JSON.stringify(dbPreciosBase),
         dbBancoRetazos: JSON.stringify(dbBancoRetazos),
         dbLiquidaciones: JSON.stringify(dbLiquidaciones),
-        dbTolva: dbTolva
+        dbTolva: dbTolva,
+        pizarraMateriaPrima: JSON.stringify(pizarraMateriaPrima)
     }).catch(error => console.error("Error guardando centrales: ", error));
 
     // 2. Guardar Catálogo de Productos (Cajón SEPARADO)
@@ -3051,19 +3053,22 @@ function handleInventarioReescribir(e) {
         }
 
         function downloadKardexCSV() {
-            if (dbKardex.length === 0) return alert("No hay movimientos registrados aún.");
-            let csvContent = "\uFEFFFecha,Hora,Ítem,Cantidad,Tipo,Motivo,Operador\n";
-            csvContent += dbKardex.map(k => `"${k.fecha}","${k.hora}","${k.item}",${k.qty},"${k.tipo}","${k.motivo}","${k.operador}"`).join("\n");
-            
-            const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-            const link = document.createElement("a");
-            link.setAttribute("href", URL.createObjectURL(blob));
-            link.setAttribute("download", `Kardex_Inventario_PT_${new Date().toLocaleDateString().replace(/\//g,'-')}.csv`);
-            document.body.appendChild(link);
-            link.click();
-            document.body.removeChild(link);
-            showToast("Kardex exportado exitosamente.");
-        }
+    showToast("Generando Kardex PT desde la nube...");
+    db.collection("kardex_pt").orderBy("id", "desc").limit(500).get().then((snapshot) => {
+        if (snapshot.empty) return alert("No hay movimientos registrados aún.");
+        let csv = "\uFEFFFecha,Hora,Ítem,Cantidad,Tipo,Motivo,Operador\n";
+        snapshot.forEach(doc => {
+            const k = doc.data();
+            csv += `"${k.fecha}","${k.hora}","${k.item}",${k.qty},"${k.tipo}","${k.motivo}","${k.operador}"\n`;
+        });
+        const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+        const link = document.createElement("a");
+        link.setAttribute("href", URL.createObjectURL(blob));
+        link.setAttribute("download", `Kardex_PT_${new Date().toLocaleDateString().replace(/\//g,'-')}.csv`);
+        document.body.appendChild(link); link.click(); document.body.removeChild(link);
+        showToast("Kardex exportado exitosamente.");
+    });
+}
 
         // ==========================================
         // UTILIDADES DE SISTEMA (BACKUP, ETC)
@@ -3220,6 +3225,7 @@ function iniciarRadar(userEmail) {
             dbBancoRetazos = (!tempRetazos || Array.isArray(tempRetazos)) ? { D8: 0, D10: 0, D13: 0, D15: 0, D20: 0 } : tempRetazos;
             
             dbTolva = data.dbTolva !== undefined ? parseFloat(data.dbTolva) : (parseFloat(localStorage.getItem('plast_vol_maquina')) || 0);
+            pizarraMateriaPrima = data.pizarraMateriaPrima ? JSON.parse(data.pizarraMateriaPrima) : {};
             
             erpDataLoaded = true;
             radarActivo = true;
@@ -3296,26 +3302,6 @@ function iniciarRadar(userEmail) {
     });
 
     // RADARES INDIVIDUALES: PRODUCCIÓN FASE 1 (MATERIA PRIMA Y SILOS)
-    db.collection("mp_ingresos").onSnapshot((snapshot) => {
-        let tempMP = [];
-        snapshot.forEach(doc => tempMP.push(doc.data()));
-        dbMateriaPrima.historial = tempMP.sort((a,b) => b.id - a.id);
-        if(erpDataLoaded && currentUser) renderMateriaPrima();
-    });
-
-    db.collection("exp_consumos").onSnapshot((snapshot) => {
-        let tempCons = [];
-        snapshot.forEach(doc => tempCons.push(doc.data()));
-        dbExpansion.consumos = tempCons.sort((a,b) => b.id - a.id);
-        if(erpDataLoaded && currentUser) { renderExpansion(); renderMateriaPrima(); }
-    });
-
-    db.collection("exp_jarritas").onSnapshot((snapshot) => {
-        let tempJar = [];
-        snapshot.forEach(doc => tempJar.push(doc.data()));
-        dbExpansion.jarritas = tempJar.sort((a,b) => b.id - a.id);
-        if(erpDataLoaded && currentUser) renderExpansion();
-    });
 
     db.collection("silos_estado").onSnapshot((snapshot) => {
         let tempSilos = [];
@@ -3330,15 +3316,8 @@ function iniciarRadar(userEmail) {
         if(erpDataLoaded && currentUser) renderSilos();
     });
 
-    db.collection("silos_historial").onSnapshot((snapshot) => {
-        let tempSilosHist = [];
-        snapshot.forEach(doc => tempSilosHist.push(doc.data()));
-        dbSilosHistory = tempSilosHist.sort((a,b) => b.id - a.id);
-        if(erpDataLoaded && currentUser) renderHistorialSilos();
-    });
-
     // RADARES INDIVIDUALES: PRODUCCIÓN FASE 2 (BLOQUERA, CORTES Y DESPACHOS)
-    db.collection("bloques_inventario").onSnapshot((snapshot) => {
+    db.collection("bloques_inventario").where("ubicacion", "in", ["PLANTA", "CORTADO"]).onSnapshot((snapshot) => {
         let tempB = [];
         snapshot.forEach(doc => tempB.push(doc.data()));
         dbBloques = tempB; 
@@ -3352,20 +3331,7 @@ function iniciarRadar(userEmail) {
         if(erpDataLoaded && currentUser) { renderPlanDiario(); renderProduction(); renderSalaCorte(); }
     });
 
-    db.collection("cortes_reportes").onSnapshot((snapshot) => {
-        let tempR = [];
-        snapshot.forEach(doc => tempR.push(doc.data()));
-        dbReportesCorte = tempR.sort((a,b) => b.id - a.id);
-        if(erpDataLoaded && currentUser) { renderReporteCorte(); }
-    });
-
-    db.collection("kardex_pt").onSnapshot((snapshot) => {
-        let tempK = [];
-        snapshot.forEach(doc => tempK.push(doc.data()));
-        dbKardex = tempK.sort((a,b) => b.id - a.id);
-    });
-
-    db.collection("despachos_tickets").onSnapshot((snapshot) => {
+    db.collection("despachos_tickets").orderBy("idTicket", "desc").limit(1000).onSnapshot((snapshot) => {
         let tempD = [];
         snapshot.forEach(doc => tempD.push(doc.data()));
         dbDespachos = tempD.sort((a,b) => String(b.idTicket).localeCompare(String(a.idTicket)));
@@ -4737,10 +4703,14 @@ function saveMateriaPrima(e) {
     
     const nuevoIngreso = { id: Date.now(), lote, marca, peso, fecha, operador: currentUser ? currentUser.name : 'Sistema' };
     
-    // Disparo directo a carpeta independiente
     db.collection("mp_ingresos").doc(String(nuevoIngreso.id)).set(nuevoIngreso)
     .then(() => {
+        // ACTUALIZA LA PIZARRA EN TIEMPO REAL Y GUARDA
+        pizarraMateriaPrima[marca] = (pizarraMateriaPrima[marca] || 0) + peso;
+        save();
+        
         e.target.reset(); initMpDate(); handleMpMarcaChange(); showToast("Bolsa registrada en inventario.");
+        renderMateriaPrima();
     });
 }
 
@@ -4752,66 +4722,65 @@ function deleteMateriaPrima(id) {
 function renderMateriaPrima() {
     if(!document.getElementById('mp-saldo-total')) return;
     
-    // 1. Calcular saldos por tipo dinámicamente desde el historial
-    const saldosPorTipo = {};
-    dbMpTipos.forEach(t => { saldosPorTipo[t.marca] = 0; });
-    
     let totalAcumulado = 0;
-    dbMateriaPrima.historial.forEach(h => {
-        if(saldosPorTipo[h.marca] === undefined) {
-            saldosPorTipo[h.marca] = 0;
-        }
-        saldosPorTipo[h.marca] += h.peso;
-        totalAcumulado += h.peso;
-    });
-    
-// RESTAR LOS CONSUMOS REGISTRADOS
-    dbExpansion.consumos.forEach(c => {
-        if(saldosPorTipo[c.marca] !== undefined) {
-            saldosPorTipo[c.marca] -= c.peso;
-        }
-        totalAcumulado -= c.peso;
-    });
-    // Sincronizar el saldo global de la BD
-    dbMateriaPrima.saldoActual = totalAcumulado;
-    
-    // Renderizar el total general
-    document.getElementById('mp-saldo-total').innerText = `${dbMateriaPrima.saldoActual.toLocaleString('en-US', {minimumFractionDigits:2, maximumFractionDigits:2})} KG`;
-    
-    // Renderizar los cuadritos de desglose por tipo
     const desgloseDiv = document.getElementById('mp-desglose-tipos');
-    desgloseDiv.innerHTML = Object.keys(saldosPorTipo).map(marca => {
-        const pesoTipo = saldosPorTipo[marca];
-        if(pesoTipo === 0) return ''; // Ocultar los que están en cero para no saturar la vista, o quitar esta línea si deseas verlos todos.
-        return `
+    let htmlDesglose = '';
+    
+    // 1. DIBUJAR LA PIZARRA AL INSTANTE
+    Object.keys(pizarraMateriaPrima).forEach(marca => {
+        const pesoTipo = pizarraMateriaPrima[marca];
+        totalAcumulado += pesoTipo;
+        if(pesoTipo > 0) {
+            htmlDesglose += `
             <div class="bg-indigo-950/50 border border-indigo-800/60 p-3 rounded-xl flex flex-col justify-between">
                 <span class="text-indigo-300 font-bold tracking-tight block uppercase text-[10px] truncate" title="${marca}">${marca}</span>
                 <span class="text-base font-black mt-1 text-white">${pesoTipo.toLocaleString('en-US', {minimumFractionDigits:1})} <span class="text-[10px] font-normal text-indigo-300">KG</span></span>
-            </div>
-        `;
-    }).join('');
+            </div>`;
+        }
+    });
     
-    // Si no hay ninguna marca con stock, mostrar mensaje corto
+    document.getElementById('mp-saldo-total').innerText = `${totalAcumulado.toLocaleString('en-US', {minimumFractionDigits:2, maximumFractionDigits:2})} KG`;
+    
     if(totalAcumulado === 0) {
         desgloseDiv.innerHTML = `<div class="col-span-full text-indigo-300 italic font-bold text-xs">No hay existencias de ninguna marca actualmente.</div>`;
+    } else {
+        desgloseDiv.innerHTML = htmlDesglose;
     }
 
-    // 2. Renderizar la tabla del historial inferior
+    // 2. BOTÓN DE CARGA A DEMANDA
     const tbody = document.getElementById('mp-historial-body');
-    if(dbMateriaPrima.historial.length === 0) {
-        tbody.innerHTML = `<tr><td colspan="6" class="p-8 text-center font-bold text-slate-400 italic">Aún no hay bolsas registradas.</td></tr>`;
-        return;
-    }
-    tbody.innerHTML = dbMateriaPrima.historial.map(h => `
-        <tr class="hover:bg-slate-50 border-b border-slate-100">
-            <td class="p-4 font-bold text-slate-500">${h.fecha}</td>
-            <td class="p-4 font-black text-indigo-600">${h.lote}</td>
-            <td class="p-4 font-bold text-slate-700">${h.marca}</td>
-            <td class="p-4 text-right font-black text-slate-800">+ ${h.peso.toFixed(2)} KG</td>
-            <td class="p-4 text-[10px] uppercase font-bold text-slate-400">${h.operador}</td>
-            <td class="p-4 text-center">${currentUser && currentUser.role === 'ADMIN' ? `<button onclick="deleteMateriaPrima(${h.id})" class="text-red-400 hover:text-red-600"><i data-lucide="trash-2" class="w-4 h-4"></i></button>` : ''}</td>
-        </tr>
-    `).join('');
+    tbody.innerHTML = `<tr><td colspan="6" class="p-6 text-center"><button onclick="cargarHistorialMateriaPrima()" class="bg-slate-100 hover:bg-slate-200 border border-slate-300 text-slate-700 font-black text-xs uppercase tracking-widest px-6 py-3 rounded-xl shadow-sm transition-colors"><i data-lucide="cloud-download" class="w-4 h-4 inline mr-1 -mt-0.5"></i> Descargar Historial (Últimas 50 bolsas)</button></td></tr>`;
+    if(window.lucide) lucide.createIcons();
+}
+
+// FUNCIÓN PARA DESCARGAR SOLO AL HACER CLIC
+function cargarHistorialMateriaPrima() {
+    const tbody = document.getElementById('mp-historial-body');
+    tbody.innerHTML = `<tr><td colspan="6" class="p-8 text-center text-indigo-500 font-black uppercase animate-pulse">Conectando con el servidor...</td></tr>`;
+    
+    // Le pedimos a Firebase SOLO las últimas 50 bolsas, una sola vez.
+    db.collection("mp_ingresos").orderBy("id", "desc").limit(50).get().then((querySnapshot) => {
+        let hist = [];
+        querySnapshot.forEach((doc) => hist.push(doc.data()));
+        
+        if(hist.length === 0) {
+            tbody.innerHTML = `<tr><td colspan="6" class="p-8 text-center font-bold text-slate-400 italic">No hay bolsas registradas en el servidor.</td></tr>`;
+            return;
+        }
+        
+        tbody.innerHTML = hist.map(h => `
+            <tr class="hover:bg-slate-50 border-b border-slate-100">
+                <td class="p-4 font-bold text-slate-500">${h.fecha}</td>
+                <td class="p-4 font-black text-indigo-600">${h.lote}</td>
+                <td class="p-4 font-bold text-slate-700">${h.marca}</td>
+                <td class="p-4 text-right font-black text-slate-800">+ ${h.peso.toFixed(2)} KG</td>
+                <td class="p-4 text-[10px] uppercase font-bold text-slate-400">${h.operador}</td>
+                <td class="p-4 text-center">--</td>
+            </tr>
+        `).join('');
+    }).catch(err => {
+        tbody.innerHTML = `<tr><td colspan="6" class="p-8 text-center text-red-500 font-bold">Error de conexión. Reintente.</td></tr>`;
+    });
 }
 
 function startScanner() {
@@ -4875,10 +4844,19 @@ function saveJarrita(e) {
 
 function saveConsumo(e) {
     e.preventDefault();
-    const nuevoConsumo = { id: Date.now(), fecha: new Date().toLocaleDateString(), lote: document.getElementById('exp-lote').value, marca: document.getElementById('exp-marca').value, peso: parseFloat(document.getElementById('exp-peso').value), operador: currentUser.name };
+    const marca = document.getElementById('exp-marca').value;
+    const peso = parseFloat(document.getElementById('exp-peso').value);
+    const nuevoConsumo = { id: Date.now(), fecha: new Date().toLocaleDateString(), lote: document.getElementById('exp-lote').value, marca: marca, peso: peso, operador: currentUser.name };
     
     db.collection("exp_consumos").doc(String(nuevoConsumo.id)).set(nuevoConsumo)
-    .then(() => { e.target.reset(); document.getElementById('exp-marca').disabled = false; showToast("Kilos descontados de almacén."); });
+    .then(() => { 
+        // DESCUENTA DE LA PIZARRA EN TIEMPO REAL Y GUARDA
+        pizarraMateriaPrima[marca] = (pizarraMateriaPrima[marca] || 0) - peso;
+        save();
+        
+        e.target.reset(); document.getElementById('exp-marca').disabled = false; showToast("Kilos descontados de almacén."); 
+        renderMateriaPrima();
+    });
 }
 
 function deleteConsumo(id) {
@@ -6478,46 +6456,42 @@ function autoFillExpLote() {
     const kilosInput = document.getElementById('pe-kilos');
     
     if(!lote) {
-        marcaInput.value = '';
-        saldoDisplay.innerText = '-- KG';
-        kilosInput.max = "";
-        return;
+        marcaInput.value = ''; saldoDisplay.innerText = '-- KG'; kilosInput.max = ""; return;
     }
     
-    // Buscar ingreso original de la bolsa
-    const ingresoOriginal = dbMateriaPrima.historial.find(h => h.lote === lote);
+    marcaInput.value = 'Buscando en la nube...';
     
-    if(ingresoOriginal) {
+    // CARGA A DEMANDA: Buscamos SOLO la bolsa que el operador tiene en sus manos
+    db.collection("mp_ingresos").where("lote", "==", lote).get().then(snapshot => {
+        if (snapshot.empty) {
+            marcaInput.value = 'Lote no encontrado';
+            marcaInput.classList.replace('text-cyan-600', 'text-slate-500');
+            saldoDisplay.innerText = '-- KG'; kilosInput.max = "";
+            return;
+        }
+        
+        const ingresoOriginal = snapshot.docs[0].data();
         marcaInput.value = ingresoOriginal.marca;
         marcaInput.classList.replace('text-slate-500', 'text-cyan-600');
         
-        // Calcular cuánto se ha consumido de ESA bolsa específica hasta ahora
-        const consumidoHastaAhora = dbExpansion.consumos
-            .filter(c => c.lote === lote)
-            .reduce((sum, c) => sum + c.peso, 0);
+        // Buscamos cuánto le hemos ido sacando a ESA bolsa específica
+        db.collection("exp_consumos").where("lote", "==", lote).get().then(snapCons => {
+            let consumido = 0;
+            snapCons.forEach(doc => consumido += doc.data().peso);
             
-        // Calcular saldo restante
-        const saldoRestante = ingresoOriginal.peso - consumidoHastaAhora;
-        
-        saldoDisplay.innerText = `${saldoRestante.toFixed(1)} KG`;
-        
-        if(saldoRestante <= 0) {
-            saldoDisplay.classList.replace('text-cyan-600', 'text-red-500');
-            saldoDisplay.innerText = "AGOTADO";
-            kilosInput.max = 0;
-            kilosInput.value = "";
-            alert("Esta bolsa ya no tiene saldo disponible.");
-        } else {
-            saldoDisplay.classList.replace('text-red-500', 'text-cyan-600');
-            kilosInput.max = saldoRestante; // Limita el input para que no puedan sacar más de lo que hay
-        }
-        
-    } else {
-        marcaInput.value = 'Lote no encontrado en Almacén';
-        marcaInput.classList.replace('text-cyan-600', 'text-slate-500');
-        saldoDisplay.innerText = '-- KG';
-        kilosInput.max = "";
-    }
+            const saldoRestante = ingresoOriginal.peso - consumido;
+            saldoDisplay.innerText = `${saldoRestante.toFixed(1)} KG`;
+            
+            if(saldoRestante <= 0) {
+                saldoDisplay.classList.replace('text-cyan-600', 'text-red-500');
+                saldoDisplay.innerText = "AGOTADO";
+                kilosInput.max = 0; kilosInput.value = "";
+            } else {
+                saldoDisplay.classList.replace('text-red-500', 'text-cyan-600');
+                kilosInput.max = saldoRestante; // Limite de seguridad
+            }
+        });
+    });
 }
 
 // 3. Lógica de 1ra Expansión (Ingreso Virgen)
@@ -6535,7 +6509,8 @@ function processPrimeraExpansion(e) {
     const consumido = dbExpansion.consumos.filter(c => c.lote === lote).reduce((sum, c) => sum + c.peso, 0);
     const saldoRestante = ingresoOriginal.peso - consumido;
     
-    if(kg > saldoRestante) return alert(`Operación rechazada. Solo quedan ${saldoRestante.toFixed(1)} KG en esta bolsa.`);
+   const saldoMaximo = parseFloat(document.getElementById('pe-kilos').max) || 0;
+if(kg > saldoMaximo) return alert(`Operación rechazada. Intenta usar más kilos de los que quedan en la bolsa.`);
     
     const volGenerado = kg / jarrita; 
     const silo = dbSilos.find(s => s.id === siloId);
@@ -6683,20 +6658,19 @@ function addReciclajeManual() {
 
 // 7. EXPORTADOR A CSV
 function exportKardexSilosCSV() {
-    if(dbSilosHistory.length === 0) return alert("No hay movimientos registrados en el Kardex.");
-    
-    let csv = "FECHA,HORA,TIPO OPERACION,SILO ORIGEN,SILO DESTINO,LOTE,MARCA,KILOS (KG),DENSIDAD (g/l),VOLUMEN EPS (M3),VOLUMEN RECICLAJE (M3),TOTAL MEZCLA (M3),OPERADOR\n";
-    
-    dbSilosHistory.forEach(h => {
-        csv += `${h.fecha},${h.hora},${h.op},${h.origen},${h.destino},${h.lote},${h.marca},${h.kg.toFixed(2)},${h.jarrita.toFixed(2)},${h.volEps.toFixed(2)},${h.volRec.toFixed(2)},${h.volTotal.toFixed(2)},${h.operador}\n`;
+    showToast("Generando Kardex desde la nube...");
+    db.collection("silos_historial").orderBy("id", "desc").limit(400).get().then((snapshot) => {
+        if(snapshot.empty) return alert("No hay movimientos registrados.");
+        let csv = "FECHA,HORA,TIPO OPERACION,SILO ORIGEN,SILO DESTINO,LOTE,MARCA,KILOS (KG),DENSIDAD (g/l),VOLUMEN EPS (M3),VOLUMEN RECICLAJE (M3),TOTAL MEZCLA (M3),OPERADOR\n";
+        snapshot.forEach(doc => {
+            const h = doc.data();
+            csv += `${h.fecha},${h.hora},${h.op},${h.origen},${h.destino},${h.lote},${h.marca},${h.kg.toFixed(2)},${h.jarrita.toFixed(2)},${h.volEps.toFixed(2)},${h.volRec.toFixed(2)},${h.volTotal.toFixed(2)},${h.operador}\n`;
+        });
+        const link = document.createElement("a");
+        link.setAttribute("href", encodeURI("data:text/csv;charset=utf-8," + csv));
+        link.setAttribute("download", `Kardex_Silos_${new Date().toLocaleDateString().replace(/\//g,'-')}.csv`);
+        document.body.appendChild(link); link.click(); document.body.removeChild(link);
     });
-    
-    const link = document.createElement("a");
-    link.setAttribute("href", encodeURI("data:text/csv;charset=utf-8," + csv));
-    link.setAttribute("download", `Kardex_Silos_${new Date().toLocaleDateString().replace(/\//g,'-')}.csv`);
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
 }
 
 // 8. RENDERIZAR TABLA DE CONSUMOS
@@ -8239,34 +8213,58 @@ function procesarMoliendaRetazo() {
 
 function renderReporteCorte() {
     const tbody = document.getElementById('reporte-corte-body');
-    const filtroFecha = document.getElementById('filtro-fecha-corte').value;
-    const filtroTexto = document.getElementById('filtro-texto-corte') ? document.getElementById('filtro-texto-corte').value.toLowerCase() : '';
     if(!tbody) return;
 
-    let filtrados = dbReportesCorte;
-    
-    // Filtrar por fecha
-    if(filtroFecha) {
-        filtrados = filtrados.filter(r => {
-            const dateStr = new Date(r.id).toISOString().split('T')[0];
-            return dateStr === filtroFecha;
-        });
-    }
-    
-    // Filtrar por texto (Ítem, Bloques u Operador)
-    if(filtroTexto) {
-        filtrados = filtrados.filter(r => 
-            (r.item || '').toLowerCase().includes(filtroTexto) ||
-            (r.bloques || '').toLowerCase().includes(filtroTexto) ||
-            (r.operador || '').toLowerCase().includes(filtroTexto)
-        );
-    }
+    const filtroFecha = document.getElementById('filtro-fecha-corte').value;
+    const filtroTexto = document.getElementById('filtro-texto-corte') ? document.getElementById('filtro-texto-corte').value.trim().toLowerCase() : '';
 
-    if(filtrados.length === 0) {
-        tbody.innerHTML = `<tr><td colspan="10" class="p-8 text-center text-slate-400 font-bold italic">No hay cortes que coincidan con la búsqueda.</td></tr>`;
+    // Si no hay filtros activos, mostramos el botón de Carga a Demanda
+    if (!filtroFecha && !filtroTexto) {
+        tbody.innerHTML = `<tr><td colspan="10" class="p-6 text-center"><button onclick="cargarCortesRecientes()" class="bg-slate-100 hover:bg-slate-200 border border-slate-300 text-slate-700 font-black text-xs uppercase tracking-widest px-6 py-3 rounded-xl shadow-sm transition-colors"><i data-lucide="cloud-download" class="w-4 h-4 inline mr-1 -mt-0.5"></i> Cargar Últimos 100 Cortes</button></td></tr>`;
+        if(window.lucide) lucide.createIcons();
         return;
     }
 
+    tbody.innerHTML = `<tr><td colspan="10" class="p-8 text-center text-red-500 font-black uppercase animate-pulse">Buscando en la nube...</td></tr>`;
+
+    // Búsqueda a demanda
+    db.collection("cortes_reportes").orderBy("id", "desc").limit(100).get().then((snapshot) => {
+        let filtrados = [];
+        snapshot.forEach(doc => {
+            const r = doc.data();
+            let pasaFiltro = true;
+            if (filtroFecha) {
+                const dateStr = new Date(r.id).toISOString().split('T')[0];
+                if (dateStr !== filtroFecha) pasaFiltro = false;
+            }
+            if (filtroTexto && pasaFiltro) {
+                const textoR = ((r.item || '') + ' ' + (r.bloques || '') + ' ' + (r.operador || '')).toLowerCase();
+                if (!textoR.includes(filtroTexto)) pasaFiltro = false;
+            }
+            if(pasaFiltro) filtrados.push(r);
+        });
+        dbReportesCorte = filtrados; // Guardamos en memoria por si le dan a "Anular"
+        pintarTablaCortes(filtrados, tbody);
+    });
+}
+
+function cargarCortesRecientes() {
+    const tbody = document.getElementById('reporte-corte-body');
+    tbody.innerHTML = `<tr><td colspan="10" class="p-8 text-center text-red-500 font-black uppercase animate-pulse">Descargando Historial...</td></tr>`;
+    
+    db.collection("cortes_reportes").orderBy("id", "desc").limit(100).get().then((snapshot) => {
+        let cortes = [];
+        snapshot.forEach(doc => cortes.push(doc.data()));
+        dbReportesCorte = cortes; // Guardamos en memoria por si le dan a "Anular (Ctrl+Z)"
+        pintarTablaCortes(cortes, tbody);
+    });
+}
+
+function pintarTablaCortes(filtrados, tbody) {
+    if(filtrados.length === 0) {
+        tbody.innerHTML = `<tr><td colspan="10" class="p-8 text-center text-slate-400 font-bold italic">No se encontraron resultados en el servidor.</td></tr>`;
+        return;
+    }
     tbody.innerHTML = filtrados.map(r => `
         <tr class="hover:bg-slate-50 border-b border-slate-100 transition-colors">
             <td class="p-4 font-bold text-slate-500">${r.fecha} ${r.hora}</td>
@@ -8389,15 +8387,19 @@ function anularTandaCorte(id) {
 }
 
 function exportarReporteCorteCSV() {
-    if(dbReportesCorte.length === 0) return alert("No hay datos en el reporte de cortes.");
-    let csv = "FECHA,HORA,BLOQUES USADOS,ITEM PRODUCIDO,PZAS,VOL UTIL,VOL A RECICLAJE,VOL A RETAZOS,MERMA MAQUINA,OPERADOR\n";
-    dbReportesCorte.forEach(r => {
-        csv += `${r.fecha},${r.hora},"${r.bloques}",${r.item},${r.pzas},${r.volUtil.toFixed(4)},${r.volReciclaje.toFixed(4)},${r.volRetazo.toFixed(4)},${r.mermaPerfilado.toFixed(4)},${r.operador}\n`;
+    showToast("Generando archivo desde la nube...");
+    db.collection("cortes_reportes").orderBy("id", "desc").limit(300).get().then((snapshot) => {
+        if(snapshot.empty) return alert("No hay cortes registrados.");
+        let csv = "FECHA,HORA,BLOQUES USADOS,ITEM PRODUCIDO,PZAS,VOL UTIL,VOL A RECICLAJE,VOL A RETAZOS,MERMA MAQUINA,OPERADOR\n";
+        snapshot.forEach(doc => {
+            const r = doc.data();
+            csv += `${r.fecha},${r.hora},"${r.bloques}",${r.item},${r.pzas},${r.volUtil.toFixed(4)},${r.volReciclaje.toFixed(4)},${r.volRetazo.toFixed(4)},${r.mermaPerfilado.toFixed(4)},${r.operador}\n`;
+        });
+        const link = document.createElement("a");
+        link.setAttribute("href", encodeURI("data:text/csv;charset=utf-8," + csv));
+        link.setAttribute("download", `Reporte_Cortes_${new Date().toLocaleDateString().replace(/\//g,'-')}.csv`);
+        document.body.appendChild(link); link.click(); document.body.removeChild(link);
     });
-    const link = document.createElement("a");
-    link.setAttribute("href", encodeURI("data:text/csv;charset=utf-8," + csv));
-    link.setAttribute("download", `Reporte_Cortes_${new Date().toLocaleDateString().replace(/\//g,'-')}.csv`);
-    document.body.appendChild(link); link.click(); document.body.removeChild(link);
 }
 
 // --- NUEVO MOTOR VELOZ Y AUTO-SANADOR PARA STOCK FÍSICO ---
@@ -8405,83 +8407,7 @@ function renderStockFisico() {
     const stockBody = document.getElementById('stock-fisico-body');
     if(!stockBody) return;
 
-    // 1. Recopilar Estadísticas Rápidas
-    const stats = {};
-
-    products.forEach(p => {
-        const nombre = normalizarNombre(p.name);
-        stats[nombre] = { ini: 0, inCorte: 0, outDesp: 0 };
-    });
-
-    // A) LECTURA DE KARDEX (Todo manual, iniciales, ajustes, robot, reprocesos)
-    dbKardex.forEach(k => {
-        // Ignoramos la producción estándar para no duplicarla con los reportes de corte
-        if (k.motivo === 'Producción Sala Corte') return; 
-        
-        const nombre = normalizarNombre(k.item);
-        if(!stats[nombre]) stats[nombre] = { ini: 0, inCorte: 0, outDesp: 0 };
-        
-        if(k.tipo === 'INGRESO') {
-            stats[nombre].ini += (parseFloat(k.qty) || 0);
-        } else {
-            stats[nombre].ini -= (parseFloat(k.qty) || 0);
-        }
-    });
-
-    // B) INGRESOS POR PRODUCCIÓN (Reportes de Corte y Retazos)
-    dbReportesCorte.forEach(r => {
-        if(r.detalleCortes && r.detalleCortes.length > 0) {
-            r.detalleCortes.forEach(c => {
-                const nombre = normalizarNombre(c.item);
-                if(!stats[nombre]) stats[nombre] = { ini: 0, inCorte: 0, outDesp: 0 };
-                stats[nombre].inCorte += (parseFloat(c.qtyStock) || 0) + (parseFloat(c.qtyOrder) || 0);
-            });
-        } else if (r.item && typeof r.item === 'string') {
-            const nombre = normalizarNombre(r.item);
-            if(!stats[nombre]) stats[nombre] = { ini: 0, inCorte: 0, outDesp: 0 };
-            stats[nombre].inCorte += (parseFloat(r.pzas) || 0);
-        }
-    });
-
-    // C) SALIDAS POR DESPACHOS
-    dbDespachos.forEach(d => {
-        if(d.items) {
-            d.items.forEach(it => {
-                const nombre = normalizarNombre(it.name);
-                if(!stats[nombre]) stats[nombre] = { ini: 0, inCorte: 0, outDesp: 0 };
-                stats[nombre].outDesp += (parseFloat(it.qtyDespachada) || 0);
-            });
-        }
-    });
-
-    // 2. MAGIA DE AUTO-SANACIÓN DEL CATÁLOGO (Stock Real vs Teórico)
-    let necesitaGuardar = false;
-    products.forEach(p => {
-        const nombre = normalizarNombre(p.name);
-        const s = stats[nombre] || { ini: 0, inCorte: 0, outDesp: 0 };
-        
-        // Calculamos el valor Matemático Absoluto
-        const stockMatematico = s.ini + s.inCorte - s.outDesp;
-        
-        // Redondeamos para evitar basura de decimales (ej: 0.000001)
-        const stockLimpio = parseFloat(stockMatematico.toFixed(2));
-        
-        // Si el catálogo está desincronizado, el sistema lo corrige y avisa para guardar
-        if (p.stock !== stockLimpio) {
-            p.stock = stockLimpio;
-            necesitaGuardar = true;
-        }
-    });
-
-    // Si el sistema se auto-sanó, dispara la corrección a la nube silenciosamente
-    if (necesitaGuardar && erpDataLoaded) {
-        db.collection("plastensa_erp").doc("datos_productos").set({
-            products: JSON.stringify(products)
-        }, { merge: true });
-        console.log("🛠️ El sistema detectó un descuadre en el catálogo y lo auto-corrigió.");
-    }
-
-    // 3. Filtrar y Ordenar para la Vista Visual
+    // Leemos el stock directamente del catálogo en tiempo real
     let prodConStock = products.filter(p => p.stock !== 0 && p.stock !== undefined);
     const searchInput = document.getElementById('buscar-stock-input');
     if (searchInput && searchInput.value) {
@@ -8491,36 +8417,32 @@ function renderStockFisico() {
 
     if(prodConStock.length === 0) {
         stockBody.innerHTML = `<tr><td colspan="7" class="p-8 text-center text-slate-400 font-bold italic">Inventario físico en cero o sin resultados de búsqueda.</td></tr>`;
-    } else {
-        prodConStock.sort((a, b) => {
-            if (a.stock < 0 && b.stock >= 0) return -1;
-            if (b.stock < 0 && a.stock >= 0) return 1;
-            return a.name.localeCompare(b.name);
-        });
-        
-        stockBody.innerHTML = prodConStock.map(p => {
-            const esNegativo = p.stock < 0;
-            const colorFila = esNegativo ? 'bg-red-50/50 hover:bg-red-100/50' : 'hover:bg-slate-50';
-            const colorTexto = esNegativo ? 'text-red-600' : 'text-blue-600';
-            const iconoAlerta = esNegativo ? `<i data-lucide="alert-triangle" class="inline w-4 h-4 text-red-500 mr-1 mb-1"></i>` : '';
-            
-            const miStat = stats[normalizarNombre(p.name)] || { ini: 0, inCorte: 0, outDesp: 0 };
-            
-            // Si el inventario inicial resulta en un número negativo, lo marcamos en rojo
-            const strIni = miStat.ini < 0 ? `<span class="text-red-500 font-black">${miStat.ini}</span>` : miStat.ini;
-
-            return `
-            <tr class="border-b border-slate-100 transition-colors ${colorFila}">
-                <td class="p-4 font-black text-slate-800">${iconoAlerta}${p.name}</td>
-                <td class="p-4 font-bold text-slate-500">${p.density}</td>
-                <td class="p-4 text-center font-bold text-slate-400">${strIni}</td>
-                <td class="p-4 text-center font-black text-green-600">+${miStat.inCorte}</td>
-                <td class="p-4 text-center font-black text-red-500">-${miStat.outDesp}</td>
-                <td class="p-4 text-center font-black ${colorTexto} text-lg">${p.stock}</td>
-                <td class="p-4 text-right font-black text-slate-700">${(p.stock * Number(p.vol)).toFixed(3)} M³</td>
-            </tr>`;
-        }).join('');
+        return;
     }
+
+    prodConStock.sort((a, b) => {
+        if (a.stock < 0 && b.stock >= 0) return -1;
+        if (b.stock < 0 && a.stock >= 0) return 1;
+        return a.name.localeCompare(b.name);
+    });
+    
+    stockBody.innerHTML = prodConStock.map(p => {
+        const esNegativo = p.stock < 0;
+        const colorFila = esNegativo ? 'bg-red-50/50 hover:bg-red-100/50' : 'hover:bg-slate-50';
+        const colorTexto = esNegativo ? 'text-red-600' : 'text-blue-600';
+        const iconoAlerta = esNegativo ? `<i data-lucide="alert-triangle" class="inline w-4 h-4 text-red-500 mr-1 mb-1"></i>` : '';
+        
+        return `
+        <tr class="border-b border-slate-100 transition-colors ${colorFila}">
+            <td class="p-4 font-black text-slate-800">${iconoAlerta}${p.name}</td>
+            <td class="p-4 font-bold text-slate-500">${p.density || '-'}</td>
+            <td class="p-4 text-center font-bold text-slate-300">--</td>
+            <td class="p-4 text-center font-black text-slate-300">--</td>
+            <td class="p-4 text-center font-black text-slate-300">--</td>
+            <td class="p-4 text-center font-black ${colorTexto} text-lg">${p.stock}</td>
+            <td class="p-4 text-right font-black text-slate-700">${(p.stock * (Number(p.vol)||0)).toFixed(3)} M³</td>
+        </tr>`;
+    }).join('');
     if(window.lucide) lucide.createIcons();
 }
 
@@ -9053,21 +8975,41 @@ function renderHistorialSilos() {
     const tbody = document.getElementById('historial-silos-body');
     if(!tbody) return;
     
-    tbody.innerHTML = dbSilosHistory.map(h => `
-        <tr class="hover:bg-slate-50 transition-colors border-b border-slate-50">
-            <td class="p-4 text-[10px] font-black text-slate-500 leading-tight">${h.fecha} <br> ${h.hora}</td>
-            <td class="p-4 font-bold text-slate-700 text-xs">${h.op}</td>
-            <td class="p-4 text-xs uppercase tracking-wider"><span class="text-indigo-600 font-black">${h.origen}</span> <i data-lucide="arrow-right" class="w-3 h-3 inline text-slate-300 mx-1"></i> <span class="text-emerald-600 font-black">${h.destino}</span></td>
-            <td class="p-4 text-right font-black text-slate-800">${(Number(h.volTotal)||0).toFixed(2)} M³</td>
-            <td class="p-4 text-right font-black text-orange-600">${(Number(h.kg)||0).toFixed(1)} KG</td>
-            <td class="p-4 text-center font-bold text-slate-500">${h.jarrita ? h.jarrita.toFixed(1) : '-'}</td>
-            <td class="p-4 text-[10px] font-black uppercase text-slate-400">${h.operador}</td>
-            <td class="p-4 text-center">
-                ${currentUser && currentUser.role === 'ADMIN' ? `<button onclick="eliminarRegistroKardexSilo(${h.id})" class="text-red-400 hover:text-red-600 p-2 bg-white rounded-lg shadow-sm border border-red-100 transition-all" title="Eliminar Registro"><i data-lucide="trash-2" class="w-4 h-4"></i></button>` : `<span class="text-[9px] font-black text-slate-300">N/A</span>`}
-            </td>
-        </tr>
-    `).join('');
-    lucide.createIcons();
+    tbody.innerHTML = `<tr><td colspan="8" class="p-6 text-center"><button onclick="cargarHistorialSilosNube()" class="bg-slate-100 hover:bg-slate-200 border border-slate-300 text-slate-700 font-black text-xs uppercase tracking-widest px-6 py-3 rounded-xl shadow-sm transition-colors"><i data-lucide="cloud-download" class="w-4 h-4 inline mr-1 -mt-0.5"></i> Cargar Últimos 50 Movimientos</button></td></tr>`;
+    if(window.lucide) lucide.createIcons();
+}
+
+function cargarHistorialSilosNube() {
+    const tbody = document.getElementById('historial-silos-body');
+    tbody.innerHTML = `<tr><td colspan="8" class="p-8 text-center text-cyan-600 font-black uppercase animate-pulse">Conectando con la nube...</td></tr>`;
+    
+    db.collection("silos_historial").orderBy("id", "desc").limit(50).get().then((snapshot) => {
+        let historial = [];
+        snapshot.forEach(doc => historial.push(doc.data()));
+        
+        if(historial.length === 0) {
+            tbody.innerHTML = `<tr><td colspan="8" class="p-8 text-center text-slate-400 font-bold italic">No hay movimientos registrados.</td></tr>`;
+            return;
+        }
+
+        dbSilosHistory = historial; // Guardamos en memoria por si usan "Eliminar"
+
+        tbody.innerHTML = historial.map(h => `
+            <tr class="hover:bg-slate-50 transition-colors border-b border-slate-50">
+                <td class="p-4 text-[10px] font-black text-slate-500 leading-tight">${h.fecha} <br> ${h.hora}</td>
+                <td class="p-4 font-bold text-slate-700 text-xs">${h.op}</td>
+                <td class="p-4 text-xs uppercase tracking-wider"><span class="text-indigo-600 font-black">${h.origen}</span> <i data-lucide="arrow-right" class="w-3 h-3 inline text-slate-300 mx-1"></i> <span class="text-emerald-600 font-black">${h.destino}</span></td>
+                <td class="p-4 text-right font-black text-slate-800">${(Number(h.volTotal)||0).toFixed(2)} M³</td>
+                <td class="p-4 text-right font-black text-orange-600">${(Number(h.kg)||0).toFixed(1)} KG</td>
+                <td class="p-4 text-center font-bold text-slate-500">${h.jarrita ? h.jarrita.toFixed(1) : '-'}</td>
+                <td class="p-4 text-[10px] font-black uppercase text-slate-400">${h.operador}</td>
+                <td class="p-4 text-center">
+                    ${currentUser && currentUser.role === 'ADMIN' ? `<button onclick="eliminarRegistroKardexSilo(${h.id})" class="text-red-400 hover:text-red-600 p-2 bg-white rounded-lg shadow-sm border border-red-100 transition-all" title="Eliminar Registro"><i data-lucide="trash-2" class="w-4 h-4"></i></button>` : `<span class="text-[9px] font-black text-slate-300">N/A</span>`}
+                </td>
+            </tr>
+        `).join('');
+        if(window.lucide) lucide.createIcons();
+    });
 }
 
 function eliminarRegistroKardexSilo(id) {
