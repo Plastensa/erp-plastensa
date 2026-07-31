@@ -978,9 +978,15 @@
     </div>
 
 <!-- RESUMEN DE BLOQUES POR TIPO -->
-    <div class="bg-slate-900 p-6 rounded-[32px] shadow-xl text-white mt-2">
-        <h3 class="font-black uppercase tracking-widest text-xs mb-4 text-blue-400 border-b border-slate-700 pb-2 flex items-center justify-between">
-    <div class="flex items-center gap-2"><i data-lucide="bar-chart-2" class="w-4 h-4"></i> Resumen del Periodo por Tipos</div>
+    <<div class="bg-slate-900 p-6 rounded-[32px] shadow-xl text-white mt-2">
+        <div class="flex justify-between items-center border-b border-slate-700 pb-2 mb-4">
+            <h3 class="font-black uppercase tracking-widest text-xs text-blue-400 flex items-center gap-2">
+                <i data-lucide="bar-chart-2" class="w-4 h-4"></i> Resumen del Periodo por Tipos
+            </h3>
+            <button onclick="generarResumenBloquesNube()" class="bg-blue-600 hover:bg-blue-500 text-white px-4 py-2 rounded-xl text-[10px] font-black shadow-sm transition-colors flex items-center gap-2 uppercase tracking-widest">
+                <i data-lucide="cloud-download" class="w-4 h-4"></i> CALCULAR RESUMEN
+            </button>
+        </div>
     <button onclick="generarResumenBloquesNube()" class="bg-blue-600 hover:bg-blue-500 text-white px-3 py-1.5 rounded-lg text-[9px] shadow-sm transition-colors flex items-center gap-1">
         <i data-lucide="cloud-download" class="w-3 h-3"></i> CALCULAR RESUMEN
     </button>
@@ -2072,9 +2078,14 @@
                                  
                    <h3 class="font-black text-blue-500 uppercase tracking-widest text-xs mb-4 border-b border-slate-200 pb-2">Stock Físico General de Planta</h3>
                     <div class="bg-white rounded-[32px] border border-slate-200 overflow-hidden shadow-sm">
-                       <div class="p-4 bg-slate-50 border-b border-slate-100 flex items-center gap-2">
-                            <i data-lucide="search" class="w-5 h-5 text-slate-400"></i>
-                            <input type="text" id="buscar-stock-input" onkeyup="renderStockFisico()" placeholder="Buscar ítem por nombre o medida..." class="w-full bg-transparent border-none outline-none font-bold text-sm text-slate-700">
+                      <div class="p-4 bg-slate-50 border-b border-slate-100 flex justify-between items-center gap-4">
+                            <div class="flex items-center gap-2 w-full">
+                                <i data-lucide="search" class="w-5 h-5 text-slate-400"></i>
+                                <input type="text" id="buscar-stock-input" onkeyup="renderStockFisico()" placeholder="Buscar ítem por nombre o medida..." class="w-full bg-transparent border-none outline-none font-bold text-sm text-slate-700">
+                            </div>
+                            <button onclick="robotAuditorInventarioGlobal()" class="bg-red-600 text-white hover:bg-red-700 px-6 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest shadow-lg transition-colors flex items-center gap-2 w-max whitespace-nowrap animate-pulse">
+                                <i data-lucide="bot" class="w-4 h-4"></i> AUDITAR Y RECALCULAR STOCK
+                            </button>
                         </div>
                         <div class="overflow-x-auto">
                             <table class="w-full text-left text-xs whitespace-nowrap">
@@ -8381,7 +8392,6 @@ function renderStockFisico() {
     const stockBody = document.getElementById('stock-fisico-body');
     if(!stockBody) return;
 
-    // Leemos el stock directamente del catálogo en tiempo real
     let prodConStock = products.filter(p => p.stock !== 0 && p.stock !== undefined);
     const searchInput = document.getElementById('buscar-stock-input');
     if (searchInput && searchInput.value) {
@@ -8406,13 +8416,22 @@ function renderStockFisico() {
         const colorTexto = esNegativo ? 'text-red-600' : 'text-blue-600';
         const iconoAlerta = esNegativo ? `<i data-lucide="alert-triangle" class="inline w-4 h-4 text-red-500 mr-1 mb-1"></i>` : '';
         
+        // Si el robot ya auditó, mostramos los números reales. Si no, mostramos "--"
+        let valIni = '--', valCorte = '--', valDesp = '--';
+        if (window.lastAuditedStats && window.lastAuditedStats[normalizarNombre(p.name)]) {
+            const s = window.lastAuditedStats[normalizarNombre(p.name)];
+            valIni = s.ini;
+            valCorte = `+${s.corte}`;
+            valDesp = `-${s.desp}`;
+        }
+
         return `
         <tr class="border-b border-slate-100 transition-colors ${colorFila}">
             <td class="p-4 font-black text-slate-800">${iconoAlerta}${p.name}</td>
             <td class="p-4 font-bold text-slate-500">${p.density || '-'}</td>
-            <td class="p-4 text-center font-bold text-slate-300">--</td>
-            <td class="p-4 text-center font-black text-slate-300">--</td>
-            <td class="p-4 text-center font-black text-slate-300">--</td>
+            <td class="p-4 text-center font-bold text-slate-400">${valIni}</td>
+            <td class="p-4 text-center font-black text-green-600">${valCorte}</td>
+            <td class="p-4 text-center font-black text-red-500">${valDesp}</td>
             <td class="p-4 text-center font-black ${colorTexto} text-lg">${p.stock}</td>
             <td class="p-4 text-right font-black text-slate-700">${(p.stock * (Number(p.vol)||0)).toFixed(3)} M³</td>
         </tr>`;
@@ -10435,7 +10454,6 @@ async function robotAuditorInventarioGlobal() {
     stockBody.innerHTML = `<tr><td colspan="7" class="p-10 text-center font-black text-red-500 uppercase text-lg animate-pulse">El Robot está leyendo la nube... Por favor espera...</td></tr>`;
 
     try {
-        // 1. Descargar las 3 fuentes de la verdad desde la nube
         const [snapKardex, snapCortes, snapDespachos] = await Promise.all([
             db.collection("kardex_pt").get(),
             db.collection("cortes_reportes").get(),
@@ -10447,10 +10465,9 @@ async function robotAuditorInventarioGlobal() {
             stats[normalizarNombre(p.name)] = { ini: 0, corte: 0, desp: 0 };
         });
 
-        // 2. Procesar Kardex (Saldos iniciales, ajustes manuales y reprocesos)
+        // Procesar Kardex
         snapKardex.forEach(doc => {
             const k = doc.data();
-            // Ignoramos la producción estándar, porque esa la leeremos de los reportes de corte
             if (k.motivo !== 'Producción Sala Corte') {
                 const nombre = normalizarNombre(k.item);
                 if (!stats[nombre]) stats[nombre] = { ini: 0, corte: 0, desp: 0 };
@@ -10459,7 +10476,7 @@ async function robotAuditorInventarioGlobal() {
             }
         });
 
-        // 3. Procesar Cortes (Toda la producción de la máquina)
+        // Procesar Cortes
         snapCortes.forEach(doc => {
             const r = doc.data();
             if (r.detalleCortes && r.detalleCortes.length > 0) {
@@ -10475,7 +10492,7 @@ async function robotAuditorInventarioGlobal() {
             }
         });
 
-        // 4. Procesar Despachos (Todas las salidas al cliente)
+        // Procesar Despachos
         snapDespachos.forEach(doc => {
             const d = doc.data();
             if (d.items) {
@@ -10487,62 +10504,37 @@ async function robotAuditorInventarioGlobal() {
             }
         });
 
-        // 5. Aplicar la matemática al catálogo y generar tabla de reporte visual
-        let cambios = 0;
-        let reporteHTML = `
-            <tr class="bg-slate-900 text-white text-[10px] uppercase tracking-widest">
-                <th class="p-4">Ítem / Descripción</th>
-                <th class="p-4 text-center">Ajustes / Inv. Inicial</th>
-                <th class="p-4 text-center text-green-400">+ Producción Corte</th>
-                <th class="p-4 text-center text-red-400">- Despachado</th>
-                <th class="p-4 text-center text-blue-400 text-sm">Stock Real (Pzas)</th>
-                <th class="p-4 text-right">Equiv. M³</th>
-            </tr>
-        `;
+        // GUARDAR ESTADÍSTICAS EN MEMORIA GLOBAL PARA QUE LA TABLA LAS VEA
+        window.lastAuditedStats = stats;
 
+        let cambios = 0;
         products.forEach(p => {
             const nombre = normalizarNombre(p.name);
             const s = stats[nombre];
             if(s) {
-                // Matemática pura: Iniciales + Cortes - Despachos
                 const stockMatematico = s.ini + s.corte - s.desp;
                 const stockLimpio = parseFloat(stockMatematico.toFixed(2));
-                
                 if (p.stock !== stockLimpio) {
                     p.stock = stockLimpio;
                     cambios++;
                 }
-
-                if (s.ini !== 0 || s.corte !== 0 || s.desp !== 0) {
-                    reporteHTML += `
-                        <tr class="border-b border-slate-200 hover:bg-slate-50">
-                            <td class="p-4 font-black text-slate-800">${p.name}</td>
-                            <td class="p-4 text-center font-bold text-slate-500">${s.ini}</td>
-                            <td class="p-4 text-center font-black text-green-600">+${s.corte}</td>
-                            <td class="p-4 text-center font-black text-red-500">-${s.desp}</td>
-                            <td class="p-4 text-center font-black text-blue-600 text-lg">${stockLimpio}</td>
-                            <td class="p-4 text-right font-black text-slate-700">${(stockLimpio * (Number(p.vol)||0)).toFixed(3)} M³</td>
-                        </tr>
-                    `;
-                }
             }
         });
 
-        // 6. Guardar el catálogo corregido en la Nube
         if (cambios > 0) {
             await db.collection("plastensa_erp").doc("datos_productos").set({
                 products: JSON.stringify(products)
             }, { merge: true });
         }
 
-        stockBody.innerHTML = reporteHTML;
-        alert(`✅ AUDITORÍA COMPLETADA\n\nEl sistema recalculó todo el historial matemáticamente.\nSe corrigió el stock de ${cambios} productos.\n\nEl desglose exacto se muestra ahora en la tabla.`);
-        if(window.lucide) lucide.createIcons();
+        // Llamar al renderizador normal, que ahora detectará los datos guardados
+        renderStockFisico();
+        alert(`✅ AUDITORÍA COMPLETADA\n\nEl sistema recalculó todo el historial matemáticamente y rellenó las columnas vacías.\nSe auto-corrigió el stock de ${cambios} productos en el catálogo.`);
 
     } catch (error) {
         console.error(error);
         alert("Error de conexión al auditar. Revisa tu internet.");
-        renderStockFisico(); // Si falla, vuelve a la vista normal
+        renderStockFisico();
     }
 }
 
