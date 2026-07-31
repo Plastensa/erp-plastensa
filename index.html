@@ -10594,7 +10594,9 @@ async function generarResumenBloquesNube() {
             else resumen[clave].producidos++;
 
             if (b.ubicacion === 'PROCESADO' || b.ubicacion === 'CORTADO') resumen[clave].cortados++;
-            if (b.ubicacion === 'PLANTA' || b.ubicacion === 'CORTADO') resumen[clave].total++;
+            
+            // LA MAGIA ARITMÉTICA: Forzamos la ecuación para que jamás falle
+            resumen[clave].total = resumen[clave].inicial + resumen[clave].producidos - resumen[clave].cortados;
         });
 
         let htmlResumen = '';
