@@ -2024,7 +2024,12 @@
                                 <i data-lucide="search" class="absolute left-3 top-2.5 w-4 h-4 text-slate-400"></i>
                                 <input type="text" id="filtro-texto-corte" onkeyup="renderReporteCorte()" placeholder="Buscar ítem o bloque..." class="w-full pl-9 pr-3 py-2 bg-slate-50 border border-slate-200 rounded-xl font-bold text-xs text-slate-700 outline-none focus:ring-2 focus:ring-red-500">
                             </div>
-                            <input type="date" id="filtro-fecha-corte" onchange="renderReporteCorte()" class="bg-slate-50 border border-slate-200 rounded-xl px-4 py-2 font-bold outline-none cursor-pointer text-xs text-slate-700">
+                            <div class="flex items-center gap-2 bg-slate-50 p-2 rounded-xl border border-slate-200">
+                                <span class="text-[9px] font-black text-slate-400 uppercase">Desde</span>
+                                <input type="date" id="filtro-corte-desde" onchange="renderReporteCorte()" class="bg-transparent font-bold outline-none text-xs text-slate-700 cursor-pointer">
+                                <span class="text-[9px] font-black text-slate-400 uppercase">Hasta</span>
+                                <input type="date" id="filtro-corte-hasta" onchange="renderReporteCorte()" class="bg-transparent font-bold outline-none text-xs text-slate-700 cursor-pointer">
+                            </div>
                             <button onclick="exportarReporteCorteCSV()" class="bg-slate-900 text-white px-6 py-2 rounded-xl font-black text-xs uppercase shadow-lg hover:bg-slate-800 flex items-center gap-2"><i data-lucide="download" class="w-4 h-4"></i> Exportar</button>
                         </div>
                     </div>
@@ -8192,42 +8197,54 @@ function procesarMoliendaRetazo() {
     showToast(`Éxito: ${vol} M³ enviados al Silo de Reciclaje.`);
 }
 
-
-
 function renderReporteCorte() {
     const tbody = document.getElementById('reporte-corte-body');
     if(!tbody) return;
 
-    const filtroFecha = document.getElementById('filtro-fecha-corte').value;
+    const dateDesde = document.getElementById('filtro-corte-desde').value;
+    const dateHasta = document.getElementById('filtro-corte-hasta').value;
     const filtroTexto = document.getElementById('filtro-texto-corte') ? document.getElementById('filtro-texto-corte').value.trim().toLowerCase() : '';
 
-    // Si no hay filtros activos, mostramos el botón de Carga a Demanda
-    if (!filtroFecha && !filtroTexto) {
+    // Si no hay filtros activos, mostramos el botón de Carga Rápida
+    if (!dateDesde && !dateHasta && !filtroTexto) {
         tbody.innerHTML = `<tr><td colspan="10" class="p-6 text-center"><button onclick="cargarCortesRecientes()" class="bg-slate-100 hover:bg-slate-200 border border-slate-300 text-slate-700 font-black text-xs uppercase tracking-widest px-6 py-3 rounded-xl shadow-sm transition-colors"><i data-lucide="cloud-download" class="w-4 h-4 inline mr-1 -mt-0.5"></i> Cargar Últimos 100 Cortes</button></td></tr>`;
         if(window.lucide) lucide.createIcons();
         return;
     }
 
-    tbody.innerHTML = `<tr><td colspan="10" class="p-8 text-center text-red-500 font-black uppercase animate-pulse">Buscando en la nube...</td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="10" class="p-8 text-center text-red-500 font-black uppercase animate-pulse">Buscando rango en la nube...</td></tr>`;
 
-    // Búsqueda a demanda
-    db.collection("cortes_reportes").orderBy("id", "desc").limit(100).get().then((snapshot) => {
+    // Construimos la consulta optimizada a Firebase
+    let query = db.collection("cortes_reportes");
+    
+    // Si puso fechas, sacamos EXACTAMENTE ese rango de tiempo (ahorrando dinero)
+    if (dateDesde || dateHasta) {
+        // En tu sistema, el "id" es un TimeStamp (Date.now()), usamos eso para filtrar
+        let timeDesde = dateDesde ? new Date(dateDesde + "T00:00:00").getTime() : 0;
+        let timeHasta = dateHasta ? new Date(dateHasta + "T23:59:59").getTime() : 9999999999999;
+        
+        query = query.where("id", ">=", timeDesde).where("id", "<=", timeHasta).orderBy("id", "desc");
+    } else {
+        // Si solo buscó por texto sin fechas, limitamos a 500 para no ahogar la base de datos
+        query = query.orderBy("id", "desc").limit(500); 
+    }
+
+    query.get().then((snapshot) => {
         let filtrados = [];
         snapshot.forEach(doc => {
             const r = doc.data();
             let pasaFiltro = true;
-            if (filtroFecha) {
-                const dateStr = new Date(r.id).toISOString().split('T')[0];
-                if (dateStr !== filtroFecha) pasaFiltro = false;
-            }
-            if (filtroTexto && pasaFiltro) {
+            if (filtroTexto) {
                 const textoR = ((r.item || '') + ' ' + (r.bloques || '') + ' ' + (r.operador || '')).toLowerCase();
                 if (!textoR.includes(filtroTexto)) pasaFiltro = false;
             }
             if(pasaFiltro) filtrados.push(r);
         });
-        dbReportesCorte = filtrados; // Guardamos en memoria por si le dan a "Anular"
+        dbReportesCorte = filtrados; // Guardamos en memoria
         pintarTablaCortes(filtrados, tbody);
+    }).catch(err => {
+        console.error(err);
+        tbody.innerHTML = `<tr><td colspan="10" class="p-8 text-center text-red-500 font-bold italic">Error al conectar con la nube.</td></tr>`;
     });
 }
 
