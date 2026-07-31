@@ -10457,7 +10457,6 @@ async function robotAuditorInventarioGlobal() {
 
         let stats = {};
         products.forEach(p => {
-            // AÑADIMOS LA VARIABLE "bajas" A LA MATEMÁTICA
             stats[normalizarNombre(p.name)] = { ini: 0, corte: 0, desp: 0, bajas: 0 };
         });
 
@@ -10471,7 +10470,6 @@ async function robotAuditorInventarioGlobal() {
                 if (k.tipo === 'INGRESO') {
                     stats[nombre].ini += (parseFloat(k.qty) || 0);
                 } else {
-                    // AQUÍ ESTÁ LA MAGIA: Si el motivo incluye "Reproceso", va a Bajas.
                     if (k.motivo && k.motivo.toLowerCase().includes('reproceso')) {
                         stats[nombre].bajas += (parseFloat(k.qty) || 0);
                     } else {
@@ -10512,45 +10510,16 @@ async function robotAuditorInventarioGlobal() {
         window.lastAuditedStats = stats;
 
         let cambios = 0;
-        let reporteHTML = `
-            <tr class="bg-slate-900 text-white text-[10px] uppercase tracking-widest">
-                <th class="p-4">Ítem / Descripción</th>
-                <th class="p-4">Densidad</th>
-                <th class="p-4 text-center">Inv. Inicial</th>
-                <th class="p-4 text-center text-green-400">+ Producción</th>
-                <th class="p-4 text-center text-orange-400">- Bajas</th>
-                <th class="p-4 text-center text-red-400">- Despachos</th>
-                <th class="p-4 text-center text-blue-400 text-sm">Stock Real</th>
-                <th class="p-4 text-right">Equiv. M³</th>
-            </tr>
-        `;
-
         products.forEach(p => {
             const nombre = normalizarNombre(p.name);
             const s = stats[nombre];
             if(s) {
-                // AHORA RESTAMOS LAS BAJAS TAMBIÉN
                 const stockMatematico = s.ini + s.corte - s.bajas - s.desp;
                 const stockLimpio = parseFloat(stockMatematico.toFixed(2));
                 
                 if (p.stock !== stockLimpio) {
                     p.stock = stockLimpio;
                     cambios++;
-                }
-
-                if (s.ini !== 0 || s.corte !== 0 || s.desp !== 0 || s.bajas !== 0) {
-                    reporteHTML += `
-                        <tr class="border-b border-slate-200 hover:bg-slate-50">
-                            <td class="p-4 font-black text-slate-800">${p.name}</td>
-                            <td class="p-4 font-bold text-slate-500">${p.density || '-'}</td>
-                            <td class="p-4 text-center font-bold text-slate-500">${s.ini}</td>
-                            <td class="p-4 text-center font-black text-green-600">+${s.corte}</td>
-                            <td class="p-4 text-center font-black text-orange-500">-${s.bajas}</td>
-                            <td class="p-4 text-center font-black text-red-500">-${s.desp}</td>
-                            <td class="p-4 text-center font-black text-blue-600 text-lg">${stockLimpio}</td>
-                            <td class="p-4 text-right font-black text-slate-700">${(stockLimpio * (Number(p.vol)||0)).toFixed(3)} M³</td>
-                        </tr>
-                    `;
                 }
             }
         });
@@ -10561,9 +10530,9 @@ async function robotAuditorInventarioGlobal() {
             }, { merge: true });
         }
 
-        stockBody.innerHTML = reporteHTML;
+        // Delegamos el pintado a renderStockFisico() que ordena negativos arriba y les pone colores/alertas
+        renderStockFisico();
         alert(`✅ AUDITORÍA COMPLETADA\n\nEl sistema recalculó todo el historial matemáticamente separando las bajas.\nSe corrigió el stock de ${cambios} productos.`);
-        if(window.lucide) lucide.createIcons();
 
     } catch (error) {
         console.error(error);
