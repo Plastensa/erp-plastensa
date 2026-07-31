@@ -7337,30 +7337,39 @@ function renderSalaCorte() {
         agrupados[key].schedulesList.push(s.id);
     });
 
+   // --- MAGIA DEL MULTI-CORTE: BOTÓN OCULTO ---
+    let btnMultiHtml = `<button id="btn-multi-corte" onclick="iniciarCorteMulti()" class="hidden w-full mb-4 bg-red-600 text-white p-3 rounded-xl font-black text-xs shadow-lg hover:bg-red-700 transition-colors uppercase tracking-widest flex justify-center items-center gap-2"><i data-lucide="layers" class="w-4 h-4"></i> CORTAR TARJETAS SELECCIONADAS (<span id="count-multi-corte">0</span>)</button>`;
+
     if(Object.keys(agrupados).length === 0) {
         listOrdenes.innerHTML = `<div class="p-6 text-center font-bold text-slate-400 italic border-2 border-dashed border-slate-200 rounded-2xl">La planta no tiene cortes pendientes.</div>`;
     } else {
-        listOrdenes.innerHTML = Object.values(agrupados).map(grupo => {
-            // Si tiene observación el borde es naranja, sino es azul
+        listOrdenes.innerHTML = btnMultiHtml + Object.values(agrupados).map(grupo => {
             const borderClass = grupo.obs ? 'border-orange-400 bg-orange-50 shadow-md hover:border-orange-500' : 'border-slate-200 bg-white hover:border-blue-400 shadow-sm';
             const tagEspecial = grupo.obs ? `<div class="mt-2 p-2 bg-orange-100 border border-orange-300 text-orange-800 text-[10px] font-black uppercase rounded-lg shadow-sm"><i data-lucide="scissors" class="w-3 h-3 inline mr-1"></i>CORTE ESPECIAL: ${grupo.obs}</div>` : '';
-            
             const idsString = grupo.schedulesList.join(',');
 
             return `
-            <div class="${borderClass} border p-5 rounded-xl cursor-pointer group relative transition-all" onclick="iniciarCorteAgrupado('${idsString}')">
-                <div class="flex justify-between items-start mb-2">
-                    <span class="text-[10px] font-black uppercase bg-slate-900 text-white px-2 py-1 rounded-md shadow-sm">LOTE CONSOLIDADO</span>
+            <div class="${borderClass} border p-5 rounded-xl group relative transition-all">
+                
+                <!-- CHECKBOX RESTAURADO PARA MULTI-SELECCIÓN -->
+                <div class="absolute top-4 right-4 z-10">
+                    <input type="checkbox" value="${idsString}" class="multi-sched-chk w-5 h-5 cursor-pointer accent-red-600 shadow-sm" onchange="toggleMultiCorteBtn()">
                 </div>
-                <p class="font-black text-slate-800 text-base mb-1 group-hover:text-blue-600 transition-colors">${grupo.name}</p>
-                
-                ${tagEspecial}
-                
-                <div class="flex justify-between items-end mt-4 pt-3 border-t border-slate-200/60">
-                    <p class="text-[10px] font-black text-slate-500 uppercase leading-tight">Total a Fabricar<br><span class="text-[8px] text-slate-400">Agrupa ${grupo.schedulesList.length} Pedido(s)</span></p>
-                    <div class="text-right">
-                        <p class="font-black text-blue-600 text-2xl leading-none">${grupo.qtyTotal} <span class="text-[10px] text-slate-400 uppercase">Pzas</span></p>
-                        <p class="text-[9px] font-bold text-slate-400 mt-1">${grupo.volTotal.toFixed(2)} M³</p>
+
+                <div class="cursor-pointer pr-8" onclick="if(!event.target.classList.contains('multi-sched-chk')) iniciarCorteAgrupado('${idsString}')">
+                    <div class="flex justify-between items-start mb-2">
+                        <span class="text-[10px] font-black uppercase bg-slate-900 text-white px-2 py-1 rounded-md shadow-sm">LOTE CONSOLIDADO</span>
+                    </div>
+                    <p class="font-black text-slate-800 text-base mb-1 group-hover:text-blue-600 transition-colors">${grupo.name}</p>
+                    
+                    ${tagEspecial}
+                    
+                    <div class="flex justify-between items-end mt-4 pt-3 border-t border-slate-200/60">
+                        <p class="text-[10px] font-black text-slate-500 uppercase leading-tight">Total a Fabricar<br><span class="text-[8px] text-slate-400">Agrupa ${grupo.schedulesList.length} Pedido(s)</span></p>
+                        <div class="text-right">
+                            <p class="font-black text-blue-600 text-2xl leading-none">${grupo.qtyTotal} <span class="text-[10px] text-slate-400 uppercase">Pzas</span></p>
+                            <p class="text-[9px] font-bold text-slate-400 mt-1">${grupo.volTotal.toFixed(2)} M³</p>
+                        </div>
                     </div>
                 </div>
             </div>`;
@@ -7454,11 +7463,79 @@ function iniciarCorteAgrupado(idsString) {
         });
     });
 
-    Object.values(fusionMapa).forEach(grupo => corteCart.push(grupo));
+   Object.values(fusionMapa).forEach(grupo => corteCart.push(grupo));
     
     // Abre el panel asistente usando el nombre de la tarjeta fusionada
     abrirPanelAsistente(`FABRICAR: ${corteCart[0].qtyBuenas} PZAS DE ${corteCart[0].name}`);
 }
+
+// --- NUEVAS FUNCIONES PARA SELECCIONAR MÚLTIPLES TARJETAS DISTINTAS ---
+function toggleMultiCorteBtn() {
+    const checkboxes = document.querySelectorAll('.multi-sched-chk:checked');
+    const btn = document.getElementById('btn-multi-corte');
+    const countSpan = document.getElementById('count-multi-corte');
+    
+    if(btn && countSpan) {
+        if(checkboxes.length > 1) {
+            countSpan.innerText = checkboxes.length;
+            btn.classList.remove('hidden');
+        } else {
+            btn.classList.add('hidden');
+        }
+    }
+}
+
+function iniciarCorteMulti() {
+    const checkboxes = document.querySelectorAll('.multi-sched-chk:checked');
+    if(checkboxes.length < 2) return;
+
+    corteOperacionActiva = {
+        isStock: false,
+        isMulti: true, 
+        titulo: 'Corte Mixto (Múltiples Ítems/Pedidos)'
+    };
+
+    corteCart = [];
+    let fusionMapa = {};
+    let totalPzas = 0;
+
+    checkboxes.forEach(cb => {
+        const schedIds = cb.value.split(',').map(id => parseInt(id));
+        
+        schedIds.forEach(schedId => {
+            const sched = dbSchedules.find(s => s.id === schedId);
+            if(!sched) return;
+            const ord = orders.find(o => o.id === sched.orderId);
+            const item = ord ? ord.items[sched.itemIdx] : null;
+            if(!item) return;
+
+            const match = item.name.match(/^([A-Z]+)(\d+|SR)/);
+            const densRequerida = match ? (match[2] === 'SR' ? 'SR' : 'D' + match[2]) : 'D8';
+            const volUnitCalc = sched.volTotal / sched.qty;
+
+            const fusionKey = `${item.name}-${densRequerida}-${item.obs || ''}`;
+
+            if(!fusionMapa[fusionKey]) {
+                fusionMapa[fusionKey] = {
+                    name: item.name, dens: densRequerida, volUnit: volUnitCalc,
+                    qtyBuenas: 0, qtyMalas: 0, isMainOrder: true, obs: item.obs || '',
+                    targets: [] 
+                };
+            }
+            
+            fusionMapa[fusionKey].qtyBuenas += sched.qty;
+            totalPzas += sched.qty;
+            
+            fusionMapa[fusionKey].targets.push({
+                schedId: schedId, orderId: ord.id, qtyRequerida: sched.qty, client: ord.client
+            });
+        });
+    });
+
+    Object.values(fusionMapa).forEach(grupo => corteCart.push(grupo));
+    abrirPanelAsistente(`CORTAR ${totalPzas} PZAS (MIXTO)`);
+}
+// ------------------------------------------------------------------------
 
 function abrirPanelAsistente(titulo = "CORTE PARA STOCK GENERAL") {
     const panel = document.getElementById('panel-ejecucion-corte');
