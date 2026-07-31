@@ -8323,25 +8323,35 @@ function exportarReporteCorteCSV() {
     document.body.appendChild(link); link.click(); document.body.removeChild(link);
 }
 
-// --- NUEVO MOTOR VELOZ PARA STOCK FÍSICO ---
+// --- NUEVO MOTOR VELOZ Y AUTO-SANADOR PARA STOCK FÍSICO ---
 function renderStockFisico() {
     const stockBody = document.getElementById('stock-fisico-body');
     if(!stockBody) return;
 
-    // 1. Recopilar Estadísticas Rápidas (Evita lentitud)
+    // 1. Recopilar Estadísticas Rápidas
     const stats = {};
 
-    // A) Inventario Inicial desde el Kardex
+    products.forEach(p => {
+        const nombre = normalizarNombre(p.name);
+        stats[nombre] = { ini: 0, inCorte: 0, outDesp: 0 };
+    });
+
+    // A) LECTURA DE KARDEX (Todo manual, iniciales, ajustes, robot, reprocesos)
     dbKardex.forEach(k => {
+        // Ignoramos la producción estándar para no duplicarla con los reportes de corte
+        if (k.motivo === 'Producción Sala Corte') return; 
+        
         const nombre = normalizarNombre(k.item);
         if(!stats[nombre]) stats[nombre] = { ini: 0, inCorte: 0, outDesp: 0 };
-        if(k.motivo.includes('Inicial') || k.motivo.includes('Reescritura') || k.motivo.includes('Ajuste')) {
-            if(k.tipo === 'INGRESO') stats[nombre].ini += k.qty;
-            else stats[nombre].ini -= k.qty;
+        
+        if(k.tipo === 'INGRESO') {
+            stats[nombre].ini += (parseFloat(k.qty) || 0);
+        } else {
+            stats[nombre].ini -= (parseFloat(k.qty) || 0);
         }
     });
 
-   // B) Ingresos por Producción/Cortes
+    // B) INGRESOS POR PRODUCCIÓN (Reportes de Corte y Retazos)
     dbReportesCorte.forEach(r => {
         if(r.detalleCortes && r.detalleCortes.length > 0) {
             r.detalleCortes.forEach(c => {
@@ -8350,14 +8360,13 @@ function renderStockFisico() {
                 stats[nombre].inCorte += (parseFloat(c.qtyStock) || 0) + (parseFloat(c.qtyOrder) || 0);
             });
         } else if (r.item && typeof r.item === 'string') {
-            // REPARACIÓN: Rescate de reportes en formato antiguo o recuperados de retazos
             const nombre = normalizarNombre(r.item);
             if(!stats[nombre]) stats[nombre] = { ini: 0, inCorte: 0, outDesp: 0 };
             stats[nombre].inCorte += (parseFloat(r.pzas) || 0);
         }
     });
 
-    // C) Salidas por Despachos
+    // C) SALIDAS POR DESPACHOS
     dbDespachos.forEach(d => {
         if(d.items) {
             d.items.forEach(it => {
@@ -8368,9 +8377,35 @@ function renderStockFisico() {
         }
     });
 
-    // 2. Filtrar y Ordenar Catálogo
-    let prodConStock = products.filter(p => p.stock !== 0 && p.stock !== undefined);
+    // 2. MAGIA DE AUTO-SANACIÓN DEL CATÁLOGO (Stock Real vs Teórico)
+    let necesitaGuardar = false;
+    products.forEach(p => {
+        const nombre = normalizarNombre(p.name);
+        const s = stats[nombre] || { ini: 0, inCorte: 0, outDesp: 0 };
+        
+        // Calculamos el valor Matemático Absoluto
+        const stockMatematico = s.ini + s.inCorte - s.outDesp;
+        
+        // Redondeamos para evitar basura de decimales (ej: 0.000001)
+        const stockLimpio = parseFloat(stockMatematico.toFixed(2));
+        
+        // Si el catálogo está desincronizado, el sistema lo corrige y avisa para guardar
+        if (p.stock !== stockLimpio) {
+            p.stock = stockLimpio;
+            necesitaGuardar = true;
+        }
+    });
 
+    // Si el sistema se auto-sanó, dispara la corrección a la nube silenciosamente
+    if (necesitaGuardar && erpDataLoaded) {
+        db.collection("plastensa_erp").doc("datos_productos").set({
+            products: JSON.stringify(products)
+        }, { merge: true });
+        console.log("🛠️ El sistema detectó un descuadre en el catálogo y lo auto-corrigió.");
+    }
+
+    // 3. Filtrar y Ordenar para la Vista Visual
+    let prodConStock = products.filter(p => p.stock !== 0 && p.stock !== undefined);
     const searchInput = document.getElementById('buscar-stock-input');
     if (searchInput && searchInput.value) {
         const term = searchInput.value.toLowerCase();
@@ -8393,12 +8428,15 @@ function renderStockFisico() {
             const iconoAlerta = esNegativo ? `<i data-lucide="alert-triangle" class="inline w-4 h-4 text-red-500 mr-1 mb-1"></i>` : '';
             
             const miStat = stats[normalizarNombre(p.name)] || { ini: 0, inCorte: 0, outDesp: 0 };
+            
+            // Si el inventario inicial resulta en un número negativo, lo marcamos en rojo
+            const strIni = miStat.ini < 0 ? `<span class="text-red-500 font-black">${miStat.ini}</span>` : miStat.ini;
 
             return `
             <tr class="border-b border-slate-100 transition-colors ${colorFila}">
                 <td class="p-4 font-black text-slate-800">${iconoAlerta}${p.name}</td>
                 <td class="p-4 font-bold text-slate-500">${p.density}</td>
-                <td class="p-4 text-center font-bold text-slate-400">${miStat.ini}</td>
+                <td class="p-4 text-center font-bold text-slate-400">${strIni}</td>
                 <td class="p-4 text-center font-black text-green-600">+${miStat.inCorte}</td>
                 <td class="p-4 text-center font-black text-red-500">-${miStat.outDesp}</td>
                 <td class="p-4 text-center font-black ${colorTexto} text-lg">${p.stock}</td>
