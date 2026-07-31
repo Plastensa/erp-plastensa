@@ -2571,6 +2571,12 @@
     <span>ROBOT: AUDITAR Y LIMPIAR DESPACHOS FANTASMAS</span>
 </button>
 
+<!-- BOTÓN TEMPORAL ROBOT AUDITOR DE CORTES -->
+<button onclick="robotLimpiadorCortes()" class="col-span-1 md:col-span-2 w-full bg-blue-600 text-white px-8 py-6 rounded-xl font-black hover:bg-blue-700 transition-colors flex flex-col items-center justify-center gap-3 shadow-lg border-2 border-blue-400 border-dashed mt-4">
+    <i data-lucide="scissors" class="w-8 h-8 animate-pulse"></i> 
+    <span>ROBOT: AUDITAR CORTES Y RECUPERAR INVENTARIO</span>
+</button>
+
                         </div>
                     </div>
                 </div>
@@ -10305,6 +10311,85 @@ async function robotLimpiadorDespachos() {
     save(); // Guardado local final
     alert(`✅ LIMPIEZA COMPLETADA CON ÉXITO\n\nEl sistema auditó todos los tickets y curó ${pedidosCorregidos} pedidos atascados en la nube.\n\nEl sistema se actualizará ahora para reflejar los cambios.`);
     window.location.reload();
+}
+
+async function robotLimpiadorCortes() {
+    const confirmacion = confirm("🤖 ROBOT AUDITOR DE CORTES\n\nEste robot leerá todos los 'Reportes de Corte' y buscará si hay tarjetas que se quedaron atascadas como pendientes.\n\nAdemás, recuperará y sumará a tu inventario físico todas las piezas de esos cortes atascados.\n\n¿Iniciar auditoría?");
+    if(!confirmacion) return;
+
+    showToast("Iniciando auditoría de cortes... Por favor espera.");
+    let tarjetasCorregidas = 0;
+    let inventarioRecuperado = 0;
+    let ordenesARevisar = new Set();
+
+    const batch = db.batch(); // Usamos la "caja fuerte" para no saturar la red
+    let operacionesBatch = 0;
+
+    // 1. Revisamos la verdad absoluta (Los reportes históricos)
+    for (let r of dbReportesCorte) {
+        if (r.detalleCortes && r.detalleCortes.length > 0) {
+            for (let c of r.detalleCortes) {
+                if (c.schedId) {
+                    let s = dbSchedules.find(x => String(x.id) === String(c.schedId));
+                    
+                    // Si la tarjeta existe y SIGUE pendiente, significa que el internet falló ese día
+                    if (s && s.status !== 'FINALIZADO' && s.status !== 'COMPLETADO') {
+                        
+                        // A) Curamos la tarjeta
+                        s.qty = (s.qty || 0) - c.qtyOrder;
+                        if (s.qty <= 0) {
+                            s.qty = 0;
+                            s.status = 'FINALIZADO';
+                        }
+                        s.volTotal = s.qty * c.volUnit;
+                        
+                        const sRef = db.collection("cortes_programados").doc(String(s.id));
+                        batch.set(sRef, s);
+                        operacionesBatch++;
+
+                        // B) Recuperamos el inventario físico que no se había sumado
+                        const prodCat = products.find(p => p.name === c.item);
+                        const totalPiezasFaltantes = (c.qtyOrder || 0) + (c.qtyStock || 0);
+                        
+                        if (prodCat && totalPiezasFaltantes > 0) {
+                            prodCat.stock = (parseInt(prodCat.stock) || 0) + totalPiezasFaltantes;
+                            registrarMovimientoInventario(prodCat.name, totalPiezasFaltantes, 'INGRESO', 'Recuperación Robot Auditor');
+                            inventarioRecuperado += totalPiezasFaltantes;
+                        }
+
+                        ordenesARevisar.add(s.orderId);
+                        tarjetasCorregidas++;
+                    }
+                }
+            }
+        }
+    }
+
+    // 2. Revisamos si con estos arreglos algún pedido ya se completó y debe ir a Inventario
+    ordenesARevisar.forEach(orderId => {
+        const o = orders.find(x => x.id === orderId);
+        if (o) {
+            let todoCortado = true;
+            dbSchedules.filter(sx => sx.orderId === o.id).forEach(sx => {
+                if(sx.status !== 'FINALIZADO' && sx.status !== 'COMPLETADO') todoCortado = false;
+            });
+            if(todoCortado && o.status === 'PRODUCCION') {
+                o.status = 'INVENTARIO';
+                const oRef = db.collection("pedidos").doc(String(o.id).replace(/\//g, '-'));
+                batch.set(oRef, o);
+                operacionesBatch++;
+            }
+        }
+    });
+
+    if (tarjetasCorregidas > 0) {
+        if (operacionesBatch > 0) await batch.commit();
+        save(); // Guarda el catálogo con el nuevo inventario
+        alert(`✅ AUDITORÍA COMPLETADA CON ÉXITO\n\nEl robot detectó las fallas del pasado y curó lo siguiente:\n\n- ${tarjetasCorregidas} Tarjetas de corte atascadas fueron cerradas.\n- ${inventarioRecuperado} Piezas huérfanas fueron sumadas al inventario físico.\n\nEl sistema se actualizará ahora.`);
+        window.location.reload();
+    } else {
+        alert(`✅ AUDITORÍA COMPLETADA\n\nTodo está en orden. No se encontraron discrepancias entre los reportes y las tarjetas de corte.`);
+    }
 }
 
 renderAll();
