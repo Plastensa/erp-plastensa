@@ -2570,6 +2570,16 @@
                                 <span>DESCARGAR EXCEL MAESTRO</span>
                             </button>
 
+<button onclick="exportarExcelMaestro()" class="w-full bg-green-600 text-white px-8 py-6 rounded-xl font-black hover:bg-green-700 transition-colors flex flex-col items-center justify-center gap-3 shadow-lg">
+                                <i data-lucide="file-spreadsheet" class="w-8 h-8"></i> 
+                                <span>DESCARGAR EXCEL MAESTRO</span>
+                            </button>
+
+                            <button onclick="generarCierreMensualExcel()" class="col-span-1 md:col-span-2 w-full bg-cyan-600 text-white px-8 py-6 rounded-xl font-black hover:bg-cyan-700 transition-colors flex flex-col items-center justify-center gap-3 shadow-lg border-2 border-cyan-400">
+                                <i data-lucide="calendar-check" class="w-8 h-8"></i> 
+                                <span>CIERRE MENSUAL CONTABLE (EXCEL 6 PESTAÑAS)</span>
+                            </button>
+
                             <div>
                                 <input type="file" id="restoreFileInput" accept=".json" class="hidden" onchange="restaurarDesdeJSON(event)">
                                 <button onclick="document.getElementById('restoreFileInput').click()" class="w-full h-full bg-orange-600 text-white px-8 py-6 rounded-xl font-black hover:bg-orange-700 transition-colors flex flex-col items-center justify-center gap-3 shadow-lg">
@@ -2582,24 +2592,6 @@
                                 <i data-lucide="alert-triangle" class="w-8 h-8"></i> 
                                 <span>RESET DE FÁBRICA</span>
                             </button>
-
-                            <!-- BOTÓN TEMPORAL MIGRACIÓN A COLECCIONES -->
-                            <button onclick="robotMigrador()" class="col-span-1 md:col-span-2 w-full bg-purple-600 text-white px-8 py-6 rounded-xl font-black hover:bg-purple-700 transition-colors flex flex-col items-center justify-center gap-3 shadow-lg border-2 border-purple-400 border-dashed mt-4">
-                                <i data-lucide="bot" class="w-8 h-8 animate-bounce"></i> 
-                                <span>ROBOT: MIGRAR A CARPETAS INDIVIDUALES (FASE 1)</span>
-                            </button>
-			    
-			    <!-- BOTÓN TEMPORAL MIGRACIÓN PRODUCCIÓN -->
-<button onclick="robotMigradorProduccion()" class="col-span-1 md:col-span-2 w-full bg-orange-600 text-white px-8 py-6 rounded-xl font-black hover:bg-orange-700 transition-colors flex flex-col items-center justify-center gap-3 shadow-lg border-2 border-orange-400 border-dashed mt-4">
-    <i data-lucide="database-zap" class="w-8 h-8 animate-pulse"></i> 
-    <span>ROBOT: MIGRAR M. PRIMA, EXPANSIÓN Y SILOS (FASE 2)</span>
-</button>
-
-<!-- BOTÓN TEMPORAL MIGRACIÓN BLOQUERA Y DESPACHOS -->
-<button onclick="robotMigradorFinal()" class="col-span-1 md:col-span-2 w-full bg-red-600 text-white px-8 py-6 rounded-xl font-black hover:bg-red-700 transition-colors flex flex-col items-center justify-center gap-3 shadow-lg border-2 border-red-400 border-dashed mt-4">
-    <i data-lucide="database-zap" class="w-8 h-8 animate-pulse"></i> 
-    <span>ROBOT: MIGRAR BLOQUERA, CORTES Y DESPACHOS (FASE 3)</span>
-</button>
 
 <!-- BOTÓN TEMPORAL ROBOT LIMPIADOR DE DESPACHOS -->
 <button onclick="robotLimpiadorDespachos()" class="col-span-1 md:col-span-2 w-full bg-emerald-600 text-white px-8 py-6 rounded-xl font-black hover:bg-emerald-700 transition-colors flex flex-col items-center justify-center gap-3 shadow-lg border-2 border-emerald-400 border-dashed mt-4">
@@ -2821,136 +2813,6 @@ function restaurarDesdeJSON(event) {
     reader.readAsText(file);
 }	
 
-// ==========================================
-// ROBOT DE MIGRACIÓN A COLECCIONES (FASE 1)
-// ==========================================
-async function robotMigrador() {
-    const confirmacion = confirm("🤖 ROBOT MIGRADOR LISTO\n\n¿Deseas iniciar la clonación de tus Cotizaciones y Pedidos a sus nuevas carpetas individuales en la nube?");
-    if(!confirmacion) return;
-    
-    try {
-        showToast("Iniciando clonación de Cotizaciones. Por favor espera...");
-        let cotCount = 0;
-        for (let q of quotes) {
-            // 1. Clonar el objeto para purificar datos "undefined" y evitar fallos
-            let cleanQ = JSON.parse(JSON.stringify(q));
-            // 2. Reemplazar barras diagonales (/) en los IDs por guiones medios (-)
-            let safeId = String(cleanQ.id).replace(/\//g, '-'); 
-            
-            await db.collection("cotizaciones").doc(safeId).set(cleanQ);
-            cotCount++;
-        }
-        
-        showToast(`Cotizaciones listas (${cotCount}). Iniciando Pedidos...`);
-        let pedCount = 0;
-        for (let o of orders) {
-            let cleanO = JSON.parse(JSON.stringify(o));
-            let safeId = String(cleanO.id).replace(/\//g, '-');
-            
-            await db.collection("pedidos").doc(safeId).set(cleanO);
-            pedCount++;
-        }
-        
-        alert(`✅ MIGRACIÓN 100% EXITOSA\n\nSe copiaron:\n- ${cotCount} Cotizaciones\n- ${pedCount} Pedidos\n\nTu base de datos ahora tiene carpetas individuales. Ve a tu consola de Firebase a revisar.`);
-    } catch (error) {
-        console.error("Error real de Firebase:", error);
-        // 3. Mostrar el VERDADERO error de Google en la pantalla si algo falla
-        alert("❌ GOOGLE RECHAZÓ LA OPERACIÓN.\n\nMotivo exacto:\n" + error.message + "\n\nPor favor, tómale una foto a este mensaje y envíamela.");
-    }
-}
-
-// ==========================================
-// ROBOT DE MIGRACIÓN: PRODUCCIÓN A CARPETAS
-// ==========================================
-async function robotMigradorProduccion() {
-    const confirmacion = confirm("🤖 ROBOT MIGRADOR FASE 2\n\n¿Iniciar la clonación de Materia Prima, Expansión y Silos a sus carpetas independientes en la nube?");
-    if(!confirmacion) return;
-    
-    try {
-        showToast("Migrando Materia Prima...");
-        for (let h of dbMateriaPrima.historial) {
-            await db.collection("mp_ingresos").doc(String(h.id)).set(h);
-        }
-        
-        showToast("Migrando Expansión (Consumos)...");
-        for (let c of dbExpansion.consumos) {
-            await db.collection("exp_consumos").doc(String(c.id)).set(c);
-        }
-
-        showToast("Migrando Expansión (Jarritas)...");
-        for (let j of dbExpansion.jarritas) {
-            await db.collection("exp_jarritas").doc(String(j.id)).set(j);
-        }
-        
-        showToast("Migrando Historial de Silos...");
-        for (let sh of dbSilosHistory) {
-            await db.collection("silos_historial").doc(String(sh.id)).set(sh);
-        }
-
-        // Los Silos actuales (el estado en tiempo real de los 9 silos)
-        showToast("Migrando Estado Actual de Silos...");
-        for (let s of dbSilos) {
-            await db.collection("silos_estado").doc(String(s.id)).set(s);
-        }
-        
-        alert("✅ MIGRACIÓN DE PRODUCCIÓN 100% EXITOSA\n\nTus datos históricos ya están clonados y a salvo en carpetas individuales. Ve a tu consola de Firebase para confirmarlo.");
-    } catch (error) {
-        console.error("Error en migración:", error);
-        alert("❌ GOOGLE RECHAZÓ LA OPERACIÓN.\n\nMotivo exacto:\n" + error.message);
-    }
-}
-
-// ==========================================
-// ROBOT DE MIGRACIÓN: BLOQUERA Y DESPACHOS
-// ==========================================
-async function robotMigradorFinal() {
-    const confirmacion = confirm("🤖 ROBOT MIGRADOR FASE 3\n\n¿Iniciar la clonación de Bloques, Programación, Cortes, Kardex y Despachos a sus carpetas independientes?");
-    if(!confirmacion) return;
-    
-    try {
-        showToast("Migrando Inventario de Bloques...");
-        let bCount = 0;
-        for (let b of dbBloques) {
-            await db.collection("bloques_inventario").doc(String(b.id)).set(b);
-            bCount++;
-        }
-
-        showToast("Migrando Cortes Programados...");
-        let sCount = 0;
-        for (let s of dbSchedules) {
-            await db.collection("cortes_programados").doc(String(s.id)).set(s);
-            sCount++;
-        }
-        
-        showToast("Migrando Reportes de Corte...");
-        let rcCount = 0;
-        for (let rc of dbReportesCorte) {
-            await db.collection("cortes_reportes").doc(String(rc.id)).set(rc);
-            rcCount++;
-        }
-
-        showToast("Migrando Kardex PT...");
-        let kCount = 0;
-        for (let k of dbKardex) {
-            await db.collection("kardex_pt").doc(String(k.id)).set(k);
-            kCount++;
-        }
-        
-        showToast("Migrando Despachos...");
-        let dCount = 0;
-        for (let d of dbDespachos) {
-            // Aseguramos que el ID del ticket no tenga barras inclinadas
-            let safeId = String(d.idTicket).replace(/\//g, '-');
-            await db.collection("despachos_tickets").doc(safeId).set(d);
-            dCount++;
-        }
-        
-        alert(`✅ MIGRACIÓN FINAL 100% EXITOSA\n\nSe clonaron:\n- ${bCount} Bloques\n- ${sCount} Cortes Prog.\n- ${rcCount} Rep. Cortes\n- ${kCount} Reg. Kardex\n- ${dCount} Despachos\n\nRevisa tu consola de Firebase.`);
-    } catch (error) {
-        console.error("Error en migración:", error);
-        alert("❌ GOOGLE RECHAZÓ LA OPERACIÓN.\n\nMotivo exacto:\n" + error.message);
-    }
-}
 
         // ==========================================
         // MÓDULO: KARDEX E INVENTARIO INICIAL (PT)
@@ -9783,57 +9645,6 @@ window.addEventListener('beforeunload', function (e) {
 });
 // ==========================================
 
-
-// ==========================================
-// RESPALDO AUTOMÁTICO SILENCIOSO (CADA 4 HORAS)
-// ==========================================
-
-function enviarRespaldoSilencioso() {
-    // 1. OBLIGATORIO: Solo el Administrador dispara el respaldo
-    if (!currentUser || currentUser.role !== 'ADMIN') return;
-
-    // 2. Revisar cuándo fue la última vez que este navegador envió un correo
-    const ultimoRespaldo = localStorage.getItem('plast_ultimo_respaldo');
-    const ahora = Date.now();
-
-    // 3. Si no han pasado 4 horas (14400000 ms), abortamos silenciosamente
-    if (ultimoRespaldo && (ahora - parseInt(ultimoRespaldo)) < 14400000) {
-        return; 
-    }
-
-    console.log("Iniciando respaldo automático en segundo plano...");
-
-    const backup = { 
-        fechaRespaldo: new Date().toLocaleString(),
-        products, quotes, orders, dbMovimientosCaja, dbClients, dbExtSellers, 
-        dbIntSellers, dbPendingVerifications, dbSchedules, dbMateriaPrima, 
-        dbMpTipos, dbExpansion, dbPreciosBase, dbBancoRetazos, dbReportesCorte, 
-        dbDespachos, dbBloques, dbKardex, dbSilos, dbSilosHistory 
-    };
-
-    const urlGoogleScript = "https://script.google.com/macros/s/AKfycbzDjmWalQbHTLp-4vMwLT63txZuvCt0N03KptGRzF-D3D5r98_NJ1AS1jRt3rBVe6jU/exec";
-
-    fetch(urlGoogleScript, {
-        method: 'POST',
-        headers: { 'Content-Type': 'text/plain;charset=utf-8' }, 
-        body: JSON.stringify(backup)
-    })
-    .then(response => {
-        console.log("Respaldo automático enviado con éxito al correo.");
-        // 4. Guardamos la hora exacta en la que se logró enviar
-        localStorage.setItem('plast_ultimo_respaldo', ahora.toString());
-    })
-    .catch(error => console.error("Fallo al enviar el respaldo automático: ", error));
-}
-
-// 4. Programamos el cronómetro. 
-// 14400000 milisegundos = 4 horas. (Si quieres cada hora, cambia a 3600000)
-// Esto se ejecutará cíclicamente mientras la pestaña del ERP esté abierta.
-setInterval(enviarRespaldoSilencioso, 14400000);
-
-// Opcional: Que mande uno de inmediato 1 minuto después de abrir el sistema por primera vez en el día
-setTimeout(enviarRespaldoSilencioso, 60000); 
-
 // ==========================================
 
 function resetDeFabrica() {
@@ -10765,6 +10576,175 @@ async function robotAuditorMateriaPrima() {
         alert("Error al auditar Materia Prima. Revise su conexión a internet.");
         document.getElementById('mp-saldo-total').innerText = "ERROR";
     }
+}
+
+function generarCierreMensualExcel() {
+    const input = prompt("📅 CIERRE MENSUAL CONTABLE\n\nIngrese el mes y año que desea exportar en formato MM/AAAA\nEjemplo para julio de 2026: 07/2026");
+    if(!input) return;
+
+    const [mesStr, anioStr] = input.split('/');
+    if(!mesStr || !anioStr || mesStr.length !== 2 || anioStr.length !== 4) {
+        return alert("❌ Formato incorrecto. Debe ser obligatoriamente MM/AAAA (Ejemplo: 07/2026)");
+    }
+
+    showToast("Generando Excel mensual... Por favor espere.");
+
+    // Filtro inteligente de fechas
+    const esDelMes = (fecha) => {
+        if(!fecha) return false;
+        let m = '', y = '';
+        if(fecha.includes('/')) {
+            const parts = fecha.split(',')[0].split('/'); 
+            m = parts[1].padStart(2, '0');
+            y = parts[2];
+        } else if(fecha.includes('-')) {
+            const parts = fecha.split('-');
+            m = parts[1].padStart(2, '0');
+            y = parts[0];
+        }
+        return (m === mesStr && y === anioStr);
+    };
+
+    // Obtenemos los pedidos del mes
+    const pedidosMes = orders.filter(o => esDelMes(o.date));
+
+    // HOJA 1: REGISTRO DE VENTAS
+    const dataVentas = pedidosMes.map(o => {
+        const baseTotal = o.items.reduce((s, i) => s + i.subtotal, 0);
+        let it = o.retencion || 0;
+        if(it === 0 && o.type === 'CF' && (o.comm || 0) > (baseTotal * 0.08)) {
+            it = (o.comm || 0) * 0.17;
+        }
+        const subtotalProrrateado = baseTotal + (o.trans || 0) + (o.comm || 0) + (o.extra || 0);
+        const descMonto = subtotalProrrateado * ((o.descuentoPorcentaje || 0) / 100);
+
+        return {
+            "FECHA": o.date,
+            "N ORDEN": o.id,
+            "NIT / CI": o.nit || '',
+            "CLIENTE": o.client,
+            "T. VENTA EPS": Number(baseTotal.toFixed(2)),
+            "RETENCION IT": Number(it.toFixed(2)),
+            "COMISION NETA": Number(((o.comm || 0) - it).toFixed(2)),
+            "TRANSPORTE": Number((o.trans || 0).toFixed(2)),
+            "COBRO EXTRA": Number((o.extra || 0).toFixed(2)),
+            "DESCUENTO (Bs)": Number(descMonto.toFixed(2)),
+            "TOTAL FINAL": Number(o.total.toFixed(2)),
+            "MODO": o.type === 'CF' ? 'C/F' : 'S/F',
+            "VENDEDOR INT": o.vendedorInterno,
+            "VENDEDOR EXT": o.vendedorExterno || 'NINGUNO',
+            "ESTADO PAGO": o.estadoPago,
+            "ESTADO PROD": o.status
+        };
+    });
+
+    // HOJA 2: SALIDAS EPS (Detalle de Productos)
+    let dataSalidas = [];
+    pedidosMes.forEach(o => {
+        if(o.items) o.items.forEach((it, idx) => {
+            const vu = Number(it.volUnit) || (it.qty > 0 ? Number(it.volTotal) / it.qty : 0);
+            const pM3 = vu > 0 ? (it.unitPrice / vu) : 0;
+            dataSalidas.push({
+                "FECHA": o.date,
+                "N ORDEN": o.id,
+                "CLIENTE": o.client,
+                "ITEM": it.name,
+                "VOL PZA (M3)": Number(vu.toFixed(4)),
+                "CANTIDAD": it.qty,
+                "VOL TOTAL (M3)": Number(it.volTotal.toFixed(2)),
+                "PRECIO/PZA (Bs)": Number(it.unitPrice.toFixed(2)),
+                "PRECIO/M3 (Bs)": Number(pM3.toFixed(2)),
+                "TOTAL (Bs)": Number(it.subtotal.toFixed(2)),
+                "VENDEDOR": o.vendedorInterno,
+                "CODIGO REF": `${o.id}-${idx+1}`
+            });
+        });
+    });
+
+    // HOJA 3: DESPACHOS
+    let dataDespachos = [];
+    dbDespachos.filter(d => esDelMes(d.fecha)).forEach(t => {
+        t.items.forEach(it => {
+            dataDespachos.push({
+                "TICKET": t.idTicket,
+                "FECHA": t.fecha.split(',')[0],
+                "ORDEN": t.orderId,
+                "CLIENTE": t.cliente,
+                "CHOFER": t.conductor,
+                "PLACA": t.placa || 'S/N',
+                "ITEM": it.name,
+                "CANT DESPACHADA": it.qtyDespachada,
+                "VOL PARCIAL (M3)": Number((it.volDespachadoM3 || 0).toFixed(3)),
+                "VOL TICKET TOTAL (M3)": Number(t.volM3.toFixed(3))
+            });
+        });
+    });
+
+    // HOJA 4: REPORTE DE PAGOS
+    let dataPagos = [];
+    pedidosMes.forEach(o => {
+        if(o.pagos) o.pagos.filter(p => p.verificado).forEach(p => {
+            dataPagos.push({
+                "FECHA PAGO": p.fecha,
+                "ORDEN": o.id,
+                "CLIENTE": o.client,
+                "MONTO PAGADO": Number(p.monto.toFixed(2)),
+                "CUENTA DESTINO": p.cuenta,
+                "AUDITOR / TESORERO": p.tesorero
+            });
+        });
+    });
+
+    // HOJA 5: CAJA GENERAL
+    const dataCaja = dbMovimientosCaja.filter(m => esDelMes(m.fecha)).map(m => ({
+        "FECHA": m.fecha,
+        "ORDEN/REF": m.orden || '-',
+        "DETALLE / MOTIVO": m.desc,
+        "CATEGORIA": m.categoria || 'Sin Categoría',
+        "TIPO": m.tipo || (m.entrada ? 'INGRESO' : 'EGRESO'),
+        "CUENTA AFECTADA": m.entrada || m.salida || 'MÚLTIPLE',
+        "MONTO (Bs)": Number(m.monto.toFixed(2))
+    }));
+
+    // HOJA 6: CRONOGRAMA
+    let dataCronograma = [];
+    pedidosMes.forEach(o => {
+        if(o.items) o.items.forEach(it => {
+            dataCronograma.push({
+                "FECHA REG.": o.date,
+                "ORDEN": o.id,
+                "CLIENTE": o.client,
+                "ITEM": it.name,
+                "CANTIDAD": it.qty,
+                "VOLUMEN (M3)": Number(it.volTotal.toFixed(2)),
+                "ESTADO PAGO": o.estadoPago,
+                "ESTADO PRODUCCION": o.status
+            });
+        });
+    });
+
+    // Generar archivo Excel con múltiples hojas
+    const wb = XLSX.utils.book_new();
+    
+    // Función auxiliar para agregar hojas y ajustar anchos
+    const agregarHoja = (datos, nombre) => {
+        if(datos.length === 0) datos = [{"Aviso": "No hubo registros en este mes para este módulo"}];
+        const ws = XLSX.utils.json_to_sheet(datos);
+        // Anchos de columna predeterminados para que se vea ordenado en Excel
+        ws['!cols'] = [{wch: 12}, {wch: 18}, {wch: 25}, {wch: 35}, {wch: 15}, {wch: 15}, {wch: 15}, {wch: 15}];
+        XLSX.utils.book_append_sheet(wb, ws, nombre);
+    };
+
+    agregarHoja(dataVentas, "Reg Ventas");
+    agregarHoja(dataSalidas, "Salidas EPS");
+    agregarHoja(dataDespachos, "Despachos");
+    agregarHoja(dataPagos, "Reporte de Pagos");
+    agregarHoja(dataCaja, "Caja General");
+    agregarHoja(dataCronograma, "Cronograma");
+
+    // Guardar y descargar el archivo
+    XLSX.writeFile(wb, `Cierre_Mensual_Plastensa_${mesStr}_${anioStr}.xlsx`);
+    showToast(`✅ Excel de Cierre del ${mesStr}/${anioStr} descargado.`);
 }
 
 renderAll();
