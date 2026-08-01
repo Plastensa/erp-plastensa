@@ -4908,22 +4908,6 @@ function saveConsumo(e) {
     });
 }
 
-function deleteConsumo(id) {
-    if(!confirm("¿Anular este consumo? Los kilos volverán a sumarse a la Pizarra del almacén.")) return;
-    
-    const c = dbExpansion.consumos.find(x => x.id === id);
-    db.collection("exp_consumos").doc(String(id)).delete().then(() => {
-        // Al anular el consumo, devolvemos los kilos a la Pizarra en tiempo real
-        if(c && c.marca && typeof pizarraMateriaPrima !== 'undefined') {
-            pizarraMateriaPrima[c.marca] = (pizarraMateriaPrima[c.marca] || 0) + c.peso;
-            save();
-        }
-        showToast("Consumo anulado.");
-        if(typeof renderMateriaPrima === 'function') renderMateriaPrima();
-        renderExpansion();
-    });
-}
-
 function startScannerExp() {
     document.getElementById('scanner-container-exp').classList.remove('hidden');
     if(html5QrcodeScannerExp) return;
@@ -6748,9 +6732,7 @@ function pintarTablaConsumos(list, tCon) {
             <td class="p-4 text-right font-black text-red-500">- ${c.peso.toFixed(1)} KG</td>
             <td class="p-4 text-[10px] uppercase font-black text-slate-400">${c.operador}</td>
             <td class="p-4 text-center">
-                ${currentUser && currentUser.role === 'ADMIN' 
-                    ? `<button onclick="deleteConsumo(${c.id})" title="Anular Consumo" class="text-red-400 hover:text-red-600 bg-white p-2 rounded-lg shadow-sm border border-red-100 transition-all"><i data-lucide="trash-2" class="w-4 h-4"></i></button>` 
-                    : `<span class="text-[9px] font-black text-slate-300 uppercase">Sin Acceso</span>`}
+                <span class="text-[8px] font-black text-slate-400 uppercase tracking-widest bg-slate-100 px-2 py-1 rounded border border-slate-200" title="Para anular, vaya a 'Historial de Movimientos de Silos' y elimine la 1ra Expansión correspondiente."><i data-lucide="lock" class="w-3 h-3 inline mr-1 -mt-0.5"></i>Bloqueado</span>
             </td>
         </tr>
     `).join('');
@@ -8307,10 +8289,27 @@ function pintarTablaCortes(filtrados, tbody) {
         tbody.innerHTML = `<tr><td colspan="10" class="p-8 text-center text-slate-400 font-bold italic">No se encontraron resultados en el servidor.</td></tr>`;
         return;
     }
-    tbody.innerHTML = filtrados.map(r => `
+    
+    tbody.innerHTML = filtrados.map(r => {
+        // --- NUEVA LÓGICA: CONTEO INTELIGENTE DE BLOQUES ---
+        let badgeCount = '';
+        // Verificamos si tiene el array de IDs (datos nuevos)
+        if (r.bloquesIds && r.bloquesIds.length > 0) {
+            badgeCount = `<span class="bg-blue-100 text-blue-700 px-2 py-1 rounded-lg text-[9px] font-black uppercase shadow-sm border border-blue-200 mb-2 inline-flex items-center gap-1"><i data-lucide="layers" class="w-3 h-3"></i> TOTAL: ${r.bloquesIds.length} BLOQUES</span><br>`;
+        } 
+        // Fallback para datos antiguos (contando las comas, excluyendo reprocesos)
+        else if (r.bloques && r.bloques.includes(',') && !r.bloques.includes('REPROCESO')) {
+            badgeCount = `<span class="bg-blue-100 text-blue-700 px-2 py-1 rounded-lg text-[9px] font-black uppercase shadow-sm border border-blue-200 mb-2 inline-flex items-center gap-1"><i data-lucide="layers" class="w-3 h-3"></i> TOTAL: ${r.bloques.split(',').length} BLOQUES</span><br>`;
+        }
+        // ---------------------------------------------------
+
+        return `
         <tr class="hover:bg-slate-50 border-b border-slate-100 transition-colors">
             <td class="p-4 font-bold text-slate-500">${r.fecha} ${r.hora}</td>
-            <td class="p-4 font-black text-slate-800 text-[10px] whitespace-normal min-w-[180px] leading-relaxed">${(r.bloques || '').split(', ').join('<br>')}</td>
+            <td class="p-4 font-black text-slate-800 text-[10px] whitespace-normal min-w-[180px] leading-relaxed">
+                ${badgeCount}
+                ${(r.bloques || '').split(', ').join('<br>')}
+            </td>
             <td class="p-4 font-black text-blue-600 whitespace-normal min-w-[200px] leading-tight">${r.item}</td>
             <td class="p-4 text-center font-black text-lg text-slate-700">${r.pzas}</td>
             <td class="p-4 text-right font-black text-green-600">${r.volUtil.toFixed(3)} M³</td>
@@ -8322,7 +8321,9 @@ function pintarTablaCortes(filtrados, tbody) {
                 ${currentUser && currentUser.role === 'ADMIN' ? `<button onclick="anularTandaCorte(${r.id})" class="text-red-400 hover:text-red-600 p-2 bg-white rounded-lg shadow-sm border border-red-100 transition-all" title="Anular este corte (Ctrl+Z)"><i data-lucide="trash-2" class="w-4 h-4"></i></button>` : `<span class="text-[9px] font-black text-slate-300">N/A</span>`}
             </td>
         </tr>
-    `).join('');
+        `;
+    }).join('');
+    
     if(window.lucide) lucide.createIcons();
 }
 
@@ -9079,7 +9080,7 @@ function eliminarRegistroKardexSilo(id) {
     const siloOrigen = dbSilos.find(s => s.name === h.origen);
     const siloReciclaje = dbSilos.find(s => s.id === 'REC');
 
-    // 1. REVERTIR 1ra EXPANSIÓN (Quitar del destino y Devolver Resina Virgen al Almacén)
+   // 1. REVERTIR 1ra EXPANSIÓN (Quitar del destino y Devolver Resina Virgen al Almacén)
     if(h.op === '1ra Expansión') {
         if(siloDestino) {
             siloDestino.kg -= h.kg;
@@ -9088,12 +9089,20 @@ function eliminarRegistroKardexSilo(id) {
             else { siloDestino.dens = siloDestino.kg / siloDestino.vol; }
         }
         
-        // ANULAR CONSUMO DE MATERIA PRIMA AUTOMÁTICAMENTE
-        const idxConsumo = dbExpansion.consumos.findIndex(c => c.lote === h.lote && c.peso === h.kg);
-        if(idxConsumo !== -1) {
-            dbExpansion.consumos.splice(idxConsumo, 1);
-        }
+        // ANULAR CONSUMO DE MATERIA PRIMA AUTOMÁTICAMENTE EN LA NUBE Y DEVOLVER A PIZARRA
+        db.collection("exp_consumos").where("lote", "==", h.lote).where("peso", "==", h.kg).limit(1).get().then(snapshot => {
+            snapshot.forEach(doc => {
+                const c = doc.data();
+                db.collection("exp_consumos").doc(doc.id).delete();
+                if (c.marca && typeof pizarraMateriaPrima !== 'undefined') {
+                    pizarraMateriaPrima[c.marca] = (pizarraMateriaPrima[c.marca] || 0) + c.peso;
+                }
+            });
+            save(); // Actualiza la pizarra en la nube
+            if(typeof renderMateriaPrima === 'function') renderMateriaPrima();
+        });
     }
+
     // 2. REVERTIR 2da EXPANSIÓN (Devolver a 3 lugares distintos)
     else if(h.op.includes('2da Expansión')) {
         // A) Restar al destino
