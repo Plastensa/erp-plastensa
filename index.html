@@ -6343,8 +6343,8 @@ function autoFillExpLote() {
     });
 }
 
-// 3. Lógica de 1ra Expansión (Ingreso Virgen)
-function processPrimeraExpansion(e) {
+// 3. Lógica de 1ra Expansión (Ingreso Virgen) - OPTIMIZADA PARA NUBE
+async function processPrimeraExpansion(e) {
     e.preventDefault();
     const lote = document.getElementById('pe-lote').value.trim();
     const marca = document.getElementById('pe-marca').value;
@@ -6352,35 +6352,53 @@ function processPrimeraExpansion(e) {
     const jarrita = parseFloat(document.getElementById('pe-jarrita').value);
     const siloId = document.getElementById('pe-silo').value;
     
-    if(marca === 'Lote no encontrado en Almacén' || !marca) return alert("Ingresa un lote válido.");
+    if(marca === 'Lote no encontrado' || marca === 'Buscando en la nube...' || !marca) {
+        return alert("Ingresa o escanea un lote válido primero.");
+    }
     
-    const ingresoOriginal = dbMateriaPrima.historial.find(h => h.lote === lote);
-    const consumido = dbExpansion.consumos.filter(c => c.lote === lote).reduce((sum, c) => sum + c.peso, 0);
-    const saldoRestante = ingresoOriginal.peso - consumido;
-    
-   const saldoMaximo = parseFloat(document.getElementById('pe-kilos').max) || 0;
-if(kg > saldoMaximo) return alert(`Operación rechazada. Intenta usar más kilos de los que quedan en la bolsa.`);
+    const saldoMaximo = parseFloat(document.getElementById('pe-kilos').max) || 0;
+    if(kg > saldoMaximo) return alert(`Operación rechazada. Intentas usar más kilos de los que quedan en la bolsa (Máximo: ${saldoMaximo} KG).`);
     
     const volGenerado = kg / jarrita; 
     const silo = dbSilos.find(s => s.id === siloId);
     
     if((silo.vol + volGenerado) > silo.cap) return alert(`¡Rebalse! El Silo ${siloId} solo tiene disponible ${(silo.cap - silo.vol).toFixed(2)} M³.`);
     
-    // 1. Guardar Consumo en Nube de forma independiente
-    const nuevoConsumo = { id: Date.now(), fecha: new Date().toLocaleDateString(), lote: lote, marca: marca, peso: kg, operador: currentUser.name };
-    db.collection("exp_consumos").doc(String(nuevoConsumo.id)).set(nuevoConsumo);
-    
-    // 2. Actualizar Estado de Silo en Nube
-    silo.kg += kg; silo.vol += volGenerado; silo.dens = silo.kg / silo.vol;
-    db.collection("silos_estado").doc(String(silo.id)).set(silo);
-    
-    // 3. Guardar Historial de Movimiento en Nube
-    const fh = getFechaHora();
-    const nuevoHistorial = { id: Date.now() + 1, fecha: fh.fecha, hora: fh.hora, op: '1ra Expansión', origen: '-', destino: silo.name, lote: lote, marca: marca, kg: kg, jarrita: jarrita, volEps: volGenerado, volRec: 0, volTotal: volGenerado, operador: currentUser.name };
-    db.collection("silos_historial").doc(String(nuevoHistorial.id)).set(nuevoHistorial);
-    
-    e.target.reset(); document.getElementById('pe-saldo-lote').innerText = '-- KG';
-    showToast(`1ra Expansión Exitosa: ${volGenerado.toFixed(2)} M³ añadidos al Silo ${siloId}`);
+    try {
+        // 1. Guardar Consumo en Nube de forma independiente
+        const nuevoConsumo = { id: Date.now(), fecha: new Date().toLocaleDateString(), lote: lote, marca: marca, peso: kg, operador: currentUser.name };
+        await db.collection("exp_consumos").doc(String(nuevoConsumo.id)).set(nuevoConsumo);
+        
+        // 2. Actualizar la "Pizarra" global de Materia Prima restando los kilos
+        if (typeof pizarraMateriaPrima !== 'undefined' && pizarraMateriaPrima[marca] !== undefined) {
+            pizarraMateriaPrima[marca] -= kg;
+            if(pizarraMateriaPrima[marca] < 0) pizarraMateriaPrima[marca] = 0;
+        }
+        
+        // 3. Actualizar Estado de Silo en Nube
+        silo.kg += kg; silo.vol += volGenerado; silo.dens = silo.kg / silo.vol;
+        await db.collection("silos_estado").doc(String(silo.id)).set(silo);
+        
+        // 4. Guardar Historial de Movimiento en Nube
+        const fh = getFechaHora();
+        const nuevoHistorial = { id: Date.now() + 1, fecha: fh.fecha, hora: fh.hora, op: '1ra Expansión', origen: '-', destino: silo.name, lote: lote, marca: marca, kg: kg, jarrita: jarrita, volEps: volGenerado, volRec: 0, volTotal: volGenerado, operador: currentUser.name };
+        await db.collection("silos_historial").doc(String(nuevoHistorial.id)).set(nuevoHistorial);
+        
+        // Finalizar y limpiar
+        save(); // Esto es necesario para guardar la pizarra actualizada
+        e.target.reset(); 
+        document.getElementById('pe-saldo-lote').innerText = '-- KG';
+        
+        // Actualizar vistas si están abiertas
+        if(typeof renderMateriaPrima === 'function') renderMateriaPrima();
+        renderExpansion();
+        
+        showToast(`1ra Expansión Exitosa: ${volGenerado.toFixed(2)} M³ añadidos al Silo ${siloId}`);
+        
+    } catch (error) {
+        console.error("Error al procesar expansión en la nube:", error);
+        alert("Ocurrió un error al procesar la expansión. Revisa tu conexión a internet e intenta de nuevo.");
+    }
 }
 
 // 4. Lógica de 2da Expansión (Mezcla y Traslado con Porcentaje)
