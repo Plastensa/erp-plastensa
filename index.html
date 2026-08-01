@@ -3193,7 +3193,7 @@ function iniciarRadar(userEmail) {
     db.collection("pedidos").onSnapshot((snapshot) => {
         let tempO = [];
         snapshot.forEach(doc => tempO.push(doc.data()));
-        orders = tempO.sort((a,b) => String(b.id).localeCompare(String(a.id)));
+        orders = tempO.sort(ordenarPedidosRecientesPrimero);
         if(erpDataLoaded && currentUser) { 
             renderTesoreria(); renderRegistroVentas(); renderProduction(); renderInventory(); renderHistorialAdmin();
         }
@@ -10975,6 +10975,48 @@ async function robotRenombrarPedido() {
         console.error(e);
         alert("❌ Error de conexión al renombrar en Firebase. Intente de nuevo.");
     }
+}
+
+// ==========================================
+// ORDENADOR INTELIGENTE DE PEDIDOS (RECIENTES ARRIBA)
+// ==========================================
+function ordenarPedidosRecientesPrimero(a, b) {
+    const extraer = (item) => {
+        let anio = 0, mes = 0, num = 0, time = 0;
+        if (item.date) {
+            const p = item.date.split('/');
+            if (p.length === 3) {
+                time = new Date(parseInt(p[2]), parseInt(p[1]) - 1, parseInt(p[0])).getTime();
+            }
+        }
+        if (item.id && item.id.includes('-')) {
+            const partes = item.id.split('-');
+            if (partes.length >= 3) {
+                num = parseInt(partes[1], 10) || 0;
+                const mesAnio = partes[2].split('/');
+                if (mesAnio.length === 2) {
+                    mes = parseInt(mesAnio[0], 10) || 0;
+                    anio = parseInt(mesAnio[1], 10) || 0;
+                }
+            }
+        }
+        return { anio, mes, num, time };
+    };
+
+    const infoA = extraer(a);
+    const infoB = extraer(b);
+
+    // 1. Comparar Año (de mayor a menor)
+    if (infoB.anio !== infoA.anio) return infoB.anio - infoA.anio;
+
+    // 2. Comparar Mes (de mayor a menor)
+    if (infoB.mes !== infoA.mes) return infoB.mes - infoA.mes;
+
+    // 3. Comparar Fecha real si están en el mismo mes
+    if (infoB.time !== infoA.time) return infoB.time - infoA.time;
+
+    // 4. Comparar Número correlativo (de mayor a menor)
+    return infoB.num - infoA.num;
 }
 
 renderAll();
