@@ -8940,7 +8940,7 @@ function cargarHistorialSilosNube() {
     });
 }
 
-function eliminarRegistroKardexSilo(id) {
+async function eliminarRegistroKardexSilo(id) {
     const h = dbSilosHistory.find(x => x.id === id);
     if(!h) return;
 
@@ -8955,17 +8955,20 @@ function eliminarRegistroKardexSilo(id) {
     const siloOrigen = dbSilos.find(s => s.name === h.origen);
     const siloReciclaje = dbSilos.find(s => s.id === 'REC');
 
-   // 1. REVERTIR 1ra EXPANSIÓN (Quitar del destino y Devolver Resina Virgen al Almacén)
-    if(h.op === '1ra Expansión') {
-        if(siloDestino) {
-            siloDestino.kg -= h.kg;
-            siloDestino.vol -= h.volTotal;
-            if(siloDestino.vol < 0.1 || siloDestino.kg < 0.1) { siloDestino.kg = 0; siloDestino.vol = 0; siloDestino.dens = 0; }
-            else { siloDestino.dens = siloDestino.kg / siloDestino.vol; }
-        }
-        
-        // ANULAR CONSUMO DE MATERIA PRIMA AUTOMÁTICAMENTE EN LA NUBE Y DEVOLVER A PIZARRA
-        db.collection("exp_consumos").where("lote", "==", h.lote).where("peso", "==", h.kg).limit(1).get().then(snapshot => {
+    try {
+        // 1. REVERTIR 1ra EXPANSIÓN (Quitar del destino y Devolver Resina Virgen al Almacén)
+        if(h.op === '1ra Expansión') {
+            if(siloDestino) {
+                siloDestino.kg -= h.kg;
+                siloDestino.vol -= h.volTotal;
+                if(siloDestino.vol < 0.1 || siloDestino.kg < 0.1) { siloDestino.kg = 0; siloDestino.vol = 0; siloDestino.dens = 0; }
+                else { siloDestino.dens = siloDestino.kg / siloDestino.vol; }
+                // Guardar silo en la nube
+                await db.collection("silos_estado").doc(String(siloDestino.id)).set(siloDestino);
+            }
+            
+            // ANULAR CONSUMO DE MATERIA PRIMA EN LA NUBE Y DEVOLVER A PIZARRA
+            const snapshot = await db.collection("exp_consumos").where("lote", "==", h.lote).where("peso", "==", h.kg).limit(1).get();
             snapshot.forEach(doc => {
                 const c = doc.data();
                 db.collection("exp_consumos").doc(doc.id).delete();
@@ -8973,71 +8976,86 @@ function eliminarRegistroKardexSilo(id) {
                     pizarraMateriaPrima[c.marca] = (pizarraMateriaPrima[c.marca] || 0) + c.peso;
                 }
             });
-            save(); // Actualiza la pizarra en la nube
-            if(typeof renderMateriaPrima === 'function') renderMateriaPrima();
-        });
-    }
-
-    // 2. REVERTIR 2da EXPANSIÓN (Devolver a 3 lugares distintos)
-    else if(h.op.includes('2da Expansión')) {
-        // A) Restar al destino
-        if(siloDestino) {
-            siloDestino.kg -= h.kg; 
-            siloDestino.vol -= h.volTotal;
-            if(siloDestino.vol < 0.1 || siloDestino.kg < 0.1) { siloDestino.kg = 0; siloDestino.vol = 0; siloDestino.dens = 0; }
-            else { siloDestino.dens = siloDestino.kg / siloDestino.vol; }
-        }
-        
-        // B) Devolver al Reciclaje
-        if(siloReciclaje && h.volRec > 0) {
-            siloReciclaje.vol += h.volRec;
-        }
-
-        // C) Devolver al Origen
-        if(siloOrigen) {
-            const kgReciclaje = h.volRec * h.jarrita;
-            const kgExtraidos = h.kg - kgReciclaje;
             
-            let densOrigen = siloOrigen.dens;
-            if(densOrigen <= 0) {
-                // Si el silo origen está en cero, busca la densidad con la que trabajaba antes
-                const lastIngreso = dbSilosHistory.find(x => x.destino === siloOrigen.name && x.op === '1ra Expansión' && x.id < h.id);
-                densOrigen = lastIngreso && lastIngreso.jarrita > 0 ? lastIngreso.jarrita : 13.5;
+            await db.collection("plastensa_erp").doc("datos_centrales").update({
+                pizarraMateriaPrima: JSON.stringify(pizarraMateriaPrima)
+            });
+            
+            if(typeof renderMateriaPrima === 'function') renderMateriaPrima();
+        }
+        // 2. REVERTIR 2da EXPANSIÓN (Devolver a 3 lugares distintos)
+        else if(h.op.includes('2da Expansión')) {
+            // A) Restar al destino
+            if(siloDestino) {
+                siloDestino.kg -= h.kg; 
+                siloDestino.vol -= h.volTotal;
+                if(siloDestino.vol < 0.1 || siloDestino.kg < 0.1) { siloDestino.kg = 0; siloDestino.vol = 0; siloDestino.dens = 0; }
+                else { siloDestino.dens = siloDestino.kg / siloDestino.vol; }
+                await db.collection("silos_estado").doc(String(siloDestino.id)).set(siloDestino);
             }
             
-            const volExtraer = kgExtraidos / densOrigen;
-            
-            siloOrigen.kg += kgExtraidos;
-            siloOrigen.vol += volExtraer;
-            siloOrigen.dens = siloOrigen.kg / siloOrigen.vol;
-        }
-    }
-    // 3. REVERTIR VACIADO A BLOQUERA (Devolver al silo y quitar de la máquina)
-    else if(h.op === 'Vaciado a Bloquera') {
-        if(siloOrigen) {
-            siloOrigen.kg += h.kg;
-            siloOrigen.vol += h.volTotal;
-            siloOrigen.dens = siloOrigen.kg / siloOrigen.vol;
-        }
-        let volMaquina = parseFloat(localStorage.getItem('plast_vol_maquina')) || 0;
-        volMaquina -= h.volTotal;
-        if(volMaquina < 0) volMaquina = 0;
-        localStorage.setItem('plast_vol_maquina', volMaquina);
-        if(typeof renderVolumenMaquina === 'function') renderVolumenMaquina();
-    }
-    // 4. REVERTIR INGRESO RECICLAJE (Quitar del silo REC)
-    else if(h.op === 'Ingreso Reciclaje') {
-        if(siloReciclaje) {
-            siloReciclaje.vol -= h.volTotal;
-            if(siloReciclaje.vol < 0.1) siloReciclaje.vol = 0;
-        }
-    }
+            // B) Devolver al Reciclaje
+            if(siloReciclaje && h.volRec > 0) {
+                siloReciclaje.vol += h.volRec;
+                await db.collection("silos_estado").doc(String(siloReciclaje.id)).set(siloReciclaje);
+            }
 
-    // Finalmente, borrar el registro y refrescar la pantalla completa
-    dbSilosHistory = dbSilosHistory.filter(x => x.id !== id);
-    saveSilos();
-    renderAll();
-    showToast("Operación revertida (Ctrl+Z) exitosamente.");
+            // C) Devolver al Origen
+            if(siloOrigen) {
+                const kgReciclaje = h.volRec * h.jarrita;
+                const kgExtraidos = h.kg - kgReciclaje;
+                
+                let densOrigen = siloOrigen.dens;
+                if(densOrigen <= 0) {
+                    const lastIngreso = dbSilosHistory.find(x => x.destino === siloOrigen.name && x.op === '1ra Expansión' && x.id < h.id);
+                    densOrigen = lastIngreso && lastIngreso.jarrita > 0 ? lastIngreso.jarrita : 13.5;
+                }
+                
+                const volExtraer = kgExtraidos / densOrigen;
+                
+                siloOrigen.kg += kgExtraidos;
+                siloOrigen.vol += volExtraer;
+                siloOrigen.dens = siloOrigen.kg / siloOrigen.vol;
+                await db.collection("silos_estado").doc(String(siloOrigen.id)).set(siloOrigen);
+            }
+        }
+        // 3. REVERTIR VACIADO A BLOQUERA (Devolver al silo y quitar de la máquina)
+        else if(h.op === 'Vaciado a Bloquera') {
+            if(siloOrigen) {
+                siloOrigen.kg += h.kg;
+                siloOrigen.vol += h.volTotal;
+                siloOrigen.dens = siloOrigen.kg / siloOrigen.vol;
+                await db.collection("silos_estado").doc(String(siloOrigen.id)).set(siloOrigen);
+            }
+            
+            dbTolva -= h.volTotal;
+            if(dbTolva < 0) dbTolva = 0;
+            await db.collection("plastensa_erp").doc("datos_centrales").update({ dbTolva: dbTolva });
+            if(typeof renderVolumenMaquina === 'function') renderVolumenMaquina();
+        }
+        // 4. REVERTIR INGRESO RECICLAJE (Quitar del silo REC)
+        else if(h.op === 'Ingreso Reciclaje') {
+            if(siloReciclaje) {
+                siloReciclaje.vol -= h.volTotal;
+                if(siloReciclaje.vol < 0.1) siloReciclaje.vol = 0;
+                await db.collection("silos_estado").doc(String(siloReciclaje.id)).set(siloReciclaje);
+            }
+        }
+
+        // 5. BORRAR EL HISTORIAL DEFINITIVAMENTE DE LA NUBE
+        await db.collection("silos_historial").doc(String(id)).delete();
+
+        // Refrescar la pantalla
+        dbSilosHistory = dbSilosHistory.filter(x => x.id !== id);
+        renderSilos();
+        cargarHistorialSilosNube(); // Actualiza la tabla visualmente
+        
+        showToast("Operación revertida (Ctrl+Z) y eliminada de la nube exitosamente.");
+
+    } catch (error) {
+        console.error("Error al anular movimiento en la nube:", error);
+        alert("❌ Ocurrió un error de red al intentar anular el movimiento. Revise su conexión.");
+    }
 }
 
 // ==========================================
