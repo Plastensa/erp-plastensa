@@ -10742,6 +10742,92 @@ function generarCierreMensualExcel() {
     showToast(`✅ Excel de Cierre del ${mesStr}/${anioStr} descargado.`);
 }
 
+// ==========================================
+// RESPALDO DIARIO AUTOMÁTICO A CORREO (1 VEZ CADA 24 HORAS)
+// ==========================================
+async function ejecutarRespaldoDiarioNube() {
+    // 1. Solo se ejecuta si hay un Administrador activo
+    if (!currentUser || currentUser.role !== 'ADMIN') return;
+
+    // 2. Verificar si ya pasaron 24 horas (86,400,000 milisegundos)
+    const ultimoRespaldo = localStorage.getItem('plast_ultimo_respaldo');
+    const ahora = Date.now();
+    const UN_DIA_MS = 86400000; 
+
+    if (ultimoRespaldo && (ahora - parseInt(ultimoRespaldo)) < UN_DIA_MS) {
+        return; // Ya se envió el respaldo de hoy, no hace nada.
+    }
+
+    console.log("🤖 Generando respaldo diario completo desde Firebase...");
+
+    try {
+        // 3. Descarga la verdad absoluta desde las carpetas de la nube en segundo plano
+        const [
+            snapCentrales, snapProds, snapClients, snapCaja,
+            snapCotiz, snapPed, snapMp, snapConsumos,
+            snapBloques, snapCortesProg, snapCortesRep,
+            snapKardex, snapDespachos
+        ] = await Promise.all([
+            db.collection("plastensa_erp").doc("datos_centrales").get(),
+            db.collection("plastensa_erp").doc("datos_productos").get(),
+            db.collection("plastensa_erp").doc("datos_clientes").get(),
+            db.collection("plastensa_erp").doc("datos_caja").get(),
+            db.collection("cotizaciones").get(),
+            db.collection("pedidos").get(),
+            db.collection("mp_ingresos").get(),
+            db.collection("exp_consumos").get(),
+            db.collection("bloques_inventario").get(),
+            db.collection("cortes_programados").get(),
+            db.collection("cortes_reportes").get(),
+            db.collection("kardex_pt").get(),
+            db.collection("despachos_tickets").get()
+        ]);
+
+        const parseSnap = (snap, isDoc) => {
+            if (isDoc) return snap.exists ? snap.data() : {};
+            let arr = [];
+            snap.forEach(d => arr.push(d.data()));
+            return arr;
+        };
+
+        const backupData = {
+            fechaRespaldo: new Date().toLocaleString(),
+            centrales: parseSnap(snapCentrales, true),
+            products: parseSnap(snapProds, true),
+            clients: parseSnap(snapClients, true),
+            caja: parseSnap(snapCaja, true),
+            cotizaciones: parseSnap(snapCotiz, false),
+            pedidos: parseSnap(snapPed, false),
+            mp_ingresos: parseSnap(snapMp, false),
+            exp_consumos: parseSnap(snapConsumos, false),
+            bloques_inventario: parseSnap(snapBloques, false),
+            cortes_programados: parseSnap(snapCortesProg, false),
+            cortes_reportes: parseSnap(snapCortesRep, false),
+            kardex_pt: parseSnap(snapKardex, false),
+            despachos_tickets: parseSnap(snapDespachos, false)
+        };
+
+        const urlGoogleScript = "https://script.google.com/macros/s/AKfycbzDjmWalQbHTLp-4vMwLT63txZuvCt0N03KptGRzF-D3D5r98_NJ1AS1jRt3rBVe6jU/exec";
+
+        await fetch(urlGoogleScript, {
+            method: 'POST',
+            headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+            body: JSON.stringify(backupData)
+        });
+
+        // 4. Marcar fecha del último respaldo enviado
+        localStorage.setItem('plast_ultimo_respaldo', ahora.toString());
+        console.log("✅ Respaldo diario completado y enviado por correo.");
+        showToast("📧 Respaldo diario enviado a tu correo exitosamente.");
+
+    } catch (error) {
+        console.error("Error al enviar el respaldo diario automático:", error);
+    }
+}
+
+// Disparador: Se evalúa 10 segundos después de que el usuario ingresa al ERP
+setTimeout(ejecutarRespaldoDiarioNube, 10000);
+
 renderAll();
     </script>
 </body>
