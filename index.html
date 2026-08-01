@@ -2570,6 +2570,11 @@
                                 <span>DESCARGAR EXCEL MAESTRO</span>
                             </button>
 
+<button onclick="robotRenombrarPedido()" class="col-span-1 md:col-span-2 w-full bg-yellow-500 text-slate-900 px-8 py-6 rounded-xl font-black hover:bg-yellow-400 transition-colors flex flex-col items-center justify-center gap-3 shadow-lg border-2 border-yellow-300">
+                                <i data-lucide="edit-3" class="w-8 h-8"></i> 
+                                <span>ROBOT: CORREGIR NÚMERO DE PEDIDO (RENOMBRAR)</span>
+                            </button>
+
                             <button onclick="generarCierreMensualExcel()" class="col-span-1 md:col-span-2 w-full bg-cyan-600 text-white px-8 py-6 rounded-xl font-black hover:bg-cyan-700 transition-colors flex flex-col items-center justify-center gap-3 shadow-lg border-2 border-cyan-400">
                                 <i data-lucide="calendar-check" class="w-8 h-8"></i> 
                                 <span>CIERRE MENSUAL CONTABLE (EXCEL 6 PESTAÑAS)</span>
@@ -9101,14 +9106,35 @@ function ajustarTolvaAdmin() {
 // --- DISPARADOR INICIAL ---
 renderAll();
 
-// --- NUEVO GENERADOR DE PEDIDOS INDEPENDIENTE ---
+// --- NUEVO GENERADOR DE PEDIDOS INDEPENDIENTE (CON REINICIO MENSUAL) ---
 function generarCorrelativoPedido() {
     const pedidos = orders || [];
     const fecha = new Date();
-    const mes = (fecha.getMonth() + 1).toString().padStart(2, '0');
+    const mes = String(fecha.getMonth() + 1).padStart(2, '0');
     const anio = fecha.getFullYear();
-    const correlativo = pedidos.length + 1;
-    return `PED-${correlativo.toString().padStart(4, '0')}-${mes}/${anio}`;
+    const sufijoMesAnio = `-${mes}/${anio}`; // Ejemplo: "-08/2026"
+
+    let maxCorrelativo = 0;
+
+    // Buscamos cuál fue el último número usado SOLO en este mes y año
+    pedidos.forEach(p => {
+        if (p.id && p.id.includes(sufijoMesAnio)) {
+            // El ID tiene formato "PED-0301-08/2026", lo partimos por el guion
+            const partes = p.id.split('-');
+            if (partes.length >= 2) {
+                const num = parseInt(partes[1], 10);
+                if (!isNaN(num) && num > maxCorrelativo) {
+                    maxCorrelativo = num;
+                }
+            }
+        }
+    });
+
+    // Le sumamos 1 al máximo encontrado (si no había ninguno, será 0 + 1 = 1)
+    const nuevoCorrelativo = maxCorrelativo + 1;
+    
+    // Formateamos para que siempre tenga 4 ceros (Ej: 0001, 0015, 0150)
+    return `PED-${String(nuevoCorrelativo).padStart(4, '0')}${sufijoMesAnio}`;
 }
 
 // ==========================================
@@ -10863,6 +10889,93 @@ async function ejecutarRespaldoDiarioNube() {
 
 // Disparador: Se evalúa 10 segundos después de que el usuario ingresa al ERP
 setTimeout(ejecutarRespaldoDiarioNube, 10000);
+
+// ==========================================
+// ROBOT RENOMBRADOR DE PEDIDOS (MANTIENE ENLACES)
+// ==========================================
+async function robotRenombrarPedido() {
+    const idViejo = prompt("🤖 ROBOT RENOMBRADOR\n\nIngrese el N° de Pedido INCORRECTO que desea cambiar\n(Ejemplo exacto: PED-0301-08/2026):");
+    if(!idViejo) return;
+    
+    const o = orders.find(x => x.id === idViejo);
+    if(!o) return alert("❌ Pedido no encontrado. Verifique haber escrito el código exactamente igual, incluyendo mayúsculas y guiones.");
+    
+    const idNuevo = prompt(`El pedido actual le pertenece a: ${o.client}\n\nIngrese el N° de Pedido CORRECTO al que desea cambiar:\n(Ejemplo: PED-0001-08/2026)`);
+    if(!idNuevo) return;
+    
+    const existe = orders.find(x => x.id === idNuevo);
+    if(existe) return alert(`❌ El pedido ${idNuevo} ya existe en el sistema. No se puede duplicar.`);
+    
+    if(!confirm(`⚠️ ADVERTENCIA:\n\nSe cambiará el ID del pedido de:\n[${idViejo}]  ➔  [${idNuevo}]\n\nEsto también actualizará la Sala de Corte, Despachos y Tesorería.\n\n¿Desea Continuar?`)) return;
+
+    showToast("Renombrando pedido y actualizando enlaces en la nube...");
+
+    try {
+        const batch = db.batch();
+
+        // 1. Crear el nuevo pedido y borrar el viejo
+        const nuevoPedido = { ...o, id: idNuevo };
+        batch.set(db.collection("pedidos").doc(idNuevo.replace(/\//g, '-')), nuevoPedido);
+        batch.delete(db.collection("pedidos").doc(idViejo.replace(/\//g, '-')));
+
+        // 2. Actualizar Tarjetas de Corte (Programación)
+        dbSchedules.filter(s => s.orderId === idViejo).forEach(s => {
+            s.orderId = idNuevo;
+            batch.set(db.collection("cortes_programados").doc(String(s.id)), s);
+        });
+
+        // 3. Actualizar Reportes de Corte (Historial)
+        dbReportesCorte.forEach(r => {
+            let changedReport = false;
+            if(r.detalleCortes) {
+                r.detalleCortes.forEach(c => {
+                    if(c.orderIdStr === idViejo) {
+                        c.orderIdStr = idNuevo;
+                        changedReport = true;
+                    }
+                });
+            }
+            if(changedReport) {
+                batch.set(db.collection("cortes_reportes").doc(String(r.id)), r);
+            }
+        });
+
+        // 4. Actualizar Despachos
+        dbDespachos.filter(d => d.orderId === idViejo).forEach(d => {
+            d.orderId = idNuevo;
+            batch.set(db.collection("despachos_tickets").doc(String(d.idTicket).replace(/\//g, '-')), d);
+        });
+
+        // 5. Actualizar Datos Centrales (Pagos pendientes y Caja)
+        let changedCentrales = false;
+        dbPendingVerifications.forEach(p => {
+            if (p.orderId === idViejo) {
+                p.orderId = idNuevo;
+                changedCentrales = true;
+            }
+        });
+        
+        dbMovimientosCaja.forEach(m => {
+            if (m.orden === idViejo) { m.orden = idNuevo; changedCentrales = true; }
+            if (m.desc && m.desc.includes(idViejo)) { m.desc = m.desc.replace(idViejo, idNuevo); changedCentrales = true; }
+        });
+
+        if (changedCentrales) {
+            batch.update(db.collection("plastensa_erp").doc("datos_centrales"), {
+                dbPendingVerifications: JSON.stringify(dbPendingVerifications),
+                dbMovimientosCaja: JSON.stringify(dbMovimientosCaja)
+            });
+        }
+
+        await batch.commit();
+        alert(`✅ ÉXITO: El pedido ha sido renombrado a ${idNuevo} en todas las bases de datos.`);
+        window.location.reload();
+
+    } catch (e) {
+        console.error(e);
+        alert("❌ Error de conexión al renombrar en Firebase. Intente de nuevo.");
+    }
+}
 
 renderAll();
     </script>
