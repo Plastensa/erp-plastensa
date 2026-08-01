@@ -632,15 +632,20 @@
         </div>
 
         <div class="lg:col-span-2 flex flex-col gap-6">
-           <div class="bg-indigo-900 p-8 rounded-[32px] shadow-xl text-white flex flex-col gap-6 relative overflow-hidden">
+          <div class="bg-indigo-900 p-8 rounded-[32px] shadow-xl text-white flex flex-col gap-6 relative overflow-hidden">
                 <div class="relative z-10 flex justify-between items-center border-b border-indigo-800 pb-4">
                     <div>
                         <p class="text-indigo-200 font-bold uppercase tracking-widest text-xs mb-1">Saldo Total Almacén Virgen</p>
                         <h3 class="text-5xl font-black tracking-tighter" id="mp-saldo-total">0 KG</h3>
                     </div>
-                    <button onclick="exportMateriaPrimaCSV()" class="bg-indigo-700 hover:bg-indigo-600 text-white font-black text-xs uppercase tracking-wider px-4 py-3 rounded-xl transition-all shadow-md flex items-center gap-2">
-                        <i data-lucide="download" class="w-4 h-4"></i> Exportar Inventario (CSV)
-                    </button>
+                    <div class="flex gap-2">
+                        <button onclick="robotAuditorMateriaPrima()" class="bg-red-500 hover:bg-red-400 text-white font-black text-xs uppercase tracking-wider px-4 py-3 rounded-xl transition-all shadow-md flex items-center gap-2 animate-pulse">
+                            <i data-lucide="bot" class="w-4 h-4"></i> Recalcular
+                        </button>
+                        <button onclick="exportMateriaPrimaCSV()" class="bg-indigo-700 hover:bg-indigo-600 text-white font-black text-xs uppercase tracking-wider px-4 py-3 rounded-xl transition-all shadow-md flex items-center gap-2">
+                            <i data-lucide="download" class="w-4 h-4"></i> Exportar (CSV)
+                        </button>
+                    </div>
                 </div>
                 <div>
                     <p class="text-indigo-200 font-black uppercase tracking-widest text-[10px] mb-3">Existencias por Marca / Tipo:</p>
@@ -4737,11 +4742,6 @@ function saveMateriaPrima(e) {
     });
 }
 
-function deleteMateriaPrima(id) {
-    if(!confirm("¿Eliminar este ingreso? Se restará el peso del almacén principal.")) return;
-    db.collection("mp_ingresos").doc(String(id)).delete().then(() => showToast("Ingreso eliminado."));
-}
-
 function renderMateriaPrima() {
     if(!document.getElementById('mp-saldo-total')) return;
     
@@ -4752,12 +4752,13 @@ function renderMateriaPrima() {
     // 1. DIBUJAR LA PIZARRA AL INSTANTE
     Object.keys(pizarraMateriaPrima).forEach(marca => {
         const pesoTipo = pizarraMateriaPrima[marca];
-        totalAcumulado += pesoTipo;
-        if(pesoTipo > 0) {
+        // Solo mostramos si hay más de 0.1 KG (para evitar basurita de decimales)
+        if(pesoTipo > 0.1) {
+            totalAcumulado += pesoTipo;
             htmlDesglose += `
             <div class="bg-indigo-950/50 border border-indigo-800/60 p-3 rounded-xl flex flex-col justify-between">
                 <span class="text-indigo-300 font-bold tracking-tight block uppercase text-[10px] truncate" title="${marca}">${marca}</span>
-                <span class="text-base font-black mt-1 text-white">${pesoTipo.toLocaleString('en-US', {minimumFractionDigits:1})} <span class="text-[10px] font-normal text-indigo-300">KG</span></span>
+                <span class="text-base font-black mt-1 text-white">${pesoTipo.toLocaleString('en-US', {minimumFractionDigits:1, maximumFractionDigits:1})} <span class="text-[10px] font-normal text-indigo-300">KG</span></span>
             </div>`;
         }
     });
@@ -4765,24 +4766,23 @@ function renderMateriaPrima() {
     document.getElementById('mp-saldo-total').innerText = `${totalAcumulado.toLocaleString('en-US', {minimumFractionDigits:2, maximumFractionDigits:2})} KG`;
     
     if(totalAcumulado === 0) {
-        desgloseDiv.innerHTML = `<div class="col-span-full text-indigo-300 italic font-bold text-xs">No hay existencias de ninguna marca actualmente.</div>`;
+        desgloseDiv.innerHTML = `<div class="col-span-full text-indigo-300 italic font-bold text-xs">No hay existencias o debes hacer clic en RECALCULAR.</div>`;
     } else {
         desgloseDiv.innerHTML = htmlDesglose;
     }
 
-    // 2. BOTÓN DE CARGA A DEMANDA
+    // 2. BOTÓN DE CARGA A DEMANDA (Ahora pide 100)
     const tbody = document.getElementById('mp-historial-body');
-    tbody.innerHTML = `<tr><td colspan="6" class="p-6 text-center"><button onclick="cargarHistorialMateriaPrima()" class="bg-slate-100 hover:bg-slate-200 border border-slate-300 text-slate-700 font-black text-xs uppercase tracking-widest px-6 py-3 rounded-xl shadow-sm transition-colors"><i data-lucide="cloud-download" class="w-4 h-4 inline mr-1 -mt-0.5"></i> Descargar Historial (Últimas 50 bolsas)</button></td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="6" class="p-6 text-center"><button onclick="cargarHistorialMateriaPrima()" class="bg-slate-100 hover:bg-slate-200 border border-slate-300 text-slate-700 font-black text-xs uppercase tracking-widest px-6 py-3 rounded-xl shadow-sm transition-colors"><i data-lucide="cloud-download" class="w-4 h-4 inline mr-1 -mt-0.5"></i> Cargar Últimas 100 Bolsas</button></td></tr>`;
     if(window.lucide) lucide.createIcons();
 }
 
-// FUNCIÓN PARA DESCARGAR SOLO AL HACER CLIC
 function cargarHistorialMateriaPrima() {
     const tbody = document.getElementById('mp-historial-body');
     tbody.innerHTML = `<tr><td colspan="6" class="p-8 text-center text-indigo-500 font-black uppercase animate-pulse">Conectando con el servidor...</td></tr>`;
     
-    // Le pedimos a Firebase SOLO las últimas 50 bolsas, una sola vez.
-    db.collection("mp_ingresos").orderBy("id", "desc").limit(50).get().then((querySnapshot) => {
+    // Cambiado el límite a 100 bolsas
+    db.collection("mp_ingresos").orderBy("id", "desc").limit(100).get().then((querySnapshot) => {
         let hist = [];
         querySnapshot.forEach((doc) => hist.push(doc.data()));
         
@@ -4798,11 +4798,29 @@ function cargarHistorialMateriaPrima() {
                 <td class="p-4 font-bold text-slate-700">${h.marca}</td>
                 <td class="p-4 text-right font-black text-slate-800">+ ${h.peso.toFixed(2)} KG</td>
                 <td class="p-4 text-[10px] uppercase font-bold text-slate-400">${h.operador}</td>
-                <td class="p-4 text-center">--</td>
+                <td class="p-4 text-center">
+                    ${currentUser && currentUser.role === 'ADMIN' ? `<button onclick="deleteMateriaPrima(${h.id}, '${h.marca}', ${h.peso})" class="text-red-400 hover:text-red-600"><i data-lucide="trash-2" class="w-4 h-4"></i></button>` : ''}
+                </td>
             </tr>
         `).join('');
+        if(window.lucide) lucide.createIcons();
     }).catch(err => {
         tbody.innerHTML = `<tr><td colspan="6" class="p-8 text-center text-red-500 font-bold">Error de conexión. Reintente.</td></tr>`;
+    });
+}
+
+function deleteMateriaPrima(id, marca, peso) {
+    if(!confirm("¿Eliminar este ingreso? Se restará el peso de la Pizarra Principal.")) return;
+    
+    db.collection("mp_ingresos").doc(String(id)).delete().then(() => {
+        // Al borrar la bolsa, le restamos el peso a la Pizarra en vivo
+        if(pizarraMateriaPrima[marca]) {
+            pizarraMateriaPrima[marca] -= peso;
+            save(); // Actualizamos la nube
+        }
+        showToast("Ingreso eliminado.");
+        cargarHistorialMateriaPrima(); // Recarga la tabla de abajo
+        renderMateriaPrima();          // Recarga la Pizarra de arriba
     });
 }
 
@@ -10667,6 +10685,53 @@ function exportarStockActualCSV() {
     link.click();
     document.body.removeChild(link);
     showToast("Inventario exportado a CSV exitosamente.");
+}
+
+async function robotAuditorMateriaPrima() {
+    if(!confirm("🤖 ROBOT AUDITOR DE MATERIA PRIMA\n\nEl sistema descargará todo el historial de ingresos y consumos desde el día 1, reconstruirá la matemática exacta y rellenará la Pizarra de Stock Actual.\n\n¿Iniciar cálculo?")) return;
+
+    document.getElementById('mp-saldo-total').innerText = "Calculando...";
+    
+    try {
+        const [snapIngresos, snapConsumos] = await Promise.all([
+            db.collection("mp_ingresos").get(),
+            db.collection("exp_consumos").get()
+        ]);
+
+        let calcPizarra = {};
+
+        // 1. Sumar todos los ingresos históricos
+        snapIngresos.forEach(doc => {
+            const i = doc.data();
+            const m = i.marca;
+            if(!calcPizarra[m]) calcPizarra[m] = 0;
+            calcPizarra[m] += parseFloat(i.peso) || 0;
+        });
+
+        // 2. Restar todos los consumos históricos (Expansión)
+        snapConsumos.forEach(doc => {
+            const c = doc.data();
+            const m = c.marca;
+            if(!calcPizarra[m]) calcPizarra[m] = 0;
+            calcPizarra[m] -= parseFloat(c.peso) || 0;
+        });
+
+        // 3. Sobreescribir la Pizarra con la verdad absoluta
+        pizarraMateriaPrima = calcPizarra;
+
+        // 4. Guardar en el Cajón Central para que todos los usuarios lo vean
+        db.collection("plastensa_erp").doc("datos_centrales").update({
+            pizarraMateriaPrima: JSON.stringify(pizarraMateriaPrima)
+        });
+
+        renderMateriaPrima();
+        alert("✅ Cálculo de Materia Prima completado exitosamente.\n\nLa pizarra ha sido rellenada con los datos históricos.");
+
+    } catch (error) {
+        console.error(error);
+        alert("Error al auditar Materia Prima. Revise su conexión a internet.");
+        document.getElementById('mp-saldo-total').innerText = "ERROR";
+    }
 }
 
 renderAll();
