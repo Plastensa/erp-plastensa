@@ -2874,28 +2874,28 @@ function registrarMovimientoInventario(itemName, qty, tipo, motivo) {
 }
 
         function downloadInventarioTemplate() {
-            const stockItems = products.filter(p => Number(p.stock) > 0);
-            let csvContent = "\uFEFFItem (Nombre Exacto),Densidad,Stock a Sumar (Pzas)\n";
-            
-            if (stockItems.length > 0) {
-                // Si ya hay cosas con stock, las descarga para ajustarlas
-                csvContent += stockItems.map(p => `"${p.name}","${p.density || ''}",${p.stock}`).join("\n");
-            } else {
-                // Si la BD está vacía de stock, descarga 3 líneas de ejemplo
-                csvContent += `"PB8/10/100/50","D8",150\n`;
-                csvContent += `"LAM13/2.5/61/61","D13",50\n`;
-                csvContent += `NOTA: BORRE ESTAS 3 FILAS. COLOCAR EL NOMBRE EXACTO DEL CATÁLOGO.,,\n`;
-            }
+    let csvContent = "\uFEFFItem (Nombre Exacto),Densidad,Stock Actual (Pzas)\n";
+    
+    // Ahora toma TODOS los productos del catálogo sin importar si su stock es 0
+    if (products.length > 0) {
+        // Ordenamos alfabéticamente para que sea más fácil de leer en Excel
+        const productosOrdenados = [...products].sort((a, b) => a.name.localeCompare(b.name));
+        csvContent += productosOrdenados.map(p => `"${p.name}","${p.density || ''}",${p.stock || 0}`).join("\n");
+    } else {
+        // Solo si el catálogo está vacío muestra un ejemplo
+        csvContent += `"PB8/10/100/50","D8",150\n`;
+        csvContent += `NOTA: EL CATÁLOGO ESTÁ VACÍO. CREE PRODUCTOS EN COMERCIAL.,,\n`;
+    }
 
-            const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-            const link = document.createElement("a");
-            link.setAttribute("href", URL.createObjectURL(blob));
-            link.setAttribute("download", "Plantilla_Inventario_Inicial.csv");
-            document.body.appendChild(link);
-            link.click();
-            document.body.removeChild(link);
-            showToast("Plantilla descargada.");
-        }
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement("a");
+    link.setAttribute("href", URL.createObjectURL(blob));
+    link.setAttribute("download", `Plantilla_Inventario_PT_${new Date().toLocaleDateString().replace(/\//g,'-')}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    showToast("Plantilla completa descargada.");
+}
 
         function handleInventarioUpload(e) {
             const file = e.target.files[0]; if(!file) return; 
