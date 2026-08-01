@@ -842,13 +842,21 @@
 
 
 <div class="bg-white p-8 rounded-[32px] border border-slate-200 shadow-sm mt-6">
-    <div class="flex justify-between items-center mb-6 border-b border-slate-100 pb-4">
+    <div class="flex flex-col md:flex-row justify-between items-start md:items-center mb-6 border-b border-slate-100 pb-4 gap-4">
         <h3 class="font-black text-slate-800 uppercase flex items-center gap-2 text-lg">
             <i data-lucide="package-minus" class="text-red-500 w-6 h-6"></i> Historial de Consumo (Resina Virgen)
         </h3>
-        <button onclick="exportConsumosCSV()" class="bg-red-50 text-red-600 hover:bg-red-100 px-6 py-3 rounded-xl font-black text-xs uppercase tracking-widest flex items-center gap-2 transition-colors border border-red-200">
-            <i data-lucide="download" class="w-4 h-4"></i> Reporte Consumos
-        </button>
+        <div class="flex flex-wrap gap-2 w-full md:w-auto items-center">
+            <div class="flex items-center gap-2 bg-slate-50 p-2 rounded-xl border border-slate-200">
+                <span class="text-[9px] font-black text-slate-400 uppercase">Desde</span>
+                <input type="date" id="filtro-consumo-desde" onchange="renderExpansion()" class="bg-transparent font-bold outline-none text-xs text-slate-700 cursor-pointer">
+                <span class="text-[9px] font-black text-slate-400 uppercase">Hasta</span>
+                <input type="date" id="filtro-consumo-hasta" onchange="renderExpansion()" class="bg-transparent font-bold outline-none text-xs text-slate-700 cursor-pointer">
+            </div>
+            <button onclick="exportConsumosCSV()" class="bg-red-50 text-red-600 hover:bg-red-100 px-6 py-3 rounded-xl font-black text-xs uppercase tracking-widest flex items-center gap-2 transition-colors border border-red-200">
+                <i data-lucide="download" class="w-4 h-4"></i> Reporte Consumos
+            </button>
+        </div>
     </div>
     <div class="overflow-x-auto">
         <table class="w-full text-left text-xs whitespace-nowrap">
@@ -4900,48 +4908,101 @@ function saveConsumo(e) {
     });
 }
 
-function deleteConsumo(id) {
-    if(!confirm("¿Anular este consumo? Los kilos volverán al almacén.")) return;
-    db.collection("exp_consumos").doc(String(id)).delete().then(() => showToast("Consumo anulado."));
+function renderExpansion() {
+    // 1. Renderizar Jarritas de densidad (si aplica)
+    const tJar = document.getElementById('jarritas-body');
+    if(tJar && dbExpansion.jarritas) {
+        tJar.innerHTML = dbExpansion.jarritas.map(j => `<tr><td class="pt-2 font-bold text-slate-500">${j.fecha} <span class="text-slate-800">${j.hora}</span></td><td class="pt-2 font-black">${j.silo}</td><td class="pt-2 text-[10px] uppercase font-bold">${j.etapa}</td><td class="pt-2 text-right font-black text-cyan-600">${j.peso.toFixed(1)} <span class="text-[9px] text-slate-400">g/lt</span></td><td class="pt-2 text-[9px] uppercase font-black text-slate-400">${j.operador}</td></tr>`).join('');
+    }
+
+    // 2. Renderizar Consumos a Demanda
+    const tCon = document.getElementById('consumos-body');
+    if(!tCon) return;
+
+    const dateDesde = document.getElementById('filtro-consumo-desde') ? document.getElementById('filtro-consumo-desde').value : '';
+    const dateHasta = document.getElementById('filtro-consumo-hasta') ? document.getElementById('filtro-consumo-hasta').value : '';
+
+    // Si no hay filtro de fechas seleccionado, muestra el botón de carga rápida
+    if (!dateDesde && !dateHasta) {
+        tCon.innerHTML = `<tr><td colspan="6" class="p-6 text-center"><button onclick="cargarConsumosRecientes()" class="bg-slate-100 hover:bg-slate-200 border border-slate-300 text-slate-700 font-black text-xs uppercase tracking-widest px-6 py-3 rounded-xl shadow-sm transition-colors"><i data-lucide="cloud-download" class="w-4 h-4 inline mr-1 -mt-0.5"></i> Cargar Últimos 100 Consumos</button></td></tr>`;
+        if(window.lucide) lucide.createIcons();
+        return;
+    }
+
+    tCon.innerHTML = `<tr><td colspan="6" class="p-8 text-center text-red-500 font-black uppercase animate-pulse">Buscando consumos en la nube...</td></tr>`;
+
+    let timeDesde = dateDesde ? new Date(dateDesde + "T00:00:00").getTime() : 0;
+    let timeHasta = dateHasta ? new Date(dateHasta + "T23:59:59").getTime() : 9999999999999;
+
+    db.collection("exp_consumos").where("id", ">=", timeDesde).where("id", "<=", timeHasta).orderBy("id", "desc").get().then((snapshot) => {
+        let consumos = [];
+        snapshot.forEach(doc => consumos.push(doc.data()));
+        dbExpansion.consumos = consumos; // Guardamos en memoria para exportar o anular
+        pintarTablaConsumos(consumos, tCon);
+    }).catch(err => {
+        console.error(err);
+        tCon.innerHTML = `<tr><td colspan="6" class="p-8 text-center text-red-500 font-bold">Error de conexión al cargar consumos.</td></tr>`;
+    });
 }
 
-function renderExpansion() {
-    // 1. Renderiza las jarritas
-    const tJar = document.getElementById('jarritas-body');
-    if(tJar) {
-        tJar.innerHTML = dbExpansion.jarritas.map(j => `<tr><td class="pt-2 font-bold text-slate-500">${j.fecha} <span class="text-slate-800">${j.hora}</span></td><td class="pt-2 font-black">${j.silo}</td><td class="pt-2 text-[10px] uppercase font-bold">${j.etapa}</td><td class="pt-2 text-right font-black text-cyan-600">${j.peso.toFixed(1)} <span class="text-[9px] text-slate-400">g/lt</span></td><td class="pt-2 text-[9px] uppercase font-black text-slate-400">${j.operador}</td></tr>`).join('');
-        const tHead = tJar.parentElement.parentElement.querySelector('thead tr');
-        if(tHead && !tHead.innerHTML.includes('Operador')) {
-            tHead.innerHTML = `<th class="pb-2">Fecha/Hora</th><th class="pb-2">Silo</th><th class="pb-2">Etapa</th><th class="pb-2 text-right">Gramos</th><th class="pb-2">Operador</th>`;
-        }
-    }
-
-    // 2. Renderiza el Historial de Consumos (Con seguridad ADMIN)
+function cargarConsumosRecientes() {
     const tCon = document.getElementById('consumos-body');
-    if(tCon) {
-        if(dbExpansion.consumos.length === 0) {
-            tCon.innerHTML = `<tr><td colspan="6" class="p-8 text-center font-bold text-slate-400 italic">No hay consumos registrados aún.</td></tr>`;
-            return;
-        }
-        tCon.innerHTML = dbExpansion.consumos.map(c => `
-            <tr class="hover:bg-red-50/30 border-b border-slate-100 transition-colors">
-                <td class="p-4 font-bold text-slate-500">${c.fecha}</td>
-                <td class="p-4 font-black text-slate-800">${c.lote}</td>
-                <td class="p-4 font-bold text-slate-600">${c.marca}</td>
-                <td class="p-4 text-right font-black text-red-500">- ${c.peso.toFixed(1)} KG</td>
-                <td class="p-4 text-[10px] uppercase font-black text-slate-400">${c.operador}</td>
-                <td class="p-4 text-center">
-                    ${currentUser && currentUser.role === 'ADMIN' 
-                        ? `<button onclick="deleteConsumo(${c.id})" title="Anular Consumo" class="text-red-400 hover:text-red-600 bg-white p-2 rounded-lg shadow-sm border border-red-100 transition-all"><i data-lucide="trash-2" class="w-4 h-4"></i></button>` 
-                        : `<span class="text-[9px] font-black text-slate-300 uppercase">Sin Acceso</span>`}
-                </td>
-            </tr>
-        `).join('');
+    if(!tCon) return;
+    tCon.innerHTML = `<tr><td colspan="6" class="p-8 text-center text-red-500 font-black uppercase animate-pulse">Descargando últimos 100 consumos...</td></tr>`;
+
+    db.collection("exp_consumos").orderBy("id", "desc").limit(100).get().then((snapshot) => {
+        let consumos = [];
+        snapshot.forEach(doc => consumos.push(doc.data()));
+        dbExpansion.consumos = consumos; // Guardamos en memoria
+        pintarTablaConsumos(consumos, tCon);
+    }).catch(err => {
+        console.error(err);
+        tCon.innerHTML = `<tr><td colspan="6" class="p-8 text-center text-red-500 font-bold">Error de conexión al cargar consumos.</td></tr>`;
+    });
+}
+
+function pintarTablaConsumos(list, tCon) {
+    if(list.length === 0) {
+        tCon.innerHTML = `<tr><td colspan="6" class="p-8 text-center font-bold text-slate-400 italic">No hay consumos de resina virgen registrados en este periodo.</td></tr>`;
+        return;
     }
+    tCon.innerHTML = list.map(c => `
+        <tr class="hover:bg-red-50/30 border-b border-slate-100 transition-colors">
+            <td class="p-4 font-bold text-slate-500">${c.fecha}</td>
+            <td class="p-4 font-black text-slate-800">${c.lote}</td>
+            <td class="p-4 font-bold text-slate-600">${c.marca}</td>
+            <td class="p-4 text-right font-black text-red-500">- ${c.peso.toFixed(1)} KG</td>
+            <td class="p-4 text-[10px] uppercase font-black text-slate-400">${c.operador}</td>
+            <td class="p-4 text-center">
+                ${currentUser && currentUser.role === 'ADMIN' 
+                    ? `<button onclick="deleteConsumo(${c.id})" title="Anular Consumo" class="text-red-400 hover:text-red-600 bg-white p-2 rounded-lg shadow-sm border border-red-100 transition-all"><i data-lucide="trash-2" class="w-4 h-4"></i></button>` 
+                    : `<span class="text-[9px] font-black text-slate-300 uppercase">Sin Acceso</span>`}
+            </td>
+        </tr>
+    `).join('');
+    if(window.lucide) lucide.createIcons();
+}
+
+function deleteConsumo(id) {
+    if(!confirm("¿Anular este consumo? Los kilos volverán a sumarse a la Pizarra del almacén.")) return;
+    
+    const c = dbExpansion.consumos.find(x => x.id === id);
+    db.collection("exp_consumos").doc(String(id)).delete().then(() => {
+        // Al anular el consumo, devolvemos los kilos a la Pizarra en tiempo real
+        if(c && c.marca && typeof pizarraMateriaPrima !== 'undefined') {
+            pizarraMateriaPrima[c.marca] = (pizarraMateriaPrima[c.marca] || 0) + c.peso;
+            save();
+        }
+        showToast("Consumo anulado.");
+        if(typeof renderMateriaPrima === 'function') renderMateriaPrima();
+        renderExpansion();
+    });
 }
 
 function exportConsumosCSV() {
-    if(dbExpansion.consumos.length === 0) return alert("No hay consumos registrados para exportar.");
+    if(!dbExpansion.consumos || dbExpansion.consumos.length === 0) {
+        return alert("No hay consumos cargados en pantalla para exportar.\nRealice una búsqueda por fecha o presione 'Cargar Últimos 100 Consumos' primero.");
+    }
     
     let csv = "FECHA,LOTE,MARCA / TIPO,PESO DESCONTADO (KG),OPERADOR\n";
     
