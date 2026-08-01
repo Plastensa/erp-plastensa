@@ -1026,7 +1026,8 @@
                 <thead class="bg-slate-100 border-b border-slate-200 text-[10px] font-black uppercase text-slate-500 tracking-widest">
                     <tr>
                         <th class="p-4 text-center w-10">Sel.</th>
-                        <th class="p-4">Código / Carnet</th>
+			<th class="p-4">Fecha Prod.</th>
+			<th class="p-4">Código / Carnet</th>
                         <th class="p-4">Tipo (Medida)</th>
                         <th class="p-4 text-right">Peso Real</th>
                         <th class="p-4 text-center">Dens. Real</th>
@@ -1203,7 +1204,7 @@
                                 <div class="overflow-auto max-h-[220px]">
                                     <table class="w-full text-left text-xs whitespace-nowrap">
                                         <thead class="bg-slate-50 text-[10px] font-black text-slate-400 uppercase tracking-widest sticky top-0">
-                                            <tr><th class="p-3 pl-4">Sel</th><th class="p-3">Código</th><th class="p-3">Tipo / Dens.</th><th class="p-3 text-right">Vol Neto</th><th class="p-3 text-center">Estado</th></tr>
+                                            <tr><th class="p-3 pl-4">Sel</th><th class="p-3">Fecha Prod.</th><th class="p-3">Código</th><th class="p-3">Tipo / Dens.</th><th class="p-3 text-right">Vol Neto</th><th class="p-3 text-center">Estado</th></tr>
                                         </thead>
                                         <tbody id="corte-bloques-list" class="divide-y divide-slate-50"></tbody>
                                     </table>
@@ -6922,6 +6923,7 @@ function renderInventarioBloques() {
     tbody.innerHTML = disponibles.map(b => `
         <tr class="hover:bg-slate-50 border-b border-slate-100 transition-colors">
             <td class="p-4 text-center"><input type="checkbox" class="bloque-checkbox w-4 h-4 cursor-pointer" value="${b.id}" onchange="toggleCorteBtn()"></td>
+	    <td class="p-4 font-bold text-slate-500">${b.fecha}</td>
             <td class="p-4 font-black text-slate-800 text-sm">${b.codigo}</td>
             <td class="p-4 font-bold text-slate-600">${b.densFinal} • ${b.tipo}</td>
             <td class="p-4 text-right font-black text-blue-600">${b.peso.toFixed(1)} KG</td>
@@ -7143,6 +7145,7 @@ function renderSalaCorte() {
         tbodyBloques.innerHTML = bloquesDisponibles.map(b => `
             <tr class="hover:bg-slate-50 border-b border-slate-100 cursor-pointer transition-colors">
                 <td class="p-3 pl-4 text-center"><input type="checkbox" id="corte-chk-${b.id}" class="w-4 h-4 cursor-pointer" onchange="calcVolCorteDin()"></td>
+		<td class="p-3 font-bold text-slate-500 text-xs">${b.fecha}</td>
                 <td class="p-3 font-black text-slate-800 text-xs">${b.codigo}</td>
                 <td class="p-3 font-bold text-slate-600 text-xs">${b.tipo} | <span class="text-indigo-600">${b.densFinal}</span></td>
                 <td class="p-3 text-right font-black text-blue-600 text-xs">${Number(b.volNeto).toFixed(2)} M³</td>
@@ -8871,13 +8874,15 @@ function ingresoInicialBloques() {
     const densReal = peso / datosBloque.volReal;
     const hoy = new Date().toLocaleDateString();
 
+    const batch = db.batch(); // Inicia el empaquetador para Firebase
+
     for(let i=0; i<cantidad; i++) {
         const bloquesHoy = dbBloques.filter(b => b.fecha === hoy && b.tipo === datosBloque.tipo && b.densFinal === densidad.toUpperCase());
         const correlativo = String(bloquesHoy.length + 1).padStart(2, '0');
         const codFecha = hoy.replace(/\//g, '').slice(0, 4);
         const codigoUnico = `${codFecha}-${densidad.toUpperCase()}-${datosBloque.tipo}-INI#${correlativo}`;
 
-        dbBloques.push({
+        const nuevoBloque = {
             id: Date.now() + i, 
             codigo: codigoUnico,
             tipo: datosBloque.tipo,
@@ -8892,12 +8897,23 @@ function ingresoInicialBloques() {
             ubicacion: 'PLANTA',
             fecha: hoy,
             operador: currentUser.name
-        });
+        };
+        
+        dbBloques.push(nuevoBloque);
+        
+        // Empaqueta el bloque para subirlo a la nube
+        const ref = db.collection("bloques_inventario").doc(String(nuevoBloque.id));
+        batch.set(ref, nuevoBloque);
     }
 
-    localStorage.setItem('plast_bloques', JSON.stringify(dbBloques)); save();
-    renderInventarioBloques();
-    showToast(`${cantidad} bloques inyectados al inventario físico.`);
+    // Ejecuta la subida a Firebase
+    batch.commit().then(() => {
+        renderInventarioBloques();
+        showToast(`${cantidad} bloques inyectados a la base de datos en la nube.`);
+    }).catch(err => {
+        console.error("Error al inyectar bloques iniciales:", err);
+        alert("❌ Error de red al intentar guardar los bloques en la nube.");
+    });
 }
 
 // ==========================================
