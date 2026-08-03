@@ -9984,17 +9984,43 @@ function emitirFacturaPiloto(orderId) {
 
     fetch(urlPuenteGoogle, {
         method: 'POST',
-        // Usamos text/plain para engañar al navegador y que no haga bloqueos
         headers: { 'Content-Type': 'text/plain;charset=utf-8' },
         body: JSON.stringify(payload)
     })
     .then(response => response.text())
     .then(text => {
         try {
-            const data = JSON.parse(text);
-            alert("✅ RESPUESTA DE FACTURACIÓN EXITOSA:\n\n" + JSON.stringify(data, null, 2));
+            const res = JSON.parse(text);
+            
+            // Si el SIAT nos da el OK y nos manda el PDF...
+            if (res.status === "success" && res.data && res.data.print_invoice) {
+                showToast("✅ ¡Factura Validada por el SIAT!");
+                
+                // 1. Magia Pura: Convertimos el texto Base64 a un archivo PDF real
+                const byteCharacters = atob(res.data.print_invoice);
+                const byteNumbers = new Array(byteCharacters.length);
+                for (let i = 0; i < byteCharacters.length; i++) {
+                    byteNumbers[i] = byteCharacters.charCodeAt(i);
+                }
+                const byteArray = new Uint8Array(byteNumbers);
+                const blob = new Blob([byteArray], {type: 'application/pdf'});
+                const blobUrl = URL.createObjectURL(blob);
+                
+                // 2. Abrimos el PDF oficial del SIAT en una nueva pestaña
+                window.open(blobUrl, '_blank');
+                
+                // 3. Opcional: Guardamos en la nube que este pedido ya fue facturado
+                o.facturado = true;
+                o.cuf = res.data.cuf;
+                o.numeroFactura = res.data.number_invoice;
+                db.collection("pedidos").doc(String(o.id).replace(/\//g, '-')).set(o);
+                save();
+
+            } else {
+                alert("⚠️ SYSTEMS BOLIVIA RECHAZÓ EL PEDIDO:\n\n" + JSON.stringify(res, null, 2));
+            }
         } catch(e) {
-            alert("⚠️ RESPUESTA DEL SERVIDOR:\n\n" + text);
+            alert("⚠️ ERROR DE LECTURA DEL SERVIDOR:\n\n" + text);
         }
     })
     .catch(error => {
