@@ -9913,36 +9913,36 @@ function cambiarZoomSalidasEps(delta) {
 // INTEGRACIÓN API - SYSTEMS BOLIVIA (FACTURACIÓN SIAT)
 // =========================================================
 function emitirFacturaPiloto(orderId) {
-    if(!confirm("¿Deseas enviar este pedido al sistema de facturación piloto de Systems Bolivia?")) return;
+    if(!confirm("¿Deseas enviar este pedido al sistema de facturación de Systems Bolivia?")) return;
 
     const o = orders.find(x => x.id === orderId);
     if(!o) return alert("Pedido no encontrado.");
 
-    if(!o.nit || o.nit.trim() === '') return alert("❌ ERROR: El cliente no tiene NIT o CI registrado en el pedido.");
+    if(!o.nit || o.nit.trim() === '') return alert("❌ ERROR: El cliente no tiene NIT o CI registrado.");
 
-    showToast("Enviando datos al servidor de Impuestos...");
+    showToast("Conectando con Servidor de Impuestos...");
 
-    // 1. CÁLCULO Y PRORRATEO DE PRECIOS EXACTOS (Como en tu PDF)
+    // 1. CÁLCULO Y PRORRATEO EXACTO PARA CUADRAR CENTAVOS
     const baseTotal = o.items.reduce((s,i) => s + i.subtotal, 0);
     const subtotalTeorico = baseTotal + (o.trans || 0) + (o.comm || 0) + (o.extra || 0);
     const descPorc = o.descuentoPorcentaje || 0;
     const descMonto = subtotalTeorico * (descPorc / 100);
-    const subtotalProrrateado = o.total + descMonto; // Total Bruto sin descuentos
+    const subtotalProrrateado = o.total + descMonto; 
     const multiplier = baseTotal > 0 ? (subtotalProrrateado / baseTotal) : 1;
 
     // 2. CONSTRUCCIÓN DE LOS ITEMS PARA EL SIAT
-    const json_products = o.items.map(i => {
+    const json_products = o.items.map((i, idx) => {
         const proratedPrice = i.unitPrice * multiplier;
         const discountItem = (proratedPrice * i.qty) * (descPorc / 100);
         const subtotalItem = (proratedPrice * i.qty) - discountItem;
         
-        // Buscar código de producto en el catálogo (Si no tiene, envía PROD)
         const pCat = products.find(p => p.name === i.name);
-        const pCode = (pCat && pCat.code) ? pCat.code : "PROD";
+        const pCode = (pCat && pCat.code) ? pCat.code : "PROD-001";
 
         return {
-            "economic_activity": "222030", // Código SIAT general para plastoformo
-            "code_product_sin": "99100",   // Código SIAT genérico
+            "id": "39", // ID de línea exigido por el proveedor
+            "economic_activity": "2220300", 
+            "code_product_sin": "1001633",   
             "product_code": pCode,
             "description_product": i.name,
             "amount": i.qty,
@@ -9958,18 +9958,18 @@ function emitirFacturaPiloto(orderId) {
     const cleanNit = String(o.nit).replace(/\s+/g, '');
     if (/^\d{8,15}$/.test(cleanNit) && cleanNit.length > 7) docType = 5; // 5 = NIT
 
-    // 4. ARMAR EL PAQUETE (PAYLOAD)
+    // 4. ARMAR EL PAQUETE JSON LIMPIO
     const payload = {
         "additional_discount": 0,
         "amount_giftcard": 0,
-        "payment_method_code": 1, // 1 = Efectivo
+        "payment_method_code": 1, 
         "card_number": "",
-        "code_clients": "100", // Cód Genérico Piloto
+        "code_clients": "1010", 
         "document_type_clients": docType,
         "complement_client": "",
         "document_clients": cleanNit,
         "business_name_clients": o.client,
-        "email_clients": "sin_correo@plastensa.com",
+        "email_clients": "tecjasasoft@gmail.com",
         "login": "admin",
         "json_products": json_products,
         "id_movement": 0,
@@ -9977,7 +9977,7 @@ function emitirFacturaPiloto(orderId) {
         "number_invoice": 0
     };
 
-    console.log("Enviando payload a Systems Bolivia:", payload);
+    console.log("Enviando Factura. Payload:", payload);
 
     // 5. DISPARAR A LA API
     fetch('https://systemsbolivia.com/produccion/apiInvWinner20mi/Api/emissions', {
@@ -9993,14 +9993,18 @@ function emitirFacturaPiloto(orderId) {
         },
         body: JSON.stringify(payload)
     })
-    .then(response => response.json())
-    .then(data => {
-        console.log("Respuesta de Facturación API:", data);
-        alert("📊 RESPUESTA DEL SISTEMA DE FACTURACIÓN:\n\n" + JSON.stringify(data, null, 2));
+    .then(response => response.text())
+    .then(text => {
+        try {
+            const data = JSON.parse(text);
+            alert("✅ RESPUESTA DE SYSTEMS BOLIVIA:\n\n" + JSON.stringify(data, null, 2));
+        } catch(e) {
+            alert("⚠️ RESPUESTA CRUDA DEL SERVIDOR:\n\n" + text);
+        }
     })
     .catch(error => {
-        console.error("Error en facturación API:", error);
-        alert("❌ Ocurrió un error de red al intentar facturar. Revisa tu conexión a internet.");
+        console.error("Error CORS o Red:", error);
+        alert("❌ BLOQUEO CORS DETECTADO.\n\nEl servidor de Systems Bolivia sigue bloqueando peticiones desde navegadores web (CORS).\n\nDímelo y pasamos al PLAN B (Usaremos Google Apps Script).");
     });
 }
 
