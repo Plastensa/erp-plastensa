@@ -9922,7 +9922,6 @@ function emitirFacturaPiloto(orderId) {
 
     showToast("Conectando con Servidor de Impuestos...");
 
-    // 1. CÁLCULO Y PRORRATEO EXACTO PARA CUADRAR CENTAVOS
     const baseTotal = o.items.reduce((s,i) => s + i.subtotal, 0);
     const subtotalTeorico = baseTotal + (o.trans || 0) + (o.comm || 0) + (o.extra || 0);
     const descPorc = o.descuentoPorcentaje || 0;
@@ -9930,7 +9929,6 @@ function emitirFacturaPiloto(orderId) {
     const subtotalProrrateado = o.total + descMonto; 
     const multiplier = baseTotal > 0 ? (subtotalProrrateado / baseTotal) : 1;
 
-    // 2. CONSTRUCCIÓN DE LOS ITEMS PARA EL SIAT
     const json_products = o.items.map((i, idx) => {
         const proratedPrice = i.unitPrice * multiplier;
         const discountItem = (proratedPrice * i.qty) * (descPorc / 100);
@@ -9940,7 +9938,7 @@ function emitirFacturaPiloto(orderId) {
         const pCode = (pCat && pCat.code) ? pCat.code : "PROD-001";
 
         return {
-            "id": "39", // ID de línea exigido por el proveedor
+            "id": "39",
             "economic_activity": "2220300", 
             "code_product_sin": "1001633",   
             "product_code": pCode,
@@ -9953,12 +9951,10 @@ function emitirFacturaPiloto(orderId) {
         };
     });
 
-    // 3. IDENTIFICAR SI ES NIT O CI
-    let docType = 1; // 1 = CI
+    let docType = 1; 
     const cleanNit = String(o.nit).replace(/\s+/g, '');
-    if (/^\d{8,15}$/.test(cleanNit) && cleanNit.length > 7) docType = 5; // 5 = NIT
+    if (/^\d{8,15}$/.test(cleanNit) && cleanNit.length > 7) docType = 5; 
 
-    // 4. ARMAR EL PAQUETE JSON LIMPIO
     const payload = {
         "additional_discount": 0,
         "amount_giftcard": 0,
@@ -9977,9 +9973,6 @@ function emitirFacturaPiloto(orderId) {
         "number_invoice": 0
     };
 
-    console.log("Enviando Factura. Payload:", payload);
-
-    // 5. DISPARAR AL PUENTE DE GOOGLE (PLAN B)
     const urlPuenteGoogle = "https://script.google.com/macros/s/AKfycbxaiCVugWIcBiafbjvKQ2chMWNk6SCmH2JEQxPshNvxqIYZaOYS6BGo31o7o6FfW4UmUw/exec";
 
     fetch(urlPuenteGoogle, {
@@ -9992,11 +9985,10 @@ function emitirFacturaPiloto(orderId) {
         try {
             const res = JSON.parse(text);
             
-            // Si el SIAT nos da el OK y nos manda el PDF...
             if (res.status === "success" && res.data && res.data.print_invoice) {
                 showToast("✅ ¡Factura Validada por el SIAT!");
                 
-                // 1. Magia Pura: Convertimos el texto Base64 a un archivo PDF real
+                // Magia: Convertimos texto a PDF
                 const byteCharacters = atob(res.data.print_invoice);
                 const byteNumbers = new Array(byteCharacters.length);
                 for (let i = 0; i < byteCharacters.length; i++) {
@@ -10006,31 +9998,33 @@ function emitirFacturaPiloto(orderId) {
                 const blob = new Blob([byteArray], {type: 'application/pdf'});
                 const blobUrl = URL.createObjectURL(blob);
                 
-               // 2. Forzamos la descarga directa para evadir el bloqueador de Pop-ups
+                // Descarga forzada del PDF (Corregida para que el nombre no tenga barras)
+                const safeId = String(o.id).replace(/\//g, '-');
                 const link = document.createElement('a');
                 link.href = blobUrl;
-                link.download = `Factura_Piloto_${o.id}.pdf`;
+                link.download = `Factura_Piloto_${safeId}.pdf`;
                 document.body.appendChild(link);
                 link.click();
                 document.body.removeChild(link);
                 
-                // 3. Opcional: Guardamos en la nube que este pedido ya fue facturado
+                // Guardamos en Firebase que ya está facturado
                 o.facturado = true;
                 o.cuf = res.data.cuf;
                 o.numeroFactura = res.data.number_invoice;
-                db.collection("pedidos").doc(String(o.id).replace(/\//g, '-')).set(o);
+                db.collection("pedidos").doc(safeId).set(o);
                 save();
 
             } else {
                 alert("⚠️ SYSTEMS BOLIVIA RECHAZÓ EL PEDIDO:\n\n" + JSON.stringify(res, null, 2));
             }
         } catch(e) {
-            alert("⚠️ ERROR DE LECTURA DEL SERVIDOR:\n\n" + text);
+            console.error("Error al procesar el PDF:", e);
+            alert("⚠️ ERROR INTERNO AL GENERAR EL PDF:\n" + e.message);
         }
     })
     .catch(error => {
-        console.error("Error de Red:", error);
-        alert("❌ Error al contactar al Puente de Google.");
+        console.error("Error de Red o de Puente:", error);
+        alert("❌ Error al contactar al Puente de Google o en la función:\n" + error.message);
     });
 }
 
