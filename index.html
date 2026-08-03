@@ -9979,32 +9979,27 @@ function emitirFacturaPiloto(orderId) {
 
     console.log("Enviando Factura. Payload:", payload);
 
-    // 5. DISPARAR A LA API
-    fetch('https://systemsbolivia.com/produccion/apiInvWinner20mi/Api/emissions', {
+    // 5. DISPARAR AL PUENTE DE GOOGLE (PLAN B)
+    const urlPuenteGoogle = https://script.google.com/macros/s/AKfycbxaiCVugWIcBiafbjvKQ2chMWNk6SCmH2JEQxPshNvxqIYZaOYS6BGo31o7o6FfW4UmUw/exec;
+
+    fetch(urlPuenteGoogle, {
         method: 'POST',
-        headers: {
-            'company': 'fernando',
-            'branch': '0',
-            'pos': '0',
-            'sectors': '1',
-            'modality': '1',
-            'Content-Type': 'application/json',
-            'Authorization': 'Bearer eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJpYXQiOjE3NjMyMDQ5OTAsImV4cCI6MTc2MzI5MTM5MCwiZGF0YSI6eyJpZCI6MSwibG9naW4iOiJhZG1pbiIsImNvbXBhbnkiOiJlbXByZXNhIn19.zdy9HlQcsjcfy2XzdgvKkhqml8I8zvVMXadXMalc-R4'
-        },
+        // Usamos text/plain para engañar al navegador y que no haga bloqueos
+        headers: { 'Content-Type': 'text/plain;charset=utf-8' },
         body: JSON.stringify(payload)
     })
     .then(response => response.text())
     .then(text => {
         try {
             const data = JSON.parse(text);
-            alert("✅ RESPUESTA DE SYSTEMS BOLIVIA:\n\n" + JSON.stringify(data, null, 2));
+            alert("✅ RESPUESTA DE FACTURACIÓN EXITOSA:\n\n" + JSON.stringify(data, null, 2));
         } catch(e) {
-            alert("⚠️ RESPUESTA CRUDA DEL SERVIDOR:\n\n" + text);
+            alert("⚠️ RESPUESTA DEL SERVIDOR:\n\n" + text);
         }
     })
     .catch(error => {
-        console.error("Error CORS o Red:", error);
-        alert("❌ BLOQUEO CORS DETECTADO.\n\nEl servidor de Systems Bolivia sigue bloqueando peticiones desde navegadores web (CORS).\n\nDímelo y pasamos al PLAN B (Usaremos Google Apps Script).");
+        console.error("Error de Red:", error);
+        alert("❌ Error al contactar al Puente de Google.");
     });
 }
 
