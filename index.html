@@ -3004,78 +3004,61 @@ function registrarMovimientoInventario(itemName, qty, tipo, motivo) {
             reader.readAsText(file); e.target.value = ''; 
         }
 function handleInventarioReescribir(e) {
-            const file = e.target.files[0]; if(!file) return; 
-            if(!confirm("⚠️ PELIGRO: Esta acción REESCRIBIRÁ el inventario.\n\nSe reemplazará el stock actual EXACTAMENTE por los valores del archivo (incluso los que estén vacíos o en 0). Los ítems que no estén en tu archivo de Excel se mantendrán intactos.\n\n¿Estás seguro de continuar?")) { e.target.value = ''; return; }
-            
-            const reader = new FileReader();
-            reader.onload = (event) => {
-                const lines = event.target.result.split(/\r?\n/); 
-                let actualizados = 0;
-                let errores = [];
+    const file = e.target.files[0]; if(!file) return; 
+    if(!confirm("⚠️ PELIGRO: Esta acción REESCRIBIRÁ el inventario.\n\nSe establecerá este archivo como un PUNTO DE PARTIDA (Reset). El sistema ignorará automáticamente todo el historial de cortes y salidas anteriores a este segundo para los ítems incluidos en el Excel.\n\n¿Estás seguro de continuar?")) { e.target.value = ''; return; }
+    
+    const reader = new FileReader();
+    reader.onload = (event) => {
+        const lines = event.target.result.split(/\r?\n/); 
+        let actualizados = 0;
+        let errores = [];
+        const timestampActual = Date.now();
 
-                for(let i = 1; i < lines.length; i++){
-                    const line = lines[i].trim(); 
-                    if(!line || line.toUpperCase().startsWith('NOTA:')) continue;
-                    
-                    let cols = line.split(','); 
-                    if (cols.length >= 3) {
-                        const itemName = cols[0].replace(/^"|"$/g, '').trim().toLowerCase();
+        for(let i = 1; i < lines.length; i++){
+            const line = lines[i].trim(); 
+            if(!line || line.toUpperCase().startsWith('NOTA:')) continue;
+            
+            let cols = line.split(','); 
+            if (cols.length >= 3) {
+                const itemName = cols[0].replace(/^"|"$/g, '').trim().toLowerCase();
+                
+                let rawStock = cols[2] ? cols[2].replace(/^"|"$/g, '').trim() : '';
+                let newStock = rawStock === '' ? 0 : parseInt(rawStock);
+                if (isNaN(newStock)) newStock = 0;
+                
+                if (itemName) {
+                    const prodIndex = products.findIndex(p => (p.name || '').trim().toLowerCase() === itemName);
+                    if (prodIndex !== -1) {
+                        products[prodIndex].stock = newStock;
+                        actualizados++;
                         
-                        // Convertir a número: si está vacío (ej: ,D10,) o es 0, lo toma como 0.
-                        let rawStock = cols[2] ? cols[2].replace(/^"|"$/g, '').trim() : '';
-                        let newStock = rawStock === '' ? 0 : parseInt(rawStock);
-                        if (isNaN(newStock)) newStock = 0;
-                        
-                        if (itemName) {
-                            const prodIndex = products.findIndex(p => (p.name || '').trim().toLowerCase() === itemName);
-                            if (prodIndex !== -1) {
-                                const currentStock = parseInt(products[prodIndex].stock) || 0;
-                                const diff = newStock - currentStock;
-                                
-                                // Solo actualiza y guarda en Kardex si hubo un cambio real
-                                if (diff !== 0) {
-                                    products[prodIndex].stock = newStock;
-                                    actualizados++;
-                                    
-                                    // Determina si sobró o faltó material para el Kardex
-                                    const tipoMov = diff > 0 ? 'INGRESO' : 'EGRESO';
-                                    const motivo = diff > 0 ? 'Ajuste Físico Positivo (Reescritura CSV)' : 'Ajuste Físico Negativo (Reescritura CSV)';
-                                    
-                                    registrarMovimientoInventario(products[prodIndex].name, Math.abs(diff), tipoMov, motivo);
-                                }
-                            } else {
-                                errores.push(cols[0].replace(/^"|"$/g, ''));
-                            }
-                        }
+                        // REGISTRAR COMO PUNTO DE PARTIDA (RESET) ABSOLUTO
+                        const nuevoKardex = { 
+                            id: timestampActual + i, // Genera un ID temporal inamovible
+                            fecha: new Date().toLocaleDateString(), 
+                            hora: new Date().toLocaleTimeString(), 
+                            item: products[prodIndex].name, 
+                            qty: newStock, 
+                            tipo: 'RESET', 
+                            motivo: 'PUNTO DE PARTIDA (Reescritura CSV)', 
+                            operador: currentUser ? currentUser.name : 'Sistema' 
+                        };
+                        db.collection("kardex_pt").doc(String(nuevoKardex.id)).set(nuevoKardex);
+                    } else {
+                        errores.push(cols[0].replace(/^"|"$/g, ''));
                     }
                 }
-                
-                save(); 
-                if(typeof renderAll === 'function') renderAll(); 
-                
-                let msg = `✅ Reescritura completada con éxito.\nSe corrigió el stock de ${actualizados} ítems de tu lista.`;
-                if(errores.length > 0) msg += `\n\n❌ Ítems ignorados por no existir en el catálogo:\n${errores.slice(0,5).join(', ')}`;
-                alert(msg);
-            }; 
-            reader.readAsText(file); e.target.value = ''; 
+            }
         }
-
-        function downloadKardexCSV() {
-    showToast("Generando Kardex PT desde la nube...");
-    db.collection("kardex_pt").orderBy("id", "desc").limit(500).get().then((snapshot) => {
-        if (snapshot.empty) return alert("No hay movimientos registrados aún.");
-        let csv = "\uFEFFFecha,Hora,Ítem,Cantidad,Tipo,Motivo,Operador\n";
-        snapshot.forEach(doc => {
-            const k = doc.data();
-            csv += `"${k.fecha}","${k.hora}","${k.item}",${k.qty},"${k.tipo}","${k.motivo}","${k.operador}"\n`;
-        });
-        const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
-        const link = document.createElement("a");
-        link.setAttribute("href", URL.createObjectURL(blob));
-        link.setAttribute("download", `Kardex_PT_${new Date().toLocaleDateString().replace(/\//g,'-')}.csv`);
-        document.body.appendChild(link); link.click(); document.body.removeChild(link);
-        showToast("Kardex exportado exitosamente.");
-    });
+        
+        save(); 
+        if(typeof renderAll === 'function') renderAll(); 
+        
+        let msg = `✅ Reescritura completada con éxito.\nSe estableció el stock inicial absoluto de ${actualizados} ítems.`;
+        if(errores.length > 0) msg += `\n\n❌ Ítems ignorados por no existir en el catálogo:\n${errores.slice(0,5).join(', ')}`;
+        alert(msg);
+    }; 
+    reader.readAsText(file); e.target.value = ''; 
 }
 
         // ==========================================
@@ -8461,7 +8444,6 @@ function renderStockFisico() {
     }
 
     if(prodConStock.length === 0) {
-        // Se cambió a colspan="8" porque ahora hay 8 columnas
         stockBody.innerHTML = `<tr><td colspan="8" class="p-8 text-center text-slate-400 font-bold italic">Inventario físico en cero o sin resultados de búsqueda.</td></tr>`;
         return;
     }
@@ -8481,9 +8463,9 @@ function renderStockFisico() {
         let valIni = '--', valCorte = '--', valBaja = '--', valDesp = '--';
         if (window.lastAuditedStats && window.lastAuditedStats[normalizarNombre(p.name)]) {
             const s = window.lastAuditedStats[normalizarNombre(p.name)];
-            valIni = s.ini;
+            valIni = s.stockAbsoluto + s.ini; // MUESTRA EL PUNTO DE PARTIDA + AJUSTES MANUALES
             valCorte = `+${s.corte}`;
-            valBaja = `-${s.bajas}`; // NUEVA COLUMNA
+            valBaja = `-${s.bajas}`;
             valDesp = `-${s.desp}`;
         }
 
@@ -8664,99 +8646,7 @@ function forzarDespachoAdmin() {
     }
 }
 
-async function ejecutarDespacho() {
-    if (!pedidoDespachoActivo) return;
-    const o = pedidoDespachoActivo;
-    const conductor = document.getElementById('desp-conductor').value;
-    const placa = document.getElementById('desp-placa').value.toUpperCase();
-    const obs = document.getElementById('desp-obs').value;
-
-    let itemsDespachados = [];
-    let volTotalDespachoM3 = 0;
-    let errorCantidad = false;
-
-    o.items.forEach((it, idx) => {
-        const input = document.getElementById(`desp-input-${idx}`);
-        if(input) {
-            const aDespachar = parseFloat(input.value) || 0; 
-            const entregadoPrevio = it.entregado || 0;
-            
-            if (aDespachar > (it.qty - entregadoPrevio)) errorCantidad = true;
-
-            if (aDespachar > 0) {
-                const volUnit = (it.volTotal / it.qty);
-                it.entregado = entregadoPrevio + aDespachar;
-                const volDespachado = (aDespachar * volUnit);
-                volTotalDespachoM3 += volDespachado;
-                itemsDespachados.push({ name: it.name, qtyComprada: it.qty, qtyDespachada: aDespachar, volDespachadoM3: volDespachado });
-
-                // INVENTARIO NEGATIVO (Se mantiene la resta directa al catálogo)
-                const prodCat = products.find(p => normalizarNombre(p.name) === normalizarNombre(it.name));
-                if(prodCat) {
-                    prodCat.stock = (parseFloat(prodCat.stock) || 0) - aDespachar; 
-                }
-            }
-        }
-    });
-
-    if (errorCantidad) return alert("Error: Intentas despachar más piezas del saldo pendiente.");
-    if (itemsDespachados.length === 0) return alert("Debes ingresar al menos 1 pieza para despachar.");
-
-    let pedidoCompletado = true;
-    o.items.forEach(it => { 
-        if((it.qty - (it.entregado || 0)) > 0.01) pedidoCompletado = false; 
-    });
-    if(pedidoCompletado) o.status = 'DESPACHADO';
-
-    const costoTransTotal = o.trans || 0;
-    let pagoChofer = 0;
-    const volTotalTeoricoPedido = o.items.reduce((sum, item) => sum + (item.volTotal || 0), 0);
-    const volumenBaseCalculo = o.volGlobalCotizacion > 0 ? o.volGlobalCotizacion : volTotalTeoricoPedido;
-
-    if (costoTransTotal > 0 && volumenBaseCalculo > 0) {
-        const costoUnitarioPorM3 = costoTransTotal / volumenBaseCalculo;
-        pagoChofer = costoUnitarioPorM3 * volTotalDespachoM3;
-    }
-
-    const ticket = {
-        idTicket: `TKT-${Date.now().toString().slice(-6)}`,
-        orderId: o.id,
-        estadoFinanciero: (o.saldo || 0) <= 0 ? 'PAGADO' : 'NO PAGADO',
-        fecha: new Date().toLocaleString(),
-        cliente: o.client, conductor: conductor, placa: placa, obs: obs,
-        items: itemsDespachados, volM3: volTotalDespachoM3, pagoChoferGenerado: pagoChofer,
-        operador: currentUser ? currentUser.name : 'Sistema'
-    };
-
-    // SOLUCIÓN ANTI-BLOQUEO: Abrimos la ventana vacía ANTES de ir a Firebase
-    const printWindow = window.open('', '', 'width=400,height=600');
-
-    try {
-        const batch = db.batch();
-        
-        const ticketRef = db.collection("despachos_tickets").doc(String(ticket.idTicket).replace(/\//g, '-'));
-        batch.set(ticketRef, ticket);
-        
-        const pedidoRef = db.collection("pedidos").doc(String(o.id).replace(/\//g, '-'));
-        batch.set(pedidoRef, o);
-        
-        await batch.commit(); 
-        
-        save(); 
-        
-        document.getElementById('panel-despacho-activo').classList.add('hidden');
-        pedidoDespachoActivo = null;
-        document.getElementById('buscador-despacho').value = '';
-        
-        // Ahora usamos la función pasándole la ventana que ya logramos abrir
-        imprimirTicketTermico(ticket, printWindow);
-        
-    } catch (error) {
-        console.error("Error al procesar el despacho en la nube:", error);
-        if (printWindow) printWindow.close(); // Cerramos la ventana si hubo error real
-        alert("❌ Error de red: Google no pudo procesar el despacho. Intente darle al botón nuevamente.");
-    }
-}
+async function ejecutarDespacho()
 
 function imprimirTicketTermico(t, prevWindow = null) {
     let itemsRows = '';
@@ -10524,7 +10414,7 @@ async function robotLimpiadorCortes() {
 }
 
 async function robotAuditorInventarioGlobal() {
-    if(!confirm("🤖 ROBOT AUDITOR DE INVENTARIO\n\nEste proceso leerá TODO el historial en la nube (Saldos Iniciales, Cortes, Reprocesos y Despachos) para calcular el stock MATEMÁTICAMENTE EXACTO.\n\n¿Iniciar auditoría?")) return;
+    if(!confirm("🤖 ROBOT AUDITOR DE INVENTARIO\n\nEste proceso recalculará el stock basándose en tus 'PUNTOS DE PARTIDA' (Reescrituras CSV) y sumará/restará matemáticamente SOLO los movimientos posteriores a esa fecha.\n\n¿Iniciar auditoría?")) return;
 
     const stockBody = document.getElementById('stock-fisico-body');
     stockBody.innerHTML = `<tr><td colspan="8" class="p-10 text-center font-black text-red-500 uppercase text-lg animate-pulse">El Robot está leyendo la nube... Por favor espera...</td></tr>`;
@@ -10536,54 +10426,93 @@ async function robotAuditorInventarioGlobal() {
             db.collection("despachos_tickets").get()
         ]);
 
+        let arrKardex = []; snapKardex.forEach(d => arrKardex.push(d.data()));
+        let arrCortes = []; snapCortes.forEach(d => arrCortes.push(d.data()));
+        let arrDespachos = []; snapDespachos.forEach(d => arrDespachos.push(d.data()));
+
         let stats = {};
         products.forEach(p => {
-            stats[normalizarNombre(p.name)] = { ini: 0, corte: 0, desp: 0, bajas: 0 };
+            stats[normalizarNombre(p.name)] = { 
+                stockAbsoluto: 0, 
+                timestampReset: 0,
+                ini: 0, corte: 0, desp: 0, bajas: 0 
+            };
         });
 
-        // 1. Procesar Kardex
-        snapKardex.forEach(doc => {
-            const k = doc.data();
-            if (k.motivo !== 'Producción Sala Corte') {
-                const nombre = normalizarNombre(k.item);
-                if (!stats[nombre]) stats[nombre] = { ini: 0, corte: 0, desp: 0, bajas: 0 };
-                
-                if (k.tipo === 'INGRESO') {
-                    stats[nombre].ini += (parseFloat(k.qty) || 0);
-                } else {
-                    if (k.motivo && k.motivo.toLowerCase().includes('reproceso')) {
-                        stats[nombre].bajas += (parseFloat(k.qty) || 0);
+        // 1. BUSCAR LOS RESET MAS RECIENTES POR PRODUCTO
+        arrKardex.sort((a, b) => b.id - a.id);
+        
+        arrKardex.forEach(k => {
+            const nombre = normalizarNombre(k.item);
+            if (stats[nombre] && k.tipo === 'RESET') {
+                if (stats[nombre].timestampReset === 0) {
+                    stats[nombre].timestampReset = k.id;
+                    stats[nombre].stockAbsoluto = parseFloat(k.qty) || 0;
+                }
+            }
+        });
+
+        // 2. Procesar Kardex (Solo los posteriores al Reset)
+        arrKardex.forEach(k => {
+            const nombre = normalizarNombre(k.item);
+            if (stats[nombre] && k.tipo !== 'RESET' && k.id >= stats[nombre].timestampReset) {
+                if (k.motivo !== 'Producción Sala Corte') {
+                    if (k.tipo === 'INGRESO') {
+                        stats[nombre].ini += (parseFloat(k.qty) || 0);
                     } else {
-                        stats[nombre].ini -= (parseFloat(k.qty) || 0);
+                        if (k.motivo && k.motivo.toLowerCase().includes('reproceso')) {
+                            stats[nombre].bajas += (parseFloat(k.qty) || 0);
+                        } else {
+                            stats[nombre].ini -= (parseFloat(k.qty) || 0);
+                        }
                     }
                 }
             }
         });
 
-        // 2. Procesar Cortes
-        snapCortes.forEach(doc => {
-            const r = doc.data();
+        // 3. Procesar Cortes (Solo los posteriores al Reset)
+        arrCortes.forEach(r => {
+            const timestampCorte = r.id; 
             if (r.detalleCortes && r.detalleCortes.length > 0) {
                 r.detalleCortes.forEach(c => {
                     const nombre = normalizarNombre(c.item);
-                    if (!stats[nombre]) stats[nombre] = { ini: 0, corte: 0, desp: 0, bajas: 0 };
-                    stats[nombre].corte += (parseFloat(c.qtyStock) || 0) + (parseFloat(c.qtyOrder) || 0);
+                    if (stats[nombre] && timestampCorte >= stats[nombre].timestampReset) {
+                        stats[nombre].corte += (parseFloat(c.qtyStock) || 0) + (parseFloat(c.qtyOrder) || 0);
+                    }
                 });
             } else if (r.item && typeof r.item === 'string') {
                 const nombre = normalizarNombre(r.item);
-                if (!stats[nombre]) stats[nombre] = { ini: 0, corte: 0, desp: 0, bajas: 0 };
-                stats[nombre].corte += (parseFloat(r.pzas) || 0);
+                if (stats[nombre] && timestampCorte >= stats[nombre].timestampReset) {
+                    stats[nombre].corte += (parseFloat(r.pzas) || 0);
+                }
             }
         });
 
-        // 3. Procesar Despachos
-        snapDespachos.forEach(doc => {
-            const d = doc.data();
+        // 4. Procesar Despachos (Solo los posteriores al Reset)
+        const getDespachoTime = (t) => {
+            if (t.timestamp) return t.timestamp;
+            try {
+                if(t.fecha) {
+                    let parts = t.fecha.split(', ');
+                    let dParts = parts[0].split('/');
+                    if (dParts.length === 3) {
+                        let dateStr = `${dParts[2]}-${dParts[1].padStart(2,'0')}-${dParts[0].padStart(2,'0')}`;
+                        if (parts[1]) dateStr += `T${parts[1]}`;
+                        return new Date(dateStr).getTime();
+                    }
+                }
+            } catch(e) {}
+            return 0; 
+        };
+
+        arrDespachos.forEach(d => {
+            const timestampDespacho = getDespachoTime(d);
             if (d.items) {
                 d.items.forEach(it => {
                     const nombre = normalizarNombre(it.name);
-                    if (!stats[nombre]) stats[nombre] = { ini: 0, corte: 0, desp: 0, bajas: 0 };
-                    stats[nombre].desp += (parseFloat(it.qtyDespachada) || 0);
+                    if (stats[nombre] && timestampDespacho >= stats[nombre].timestampReset) {
+                        stats[nombre].desp += (parseFloat(it.qtyDespachada) || 0);
+                    }
                 });
             }
         });
@@ -10595,7 +10524,8 @@ async function robotAuditorInventarioGlobal() {
             const nombre = normalizarNombre(p.name);
             const s = stats[nombre];
             if(s) {
-                const stockMatematico = s.ini + s.corte - s.bajas - s.desp;
+                // Ecuación Final = Punto de partida (Reset) + Ingresos + Cortes - Bajas - Despachos
+                const stockMatematico = s.stockAbsoluto + s.ini + s.corte - s.bajas - s.desp;
                 const stockLimpio = parseFloat(stockMatematico.toFixed(2));
                 
                 if (p.stock !== stockLimpio) {
@@ -10611,9 +10541,8 @@ async function robotAuditorInventarioGlobal() {
             }, { merge: true });
         }
 
-        // Delegamos el pintado a renderStockFisico() que ordena negativos arriba y les pone colores/alertas
         renderStockFisico();
-        alert(`✅ AUDITORÍA COMPLETADA\n\nEl sistema recalculó todo el historial matemáticamente separando las bajas.\nSe corrigió el stock de ${cambios} productos.`);
+        alert(`✅ AUDITORÍA COMPLETADA\n\nEl sistema recalculó matemáticamente respetando tus Puntos de Partida (Reescrituras CSV).\nSe corrigió el stock de ${cambios} productos.`);
 
     } catch (error) {
         console.error(error);
@@ -10684,7 +10613,6 @@ function exportarStockActualCSV() {
     let prodConStock = products.filter(p => p.stock !== 0 && p.stock !== undefined);
     const searchInput = document.getElementById('buscar-stock-input');
     
-    // Si tienes un filtro escrito en el buscador, solo exporta los productos filtrados
     if (searchInput && searchInput.value) {
         const term = searchInput.value.toLowerCase();
         prodConStock = prodConStock.filter(p => p.name.toLowerCase().includes(term));
@@ -10692,7 +10620,6 @@ function exportarStockActualCSV() {
 
     if(prodConStock.length === 0) return alert("No hay productos en el inventario actual para exportar.");
 
-    // Ordenar negativos primero, luego alfabético (igual que la pantalla)
     prodConStock.sort((a, b) => {
         if (a.stock < 0 && b.stock >= 0) return -1;
         if (b.stock < 0 && a.stock >= 0) return 1;
@@ -10705,7 +10632,7 @@ function exportarStockActualCSV() {
         let valIni = '--', valCorte = '--', valBaja = '--', valDesp = '--';
         if (window.lastAuditedStats && window.lastAuditedStats[normalizarNombre(p.name)]) {
             const s = window.lastAuditedStats[normalizarNombre(p.name)];
-            valIni = s.ini;
+            valIni = s.stockAbsoluto + s.ini;
             valCorte = s.corte;
             valBaja = s.bajas;
             valDesp = s.desp;
