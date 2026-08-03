@@ -6030,7 +6030,7 @@ renderAll = function() {
                 html += `
                 <td ${rowSpanStr} class="p-4 border-r border-slate-100 align-top">
                     <span class="font-black text-slate-800">${t.idTicket}</span>
-                    <button onclick="imprimirTicketTermico(${JSON.stringify(t).replace(/"/g, '&quot;')})" class="ml-2 text-blue-500 hover:text-blue-700 bg-blue-50 px-2 py-1 rounded text-[9px] font-black uppercase"><i data-lucide="printer" class="w-3 h-3 inline"></i> Re-Imprimir</button>
+                    <button onclick="imprimirTicketTermico('${t.idTicket}')" class="ml-2 text-blue-500 hover:text-blue-700 bg-blue-50 px-2 py-1 rounded text-[9px] font-black uppercase shadow-sm border border-blue-100 transition-colors"><i data-lucide="printer" class="w-3 h-3 inline"></i> Re-Imprimir</button>
                 </td>
                 <td ${rowSpanStr} class="p-4 border-r border-slate-100 align-top">
                     <span class="font-bold text-slate-600 text-xs block">${t.fecha.split(',')[0]}</span>
@@ -8649,9 +8649,21 @@ function forzarDespachoAdmin() {
 async function ejecutarDespacho()
 
 function imprimirTicketTermico(t, prevWindow = null) {
+    // DEFENSIVO: Si t es solo un ID de texto (Ej: TKT-12345), buscamos el objeto completo en la base de datos
+    if (typeof t === 'string') {
+        t = dbDespachos.find(x => x.idTicket === t);
+    }
+    
+    // Si por alguna razón sigue sin ser válido o no tiene items, abortamos sin romper el sistema
+    if (!t || !t.items || !Array.isArray(t.items)) {
+        console.error("No se pudo imprimir: El ticket no es válido o no tiene ítems.", t);
+        return;
+    }
+
     let itemsRows = '';
     t.items.forEach(it => {
         const obsTkt = it.obs ? `<br><span style="font-size: 9px; font-weight: bold; border: 1px solid #000; padding: 1px 3px;">REQ: ${it.obs}</span>` : '';
+        
         itemsRows += `
         <tr>
             <td style="padding: 6px 0; border-bottom: 1px dashed #000; font-weight: bold;">${it.name}${obsTkt}</td>
@@ -8688,6 +8700,7 @@ function imprimirTicketTermico(t, prevWindow = null) {
             <div style="text-align: left; margin-bottom: 10px;">
                 <h2 style="margin: 0; font-size: 16px; font-weight: 900;">PLASTENSA - SALIDA</h2>
             </div>
+            
             <table style="margin-bottom: 10px;">
                 <tr><td style="font-weight: bold; width: 35%;">Ticket ID:</td><td>${t.idTicket}</td></tr>
                 <tr><td style="font-weight: bold;">Ord. Venta:</td><td>${t.orderId}</td></tr>
@@ -8699,9 +8712,11 @@ function imprimirTicketTermico(t, prevWindow = null) {
                 <tr><td style="font-weight: bold;">Conductor:</td><td>${t.conductor}</td></tr>
                 <tr><td style="font-weight: bold;">Placa:</td><td>${t.placa || '-'}</td></tr>
             </table>
+            
             <div style="border-top: 1px dashed #000; border-bottom: 1px dashed #000; padding: 5px 0; margin-bottom: 10px; text-align: left;">
                 <p style="margin: 0; font-weight: bold; font-size: 11px;">DETALLE DE PRODUCTOS:</p>
             </div>
+
             <table style="margin-bottom: 10px;">
                 <thead>
                     <tr>
@@ -8709,30 +8724,46 @@ function imprimirTicketTermico(t, prevWindow = null) {
                         <th style="text-align: right; padding-bottom: 5px; font-size: 11px; border-bottom: 1px solid #000;">CANT.</th>
                     </tr>
                 </thead>
-                <tbody>${itemsRows}</tbody>
+                <tbody>
+                    ${itemsRows}
+                </tbody>
             </table>
+
             <div style="border-top: 1px dashed #000; padding-top: 5px; margin-bottom: 25px;">
                 <table style="font-weight: bold;">
-                    <tr><td>CANT. TOTAL</td><td style="text-align: right;">${totalPzas} pza</td></tr>
-                    <tr><td>VOL TOTAL</td><td style="text-align: right;">${volTotal} m3</td></tr>
+                    <tr>
+                        <td>CANT. TOTAL</td>
+                        <td style="text-align: right;">${totalPzas} pza</td>
+                    </tr>
+                    <tr>
+                        <td>VOL TOTAL</td>
+                        <td style="text-align: right;">${volTotal} m3</td>
+                    </tr>
                 </table>
             </div>
+
             <div style="margin-bottom: 20px;">
-                <p style="margin: 0; text-align: center; font-weight: bold;">Firma Conductor</p><br>
+                <p style="margin: 0; text-align: center; font-weight: bold;">Firma Conductor</p>
+                <br>
                 <p style="margin: 2px 0;"><b>Conductor:</b></p>
                 <p style="margin: 2px 0;"><b>Ci:</b></p>
-                <p style="margin: 2px 0;"><b>Celular:</b></p><br>
+                <p style="margin: 2px 0;"><b>Celular:</b></p>
+                <br>
             </div>
+
             <div style="margin-bottom: 15px;">
-                <p style="margin: 0; text-align: center; font-weight: bold; border-top: 1px solid #000; padding-top: 5px;">Firma Recepcion</p><br>
+                <p style="margin: 0; text-align: center; font-weight: bold; border-top: 1px solid #000; padding-top: 5px;">Firma Recepcion</p>
+                <br>
                 <p style="margin: 2px 0;"><b>Nombre :</b></p>
                 <p style="margin: 2px 0;"><b>Ci:</b></p>
                 <p style="margin: 2px 0; border-bottom: 1px solid #000; padding-bottom: 5px;"><b>Celular:</b></p>
             </div>
+            
             <div>
                 <p style="margin: 2px 0;"><b>Encargado despacho:</b></p>
                 <p style="margin: 5px 0 0 0; font-size: 10px; text-align: justify;">Por favor verifique su material antes de retirarlo de fabrica, retirado de planta no se aceptan cambios ni devoluciones.</p>
             </div>
+
             <div class="no-print" style="margin-top: 20px; text-align: center;">
                 <button onclick="window.print()" style="padding: 10px 20px; background: black; color: white; font-weight: bold; border-radius: 5px; cursor: pointer; width: 100%;">IMPRIMIR TICKET</button>
             </div>
@@ -8740,14 +8771,13 @@ function imprimirTicketTermico(t, prevWindow = null) {
     </body>
     </html>`;
 
-    // Si ya teníamos la ventana abierta (por el fix), la usamos, si no, abrimos una nueva (para el botón Re-Imprimir)
     const win = prevWindow || window.open('', '', 'width=400,height=600');
-    if (win) {
+    if(win) {
         win.document.open();
         win.document.write(html);
         win.document.close();
     } else {
-        alert("⚠️ El navegador bloqueó el ticket. Habilite las ventanas emergentes o presione 'Re-Imprimir' en la tabla.");
+        alert("⚠️ ATENCIÓN: Su navegador bloqueó la impresión automática del ticket.\n\nPor favor, haga clic en el botón 'Re-Imprimir' de la tabla para abrirlo manualmente, o habilite las ventanas emergentes para Plastensa.");
     }
 }
 
@@ -10440,7 +10470,7 @@ async function robotAuditorInventarioGlobal() {
         });
 
         // 1. BUSCAR LOS RESET MAS RECIENTES POR PRODUCTO
-        arrKardex.sort((a, b) => b.id - a.id);
+        arrKardex.sort((a, b) => b.id - a.id); // Ordenamos de más nuevo a más viejo
         
         arrKardex.forEach(k => {
             const nombre = normalizarNombre(k.item);
