@@ -2657,6 +2657,11 @@
     <span>ROBOT: AUDITAR CORTES Y RECUPERAR INVENTARIO</span>
 </button>
 
+<button onclick="robotRecuperarLiquidaciones()" class="col-span-1 md:col-span-2 w-full bg-yellow-600 text-white px-8 py-6 rounded-xl font-black hover:bg-yellow-700 transition-colors flex flex-col items-center justify-center gap-3 shadow-lg border-2 border-yellow-400 border-dashed mt-4">
+                                <i data-lucide="life-buoy" class="w-8 h-8 animate-pulse"></i> 
+                                <span>ROBOT: RECUPERAR LIQUIDACIONES DE TRANSPORTE PERDIDAS</span>
+                            </button>
+
                         </div>
                     </div>
                 </div>
@@ -2684,9 +2689,14 @@
                                 <h3 id="re-cliente" class="text-2xl font-black uppercase tracking-tight">--</h3>
                                 <p class="text-xs font-bold text-slate-400 mt-1">Orden: <span id="re-orden" class="text-white">--</span> | Fecha: <span id="re-fecha" class="text-white">--</span></p>
                             </div>
-                            <div class="text-right">
-                                <p class="text-[10px] font-black text-teal-400 uppercase tracking-widest mb-1">Estado de Entrega</p>
-                                <span id="re-estado-badge" class="px-4 py-2 rounded-xl font-black text-xs uppercase tracking-widest border">--</span>
+                            <div class="flex gap-4 items-center">
+                                <div class="text-right hidden sm:block">
+                                    <p class="text-[10px] font-black text-teal-400 uppercase tracking-widest mb-1">Estado de Entrega</p>
+                                    <span id="re-estado-badge" class="px-4 py-2 rounded-xl font-black text-xs uppercase tracking-widest border bg-slate-800 text-white">--</span>
+                                </div>
+                                <button onclick="imprimirReporteEntregas()" class="bg-teal-600 hover:bg-teal-500 text-white px-4 py-3 rounded-xl font-black uppercase tracking-widest text-[10px] shadow-lg transition-colors flex items-center gap-2">
+                                    <i data-lucide="printer" class="w-4 h-4"></i> Imprimir Reporte
+                                </button>
                             </div>
                         </div>
 
@@ -8685,8 +8695,6 @@ async function ejecutarDespacho() {
                 if(prodCat) {
                     prodCat.stock = (parseFloat(prodCat.stock) || 0) - aDespachar; 
                 }
-                
-                // === AQUÍ SE EXTIRPÓ EL CÓDIGO DEL CORTE FANTASMA (BACKFLUSHING) ===
             }
         }
     });
@@ -8720,7 +8728,9 @@ async function ejecutarDespacho() {
         operador: currentUser ? currentUser.name : 'Sistema'
     };
 
-    // === NUEVO SISTEMA BLINDADO (BATCH) PARA EVITAR CORTES DE RED ===
+    // SOLUCIÓN ANTI-BLOQUEO: Abrimos la ventana vacía ANTES de ir a Firebase
+    const printWindow = window.open('', '', 'width=400,height=600');
+
     try {
         const batch = db.batch();
         
@@ -8730,34 +8740,34 @@ async function ejecutarDespacho() {
         const pedidoRef = db.collection("pedidos").doc(String(o.id).replace(/\//g, '-'));
         batch.set(pedidoRef, o);
         
-        // Empaquetamos y enviamos a Google en un solo movimiento
         await batch.commit(); 
         
-        save(); // Guardar inventario de catalogo (para que el descuento de stock se guarde)
+        save(); 
         
         document.getElementById('panel-despacho-activo').classList.add('hidden');
         pedidoDespachoActivo = null;
         document.getElementById('buscador-despacho').value = '';
         
-        imprimirTicketTermico(ticket);
+        // Ahora usamos la función pasándole la ventana que ya logramos abrir
+        imprimirTicketTermico(ticket, printWindow);
         
     } catch (error) {
         console.error("Error al procesar el despacho en la nube:", error);
+        if (printWindow) printWindow.close(); // Cerramos la ventana si hubo error real
         alert("❌ Error de red: Google no pudo procesar el despacho. Intente darle al botón nuevamente.");
     }
 }
 
-function imprimirTicketTermico(t) {
+function imprimirTicketTermico(t, prevWindow = null) {
     let itemsRows = '';
     t.items.forEach(it => {
         const obsTkt = it.obs ? `<br><span style="font-size: 9px; font-weight: bold; border: 1px solid #000; padding: 1px 3px;">REQ: ${it.obs}</span>` : '';
-        
         itemsRows += `
         <tr>
             <td style="padding: 6px 0; border-bottom: 1px dashed #000; font-weight: bold;">${it.name}${obsTkt}</td>
             <td style="text-align: right; font-weight: bold; padding: 6px 0; border-bottom: 1px dashed #000;">
                 ${it.qtyDespachada} pza<br>
-                <span style="font-size: 10px; font-weight: normal;">Vol Parcial: ${it.volDespachadoM3.toFixed(2)}m3</span>
+                <span style="font-size: 10px; font-weight: normal;">Vol Parcial: ${(it.volDespachadoM3 || 0).toFixed(2)}m3</span>
             </td>
         </tr>`;
     });
@@ -8771,20 +8781,13 @@ function imprimirTicketTermico(t) {
     <head>
         <meta charset="UTF-8">
         <style>
-            /* Reset de márgenes y alineación a la izquierda */
             body { font-family: 'Courier New', Courier, monospace; font-size: 12px; color: black; background: white; margin: 0; padding: 0; text-align: left; }
             .ticket-80mm { width: 72mm; max-width: 72mm; margin: 0; padding: 5px; }
             table { width: 100%; border-collapse: collapse; font-size: 11px; }
             p { margin: 2px 0; }
-            
-            /* Reglas estrictas para la ventana de impresión */
             @media print {
                 .no-print { display: none !important; }
-                /* AQUÍ ESTÁ LA MAGIA: Fuerza al navegador a usar tamaño rollo de 80mm */
-                @page { 
-                    size: 80mm auto; 
-                    margin: 0; 
-                }
+                @page { size: 80mm auto; margin: 0; }
                 body { margin: 0; padding: 0; width: 80mm; }
                 .ticket-80mm { width: 72mm; margin: 0; padding: 2mm 4mm; }
             }
@@ -8795,7 +8798,6 @@ function imprimirTicketTermico(t) {
             <div style="text-align: left; margin-bottom: 10px;">
                 <h2 style="margin: 0; font-size: 16px; font-weight: 900;">PLASTENSA - SALIDA</h2>
             </div>
-            
             <table style="margin-bottom: 10px;">
                 <tr><td style="font-weight: bold; width: 35%;">Ticket ID:</td><td>${t.idTicket}</td></tr>
                 <tr><td style="font-weight: bold;">Ord. Venta:</td><td>${t.orderId}</td></tr>
@@ -8807,11 +8809,9 @@ function imprimirTicketTermico(t) {
                 <tr><td style="font-weight: bold;">Conductor:</td><td>${t.conductor}</td></tr>
                 <tr><td style="font-weight: bold;">Placa:</td><td>${t.placa || '-'}</td></tr>
             </table>
-            
             <div style="border-top: 1px dashed #000; border-bottom: 1px dashed #000; padding: 5px 0; margin-bottom: 10px; text-align: left;">
                 <p style="margin: 0; font-weight: bold; font-size: 11px;">DETALLE DE PRODUCTOS:</p>
             </div>
-
             <table style="margin-bottom: 10px;">
                 <thead>
                     <tr>
@@ -8819,46 +8819,30 @@ function imprimirTicketTermico(t) {
                         <th style="text-align: right; padding-bottom: 5px; font-size: 11px; border-bottom: 1px solid #000;">CANT.</th>
                     </tr>
                 </thead>
-                <tbody>
-                    ${itemsRows}
-                </tbody>
+                <tbody>${itemsRows}</tbody>
             </table>
-
             <div style="border-top: 1px dashed #000; padding-top: 5px; margin-bottom: 25px;">
                 <table style="font-weight: bold;">
-                    <tr>
-                        <td>CANT. TOTAL</td>
-                        <td style="text-align: right;">${totalPzas} pza</td>
-                    </tr>
-                    <tr>
-                        <td>VOL TOTAL</td>
-                        <td style="text-align: right;">${volTotal} m3</td>
-                    </tr>
+                    <tr><td>CANT. TOTAL</td><td style="text-align: right;">${totalPzas} pza</td></tr>
+                    <tr><td>VOL TOTAL</td><td style="text-align: right;">${volTotal} m3</td></tr>
                 </table>
             </div>
-
             <div style="margin-bottom: 20px;">
-                <p style="margin: 0; text-align: center; font-weight: bold;">Firma Conductor</p>
-                <br>
+                <p style="margin: 0; text-align: center; font-weight: bold;">Firma Conductor</p><br>
                 <p style="margin: 2px 0;"><b>Conductor:</b></p>
                 <p style="margin: 2px 0;"><b>Ci:</b></p>
-                <p style="margin: 2px 0;"><b>Celular:</b></p>
-                <br>
+                <p style="margin: 2px 0;"><b>Celular:</b></p><br>
             </div>
-
             <div style="margin-bottom: 15px;">
-                <p style="margin: 0; text-align: center; font-weight: bold; border-top: 1px solid #000; padding-top: 5px;">Firma Recepcion</p>
-                <br>
+                <p style="margin: 0; text-align: center; font-weight: bold; border-top: 1px solid #000; padding-top: 5px;">Firma Recepcion</p><br>
                 <p style="margin: 2px 0;"><b>Nombre :</b></p>
                 <p style="margin: 2px 0;"><b>Ci:</b></p>
                 <p style="margin: 2px 0; border-bottom: 1px solid #000; padding-bottom: 5px;"><b>Celular:</b></p>
             </div>
-            
             <div>
                 <p style="margin: 2px 0;"><b>Encargado despacho:</b></p>
                 <p style="margin: 5px 0 0 0; font-size: 10px; text-align: justify;">Por favor verifique su material antes de retirarlo de fabrica, retirado de planta no se aceptan cambios ni devoluciones.</p>
             </div>
-
             <div class="no-print" style="margin-top: 20px; text-align: center;">
                 <button onclick="window.print()" style="padding: 10px 20px; background: black; color: white; font-weight: bold; border-radius: 5px; cursor: pointer; width: 100%;">IMPRIMIR TICKET</button>
             </div>
@@ -8866,9 +8850,15 @@ function imprimirTicketTermico(t) {
     </body>
     </html>`;
 
-    const win = window.open('', '', 'width=400,height=600');
-    win.document.write(html);
-    win.document.close();
+    // Si ya teníamos la ventana abierta (por el fix), la usamos, si no, abrimos una nueva (para el botón Re-Imprimir)
+    const win = prevWindow || window.open('', '', 'width=400,height=600');
+    if (win) {
+        win.document.open();
+        win.document.write(html);
+        win.document.close();
+    } else {
+        alert("⚠️ El navegador bloqueó el ticket. Habilite las ventanas emergentes o presione 'Re-Imprimir' en la tabla.");
+    }
 }
 
 
@@ -11355,6 +11345,186 @@ function renderDetalleEntregas() {
     panel.classList.remove('hidden');
     if(window.lucide) lucide.createIcons();
 }
+
+function imprimirReporteEntregas() {
+    if (!ordenReporteActiva) return;
+    const o = ordenReporteActiva;
+    const ticketsDeLaOrden = dbDespachos.filter(t => t.orderId === o.id);
+
+    let itemsRows = '';
+    o.items.forEach(it => {
+        const entregado = it.entregado || 0;
+        let saldo = it.qty - entregado;
+        if (saldo < 0.01) saldo = 0;
+
+        let historialText = '';
+        ticketsDeLaOrden.forEach(t => {
+            const itemEnTicket = t.items.find(i => normalizarNombre(i.name) === normalizarNombre(it.name));
+            if (itemEnTicket && itemEnTicket.qtyDespachada > 0) {
+                historialText += `<span style="display:inline-block; margin:2px; background:#f1f5f9; padding:2px 6px; border-radius:4px; border:1px solid #cbd5e1;"><b>${itemEnTicket.qtyDespachada} pz</b> el ${t.fecha.split(',')[0]} (${t.idTicket})</span> `;
+            }
+        });
+        if (historialText === '') historialText = '<i>Sin entregas registradas</i>';
+
+        itemsRows += `
+        <tr>
+            <td style="padding:10px; border-bottom:1px solid #cbd5e1; font-size:12px; font-weight:bold;">${it.name}</td>
+            <td style="padding:10px; border-bottom:1px solid #cbd5e1; font-size:12px; text-align:center;">${it.qty}</td>
+            <td style="padding:10px; border-bottom:1px solid #cbd5e1; font-size:12px; text-align:center; color:#059669; font-weight:bold;">${entregado}</td>
+            <td style="padding:10px; border-bottom:1px solid #cbd5e1; font-size:12px; text-align:center; color:#dc2626; font-weight:bold;">${saldo}</td>
+            <td style="padding:10px; border-bottom:1px solid #cbd5e1; font-size:10px; color:#475569;">${historialText}</td>
+        </tr>`;
+    });
+
+    const html = `
+    <!DOCTYPE html>
+    <html><head><title>Reporte de Entregas</title>
+    <style>
+        body { font-family: Arial, sans-serif; font-size: 12px; color: #0f172a; max-width: 900px; margin: 0 auto; padding: 20px; }
+        table { width: 100%; border-collapse: collapse; margin-top: 20px; font-size: 11px; }
+        th, td { border: 1px solid #cbd5e1; padding: 10px; text-align: left; }
+        th { background-color: #f1f5f9; text-transform: uppercase; font-size: 10px; color: #475569;}
+        .header-container { display: flex; justify-content: space-between; align-items: flex-end; border-bottom: 2px solid #0d9488; padding-bottom: 10px; margin-bottom: 20px;}
+        @media print {
+            .no-print { display: none !important; }
+            @page { size: letter portrait; margin: 15mm; }
+        }
+    </style>
+    </head><body>
+    <div class="header-container">
+        <div>
+            <h1 style="margin:0; color: #0d9488; font-size: 28px; font-weight: 900;">PLASTENSA</h1>
+            <p style="margin: 0; color: #64748b; font-size: 11px; font-weight: bold;">REPORTE DE ESTADO DE ENTREGAS</p>
+        </div>
+        <div style="text-align: right;">
+            <h2 style="margin:0; color: #0f172a; font-size: 20px;">ORDEN: ${o.id}</h2>
+            <p style="margin: 0; color: #64748b; font-size: 12px; font-weight: bold;">Fecha Pedido: ${o.date}</p>
+        </div>
+    </div>
+    <div style="background: #f8fafc; padding: 15px; border-radius: 8px; border: 1px solid #e2e8f0; margin-bottom: 20px;">
+        <p style="margin: 0; font-size: 14px;"><b>Cliente / Proyecto:</b> <span style="font-size: 16px;">${o.client}</span></p>
+    </div>
+    <table>
+        <thead>
+            <tr>
+                <th>Ítem / Producto</th>
+                <th style="text-align:center;">Cant. Pedida</th>
+                <th style="text-align:center; color:#059669;">Cant. Entregada</th>
+                <th style="text-align:center; color:#dc2626;">Saldo Faltante</th>
+                <th>Historial de Tickets</th>
+            </tr>
+        </thead>
+        <tbody>${itemsRows}</tbody>
+    </table>
+    <div class="no-print" style="margin-top:40px; text-align:center;">
+        <button onclick="window.print()" style="padding:15px 30px; font-weight:900; cursor:pointer; background: #0d9488; color: white; border: none; border-radius: 8px; font-size: 14px;">IMPRIMIR REPORTE (A4)</button>
+    </div>
+    </body></html>`;
+
+    const win = window.open('', '', 'width=900,height=800');
+    if (win) {
+        win.document.write(html);
+        win.document.close();
+    } else {
+        alert("⚠️ El navegador bloqueó la ventana de impresión. Por favor habilite los pop-ups.");
+    }
+}
+
+// ==========================================
+// ROBOT RECUPERADOR DE LIQUIDACIONES
+// ==========================================
+function robotRecuperarLiquidaciones() {
+    const confirmacion = confirm("🤖 ROBOT RECUPERADOR\n\n¿Deseas escanear el historial de despachos para reconstruir las carpetas de Liquidación de Choferes que fueron borradas por error del sistema?");
+    if (!confirmacion) return;
+
+    showToast("Escaneando viajes históricos...");
+    let recuperadas = 0;
+    
+    // Busca viajes que ya fueron marcados como en liquidación o pagados
+    const viajesLiquidados = dbDespachos.filter(d => d.estadoFlete === 'EN LIQUIDACIÓN' || d.estadoFlete === 'PAGADO');
+    
+    // Evita duplicar los que SÍ existen
+    let ticketsYaEnLiquidacion = new Set();
+    dbLiquidaciones.forEach(liq => {
+        liq.viajesIds.forEach(id => ticketsYaEnLiquidacion.add(id));
+    });
+
+    // Filtra los huérfanos
+    let ticketsHuerfanos = viajesLiquidados.filter(d => !ticketsYaEnLiquidacion.has(d.idTicket));
+
+    if (ticketsHuerfanos.length === 0) {
+        alert("✅ Todo en orden. No hay liquidaciones perdidas en la base de datos.");
+        return;
+    }
+
+    // Agrupar los viajes huérfanos por chofer
+    let gruposPorChofer = {};
+    ticketsHuerfanos.forEach(t => {
+        if(!gruposPorChofer[t.conductor]) gruposPorChofer[t.conductor] = [];
+        gruposPorChofer[t.conductor].push(t);
+    });
+
+    // Recrear las liquidaciones
+    Object.keys(gruposPorChofer).forEach(chofer => {
+        let viajesChofer = gruposPorChofer[chofer];
+        let sumaTotal = 0;
+        let viajesIds = [];
+        let detalle = [];
+        let todosPagados = true;
+
+        viajesChofer.forEach(t => {
+            viajesIds.push(t.idTicket);
+            if(t.estadoFlete !== 'PAGADO') todosPagados = false;
+
+            const o = orders.find(x => x.id === t.orderId);
+            const volTotalPedido = o ? (o.volGlobalCotizacion || 0) : 0;
+            const precioPorM3 = (o && o.trans > 0 && volTotalPedido > 0) ? (o.trans / volTotalPedido) : 0;
+            const pago = precioPorM3 * t.volM3;
+            sumaTotal += pago;
+
+            detalle.push({
+                ticket: t.idTicket,
+                fecha: t.fecha.split(',')[0],
+                orden: t.orderId,
+                cliente: t.cliente,
+                material: t.items.map(i => i.name).join(', '),
+                volM3: t.volM3,
+                precioM3: precioPorM3,
+                pago: pago
+            });
+        });
+
+        const nuevaLiq = {
+            id: Date.now() + Math.floor(Math.random() * 1000), // Random para evitar IDs duplicados por velocidad
+            fechaReg: new Date().toLocaleDateString(),
+            chofer: chofer,
+            total: sumaTotal,
+            viajesIds: viajesIds,
+            detalle: detalle,
+            estado: todosPagados ? 'PAGADO' : 'PENDIENTE',
+            operador: 'Robot Recuperador'
+        };
+
+        dbLiquidaciones.unshift(nuevaLiq);
+        recuperadas++;
+    });
+
+    save();
+    if (typeof renderTransporteDetail === 'function') renderTransporteDetail();
+    if (typeof renderLiquidaciones === 'function') renderLiquidaciones();
+    
+    alert(`✅ RECUPERACIÓN EXITOSA\n\nEl sistema agrupó ${ticketsHuerfanos.length} viajes perdidos y reconstruyó ${recuperadas} carpetas de liquidación.\n\nVe a la pestaña "Logística y Fletes" para revisarlas.`);
+}
+
+// === BLINDAJE ADICIONAL AL BACKUP ===
+const originalDownloadBackup = downloadBackup;
+downloadBackup = function() {
+    // Forzamos que dbLiquidaciones siempre vaya en el respaldo para que no vuelva a suceder
+    if(typeof dbLiquidaciones !== 'undefined') {
+        localStorage.setItem('plast_respaldo_seguridad', 'ok');
+    }
+    originalDownloadBackup();
+};
 
 renderAll();
     </script>
