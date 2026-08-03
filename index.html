@@ -8646,7 +8646,97 @@ function forzarDespachoAdmin() {
     }
 }
 
-async function ejecutarDespacho()
+async function ejecutarDespacho() {
+    if (!pedidoDespachoActivo) return;
+    const o = pedidoDespachoActivo;
+    const conductor = document.getElementById('desp-conductor').value;
+    const placa = document.getElementById('desp-placa').value.toUpperCase();
+    const obs = document.getElementById('desp-obs').value;
+
+    let itemsDespachados = [];
+    let volTotalDespachoM3 = 0;
+    let errorCantidad = false;
+
+    o.items.forEach((it, idx) => {
+        const input = document.getElementById(`desp-input-${idx}`);
+        if(input) {
+            const aDespachar = parseFloat(input.value) || 0; 
+            const entregadoPrevio = it.entregado || 0;
+            
+            if (aDespachar > (it.qty - entregadoPrevio)) errorCantidad = true;
+
+            if (aDespachar > 0) {
+                const volUnit = (it.volTotal / it.qty);
+                it.entregado = entregadoPrevio + aDespachar;
+                const volDespachado = (aDespachar * volUnit);
+                volTotalDespachoM3 += volDespachado;
+                itemsDespachados.push({ name: it.name, qtyComprada: it.qty, qtyDespachada: aDespachar, volDespachadoM3: volDespachado });
+
+                // INVENTARIO NEGATIVO (Se mantiene la resta directa al catálogo)
+                const prodCat = products.find(p => normalizarNombre(p.name) === normalizarNombre(it.name));
+                if(prodCat) {
+                    prodCat.stock = (parseFloat(prodCat.stock) || 0) - aDespachar; 
+                }
+            }
+        }
+    });
+
+    if (errorCantidad) return alert("Error: Intentas despachar más piezas del saldo pendiente.");
+    if (itemsDespachados.length === 0) return alert("Debes ingresar al menos 1 pieza para despachar.");
+
+    let pedidoCompletado = true;
+    o.items.forEach(it => { 
+        if((it.qty - (it.entregado || 0)) > 0.01) pedidoCompletado = false; 
+    });
+    if(pedidoCompletado) o.status = 'DESPACHADO';
+
+    const costoTransTotal = o.trans || 0;
+    let pagoChofer = 0;
+    const volTotalTeoricoPedido = o.items.reduce((sum, item) => sum + (item.volTotal || 0), 0);
+    const volumenBaseCalculo = o.volGlobalCotizacion > 0 ? o.volGlobalCotizacion : volTotalTeoricoPedido;
+
+    if (costoTransTotal > 0 && volumenBaseCalculo > 0) {
+        const costoUnitarioPorM3 = costoTransTotal / volumenBaseCalculo;
+        pagoChofer = costoUnitarioPorM3 * volTotalDespachoM3;
+    }
+
+    const ticket = {
+        idTicket: `TKT-${Date.now().toString().slice(-6)}`,
+        orderId: o.id,
+        estadoFinanciero: (o.saldo || 0) <= 0 ? 'PAGADO' : 'NO PAGADO',
+        fecha: new Date().toLocaleString(),
+        timestamp: Date.now(), // <-- ESTAMPA DE TIEMPO PARA QUE EL AUDITOR LA RECONOZCA
+        cliente: o.client, conductor: conductor, placa: placa, obs: obs,
+        items: itemsDespachados, volM3: volTotalDespachoM3, pagoChoferGenerado: pagoChofer,
+        operador: currentUser ? currentUser.name : 'Sistema'
+    };
+
+    const printWindow = window.open('', '', 'width=400,height=600');
+
+    try {
+        const batch = db.batch();
+        
+        const ticketRef = db.collection("despachos_tickets").doc(String(ticket.idTicket).replace(/\//g, '-'));
+        batch.set(ticketRef, ticket);
+        
+        const pedidoRef = db.collection("pedidos").doc(String(o.id).replace(/\//g, '-'));
+        batch.set(pedidoRef, o);
+        
+        await batch.commit(); 
+        save(); 
+        
+        document.getElementById('panel-despacho-activo').classList.add('hidden');
+        pedidoDespachoActivo = null;
+        document.getElementById('buscador-despacho').value = '';
+        
+        imprimirTicketTermico(ticket, printWindow);
+        
+    } catch (error) {
+        console.error("Error al procesar el despacho en la nube:", error);
+        if (printWindow) printWindow.close();
+        alert("❌ Error de red: Google no pudo procesar el despacho. Intente darle al botón nuevamente.");
+    }
+}
 
 function imprimirTicketTermico(t, prevWindow = null) {
     // DEFENSIVO: Si t es solo un ID de texto (Ej: TKT-12345), buscamos el objeto completo en la base de datos
