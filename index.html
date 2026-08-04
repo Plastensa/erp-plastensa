@@ -1021,10 +1021,13 @@
     
     <div class="bg-white rounded-[32px] border border-slate-200 shadow-sm overflow-hidden">
         <div class="p-4 bg-slate-50 border-b border-slate-100 flex justify-between items-center">
-            <p class="text-[10px] font-black text-slate-500 uppercase tracking-widest">Selecciona los bloques que enviarás a la máquina de corte</p>
+            <div class="flex items-center gap-2">
+                <button onclick="toggleSeccion('tabla-seleccionar-bloques', 'icon-sel-bloques')" class="text-slate-400 hover:text-blue-600 transition-colors"><i id="icon-sel-bloques" data-lucide="chevron-up" class="w-5 h-5"></i></button>
+                <p class="text-[10px] font-black text-slate-500 uppercase tracking-widest">Selecciona los bloques que enviarás a la máquina de corte</p>
+            </div>
             <button onclick="enviarSeleccionadosACorte()" class="bg-blue-600 text-white px-4 py-2 rounded-lg text-xs font-black hover:bg-blue-700 shadow-md transition-colors hidden" id="btn-enviar-corte">ENVIAR A CORTE</button>
         </div>
-        <div class="overflow-x-auto">
+        <div id="tabla-seleccionar-bloques" class="overflow-x-auto transition-all duration-300">
             <table class="w-full text-left text-xs whitespace-nowrap">
                 <thead class="bg-slate-100 border-b border-slate-200 text-[10px] font-black uppercase text-slate-500 tracking-widest">
                     <tr>
@@ -1046,12 +1049,15 @@
 
 <div class="bg-white rounded-[32px] border border-slate-200 shadow-sm mt-8 overflow-hidden">
         <div class="p-6 bg-slate-50 border-b border-slate-100 flex justify-between items-center flex-wrap gap-4">
-            <div>
-                <h3 class="font-black text-slate-800 uppercase tracking-tighter text-lg flex items-center gap-2">
-                    <i data-lucide="radar" class="text-indigo-600 w-5 h-5"></i> Trazabilidad de Bloques (Kardex)
-                    <span id="trazabilidad-contador" class="bg-indigo-100 text-indigo-700 px-3 py-1 rounded-xl text-[10px] font-black shadow-sm border border-indigo-200 ml-2">0 BLOQUES</span>
-                </h3>
-                <p class="text-[10px] font-black text-slate-400 uppercase tracking-widest mt-1">Rastrea la vida de un bloque (Incluso los ya procesados)</p>
+            <div class="flex items-start gap-2">
+                <button onclick="toggleSeccion('tabla-trazabilidad', 'icon-trazabilidad')" class="text-slate-400 hover:text-indigo-600 mt-1 transition-colors"><i id="icon-trazabilidad" data-lucide="chevron-up" class="w-6 h-6"></i></button>
+                <div>
+                    <h3 class="font-black text-slate-800 uppercase tracking-tighter text-lg flex items-center gap-2">
+                        <i data-lucide="radar" class="text-indigo-600 w-5 h-5"></i> Trazabilidad de Bloques (Kardex)
+                        <span id="trazabilidad-contador" class="bg-indigo-100 text-indigo-700 px-3 py-1 rounded-xl text-[10px] font-black shadow-sm border border-indigo-200 ml-2">0 BLOQUES</span>
+                    </h3>
+                    <p class="text-[10px] font-black text-slate-400 uppercase tracking-widest mt-1">Rastrea la vida de un bloque (Incluso los ya procesados)</p>
+                </div>
             </div>
             <div class="flex gap-2 w-full md:w-auto">
                 <input type="text" id="trazabilidad-codigo" placeholder="Buscar Código Exacto..." class="bg-white border border-slate-200 p-3 rounded-xl text-xs font-bold outline-none focus:ring-2 focus:ring-indigo-500 w-full md:w-56 uppercase">
@@ -1060,7 +1066,7 @@
                 </button>
             </div>
         </div>
-        <div class="overflow-x-auto max-h-[500px]">
+        <div id="tabla-trazabilidad" class="overflow-x-auto max-h-[500px] transition-all duration-300">
             <table class="w-full text-left text-xs whitespace-nowrap">
                 <thead class="bg-slate-100 border-b border-slate-200 text-[10px] font-black uppercase text-slate-500 tracking-widest sticky top-0 z-10 shadow-sm">
                     <tr>
@@ -1341,11 +1347,11 @@
                                 <span id="log-zoom-nivel" class="text-xs font-black w-12 text-center text-slate-600">100%</span>
                                 <button onclick="cambiarZoomLogMaestro(0.1)" class="p-2 hover:text-blue-600 text-slate-500 transition-colors" title="Acercar"><i data-lucide="zoom-in" class="w-4 h-4"></i></button>
                             </div>
-                            <button onclick="exportLogCSV()" class="w-full bg-green-600 text-white px-8 py-3 rounded-xl font-black hover:bg-green-700 transition-colors flex items-center justify-center gap-2 shadow-lg">
+                            <button id="btn-exportar-log" onclick="exportLogCSV()" class="w-full bg-green-600 text-white px-8 py-3 rounded-xl font-black hover:bg-green-700 transition-colors flex items-center justify-center gap-2 shadow-lg">
                                 <i data-lucide="download-cloud" class="w-5 h-5"></i> EXPORTAR
                             </button>
                         </div>
-                        <div class="bg-white p-3 rounded-[24px] border-2 border-red-100 flex flex-col items-center min-w-[150px]">
+                        <div id="cuadro-volumen-log" class="bg-white p-3 rounded-[24px] border-2 border-red-100 flex flex-col items-center min-w-[150px]">
                             <p class="text-[9px] font-black text-red-400 uppercase tracking-widest">Volumen Filtrado</p>
                             <p id="master-log-total-vol" class="text-2xl font-black text-red-600">0.00 M3</p>
                         </div>
@@ -2305,13 +2311,16 @@
                     <div class="grid lg:grid-cols-2 gap-6">
                         <div class="bg-white rounded-[32px] border border-slate-200 shadow-sm overflow-hidden flex flex-col">
                             <div class="p-6 border-b border-slate-100 flex justify-between items-center bg-slate-900 text-white">
-                                <h3 class="font-black uppercase text-sm flex items-center gap-2"><i data-lucide="users" class="text-yellow-400"></i> Liquidación Mensual Choferes</h3>
+                                <div class="flex items-center gap-2">
+                                    <button onclick="toggleSeccion('tabla-liq-mensual', 'icon-liq-mensual')" class="text-slate-400 hover:text-yellow-400 transition-colors"><i id="icon-liq-mensual" data-lucide="chevron-up" class="w-5 h-5"></i></button>
+                                    <h3 class="font-black uppercase text-sm flex items-center gap-2"><i data-lucide="users" class="text-yellow-400"></i> Liquidación Mensual Choferes</h3>
+                                </div>
                                 <div class="flex gap-2">
                                     <input type="month" id="filtro-mes-transporte" onchange="renderTransporte()" class="bg-slate-800 border border-slate-700 rounded-lg px-2 py-1 text-xs font-bold outline-none">
                                     <button onclick="exportarLiquidacionCSV()" class="bg-yellow-500 text-slate-900 px-3 py-1 rounded-lg text-[10px] font-black uppercase shadow-sm hover:bg-yellow-400"><i data-lucide="download" class="w-3 h-3 inline"></i> CSV</button>
                                 </div>
                             </div>
-                            <div class="p-0 overflow-x-auto">
+                            <div id="tabla-liq-mensual" class="p-0 overflow-x-auto transition-all duration-300">
                                 <table class="w-full text-left text-xs whitespace-nowrap">
                                     <thead class="bg-slate-50 border-b border-slate-100 text-[10px] font-black text-slate-400 uppercase tracking-widest">
                                         <tr><th class="p-4">Chofer</th><th class="p-4 text-center">Viajes</th><th class="p-4 text-right">M³ Movidos</th><th class="p-4 text-right text-yellow-600 bg-yellow-50">Total a Pagar (Bs)</th></tr>
@@ -2322,13 +2331,16 @@
                         </div>
 
                         <div class="bg-white rounded-[32px] border border-slate-200 shadow-sm overflow-hidden flex flex-col">
-                            <div class="p-6 border-b border-slate-100 flex justify-between items-center">
-                                <div>
-                                    <h3 class="font-black text-slate-800 uppercase text-sm flex items-center gap-2"><i data-lucide="wallet" class="text-orange-500"></i> Bolsillos de Flete (Pedidos Grandes)</h3>
-                                    <p class="text-[9px] text-slate-400 font-bold uppercase mt-1">Control del presupuesto cobrado al cliente vs pago a choferes</p>
+                            <div class="p-6 border-b border-slate-100 flex justify-between items-start">
+                                <div class="flex items-start gap-2">
+                                    <button onclick="toggleSeccion('tabla-bolsillos', 'icon-bolsillos')" class="text-slate-400 hover:text-orange-500 mt-0.5 transition-colors"><i id="icon-bolsillos" data-lucide="chevron-up" class="w-5 h-5"></i></button>
+                                    <div>
+                                        <h3 class="font-black text-slate-800 uppercase text-sm flex items-center gap-2"><i data-lucide="wallet" class="text-orange-500"></i> Bolsillos de Flete (Pedidos Grandes)</h3>
+                                        <p class="text-[9px] text-slate-400 font-bold uppercase mt-1">Control del presupuesto cobrado al cliente vs pago a choferes</p>
+                                    </div>
                                 </div>
                             </div>
-                            <div class="p-0 overflow-x-auto">
+                            <div id="tabla-bolsillos" class="p-0 overflow-x-auto transition-all duration-300">
                                 <table class="w-full text-left text-xs whitespace-nowrap">
                                     <thead class="bg-slate-50 border-b border-slate-100 text-[10px] font-black text-slate-400 uppercase tracking-widest">
                                         <tr><th class="p-4">Orden / Cliente</th><th class="p-4 text-right">Flete Cobrado</th><th class="p-4 text-right text-orange-500">Pagado a Choferes</th><th class="p-4 text-right text-green-600">Saldo Presupuesto</th></tr>
@@ -2340,11 +2352,14 @@
                     </div>
 
                    <!-- ARCHIVO DE LIQUIDACIONES -->
-                    <div class="bg-white p-6 rounded-[32px] border border-slate-200 shadow-sm mt-8">
+                   <div class="bg-white p-6 rounded-[32px] border border-slate-200 shadow-sm mt-8">
                         <div class="flex justify-between items-center mb-6 border-b border-slate-100 pb-4">
-                            <h3 class="font-black text-slate-800 uppercase text-sm flex items-center gap-2"><i data-lucide="folder-open" class="text-yellow-600"></i> Archivo de Liquidaciones Generadas</h3>
+                            <div class="flex items-center gap-2">
+                                <button onclick="toggleSeccion('tabla-archivo-liq', 'icon-archivo-liq')" class="text-slate-400 hover:text-yellow-600 transition-colors"><i id="icon-archivo-liq" data-lucide="chevron-up" class="w-5 h-5"></i></button>
+                                <h3 class="font-black text-slate-800 uppercase text-sm flex items-center gap-2"><i data-lucide="folder-open" class="text-yellow-600"></i> Archivo de Liquidaciones Generadas</h3>
+                            </div>
                         </div>
-                        <div class="overflow-x-auto">
+                        <div id="tabla-archivo-liq" class="overflow-x-auto transition-all duration-300">
                             <table class="w-full text-left text-xs whitespace-nowrap">
                                 <thead class="bg-slate-50 border-b border-slate-100 text-[10px] font-black text-slate-400 uppercase tracking-widest">
                                     <tr><th class="p-4">ID Liq. / Fecha</th><th class="p-4">Chofer</th><th class="p-4 text-center">Viajes</th><th class="p-4 text-right">Total a Pagar</th><th class="p-4 text-center">Estado</th><th class="p-4 text-center">Acción</th></tr>
@@ -2356,9 +2371,12 @@
 
                     <div class="bg-white p-6 rounded-[32px] border border-slate-200 shadow-sm mt-8">
                         <div class="flex flex-col md:flex-row justify-between items-start md:items-center mb-6 gap-4 border-b border-slate-100 pb-4">
-                            <div class="flex items-center gap-4">
-                                <h3 class="font-black text-slate-800 uppercase text-sm flex items-center gap-2"><i data-lucide="file-text" class="text-yellow-500"></i> Bitácora Detallada de Viajes</h3>
-                                <button id="btn-generar-liq-masiva" onclick="generarLiquidacion()" class="hidden bg-yellow-500 hover:bg-yellow-600 text-white px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest shadow-md transition-colors animate-pulse">Generar Pago (<span id="lbl-count-viajes">0</span>)</button>
+                            <div class="flex items-center gap-2">
+                                <button onclick="toggleSeccion('tabla-bitacora', 'icon-bitacora')" class="text-slate-400 hover:text-yellow-500 transition-colors"><i id="icon-bitacora" data-lucide="chevron-up" class="w-5 h-5"></i></button>
+                                <div class="flex items-center gap-4">
+                                    <h3 class="font-black text-slate-800 uppercase text-sm flex items-center gap-2"><i data-lucide="file-text" class="text-yellow-500"></i> Bitácora Detallada de Viajes</h3>
+                                    <button id="btn-generar-liq-masiva" onclick="generarLiquidacion()" class="hidden bg-yellow-500 hover:bg-yellow-600 text-white px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest shadow-md transition-colors animate-pulse">Generar Pago (<span id="lbl-count-viajes">0</span>)</button>
+                                </div>
                             </div>
                            <div class="flex flex-wrap gap-2 w-full md:w-auto items-center">
                                 <div class="relative flex-1 min-w-[150px]">
@@ -2373,10 +2391,10 @@
                                     <option value="Limberth (Interno)">Limberth (Interno)</option>
                                     <option value="Martín (Interno)">Martín (Interno)</option>
                                 </select>
-                                <button onclick="exportarTransporteDetalleCSV()" class="bg-yellow-500 text-slate-900 px-4 py-2 rounded-xl font-black text-xs uppercase shadow-md hover:bg-yellow-400 flex items-center gap-2"><i data-lucide="download" class="w-4 h-4"></i> Exportar</button>
+                               <button onclick="exportarTransporteDetalleCSV()" class="bg-yellow-500 text-slate-900 px-4 py-2 rounded-xl font-black text-xs uppercase shadow-md hover:bg-yellow-400 flex items-center gap-2"><i data-lucide="download" class="w-4 h-4"></i> Exportar</button>
                             </div>
                         </div>
-                        <div class="overflow-x-auto">
+                        <div id="tabla-bitacora" class="overflow-x-auto transition-all duration-300">
                             <table class="w-full text-left text-xs whitespace-nowrap">
                                <thead class="bg-slate-50 border-b border-slate-100 text-[9px] font-black text-slate-400 uppercase tracking-widest">
                                     <tr><th class="p-4 w-10 text-center">Sel.</th><th class="p-4">Fecha</th><th class="p-4">N° Orden</th><th class="p-4">Cliente</th><th class="p-4">Material (EPS)</th><th class="p-4 text-right">Vol. M3 (Viaje)</th><th class="p-4 text-right">Precio/M3 (Base)</th><th class="p-4 text-right bg-yellow-50 text-yellow-700">Total a Pagar</th></tr>
@@ -2772,6 +2790,20 @@
         let editSelectedProduct = null;
 	// INTERRUPTOR CRÍTICO DE SEGURIDAD
 	let erpDataLoaded = false;
+
+        // FUNCIÓN PARA MINIMIZAR TABLAS
+        function toggleSeccion(idContenedor, idIcono) {
+            const contenedor = document.getElementById(idContenedor);
+            const icono = document.getElementById(idIcono);
+            if (contenedor.classList.contains('hidden')) {
+                contenedor.classList.remove('hidden');
+                icono.setAttribute('data-lucide', 'chevron-up');
+            } else {
+                contenedor.classList.add('hidden');
+                icono.setAttribute('data-lucide', 'chevron-down');
+            }
+            if(window.lucide) lucide.createIcons();
+        }
 
 // 3. FUNCIÓN DE GUARDADO EN LA NUBE (VERSION PARTICIONADA ANTI-COLAPSO)
 function save() {
@@ -3355,7 +3387,8 @@ function aplicarPermisosVisuales(role) {
         showTab('ventas');
     } 
     else if (role === 'OPERADOR') {
-        const ocultarTabs = [...adminTabs, 'clientes', 'ventas', 'cotizaciones', 'registro-ventas', 'log-maestro', ...finanzasTabs];
+        // Quitamos 'log-maestro' de la lista para que el operador pueda verlo
+        const ocultarTabs = [...adminTabs, 'clientes', 'ventas', 'cotizaciones', 'registro-ventas', ...finanzasTabs];
         ocultarTabs.forEach(tab => {
             const btn = document.querySelector(`[data-tab="${tab}"]`);
             if(btn) btn.classList.add('hidden');
@@ -3384,6 +3417,17 @@ function aplicarPermisosVisuales(role) {
             if(['PRODUCCIÓN', 'ADMINISTRACIÓN'].includes(text)) p.classList.add('hidden');
         });
         showTab('ventas');
+    }
+
+    // Ocultar exportar y volumen en Crono. Entregas solo para el operador
+    const btnExportLog = document.getElementById('btn-exportar-log');
+    const cuadroVolLog = document.getElementById('cuadro-volumen-log');
+    if (role === 'OPERADOR') {
+        if(btnExportLog) btnExportLog.classList.add('hidden');
+        if(cuadroVolLog) cuadroVolLog.classList.add('hidden');
+    } else {
+        if(btnExportLog) btnExportLog.classList.remove('hidden');
+        if(cuadroVolLog) cuadroVolLog.classList.remove('hidden');
     }
 }
 
