@@ -515,10 +515,10 @@
                             <table id="tabla-reg-ventas" class="w-full text-left text-xs whitespace-nowrap">
                                 <thead class="bg-blue-600 text-white border-b border-slate-100 text-[9px] font-black uppercase tracking-widest">
                                     <tr>
-                                        <th class="p-4">Fecha</th>
-                                        <th class="p-4">N° Orden</th>
-                                        <th class="p-4">NIT / CI</th>
-                                        <th class="p-4">Cliente</th>
+                                        <th class="p-4 sticky left-0 bg-blue-600 z-20 min-w-[90px]">Fecha</th>
+                                        <th class="p-4 sticky left-[90px] bg-blue-600 z-20 min-w-[110px]">N° Orden</th>
+                                        <th class="p-4 sticky left-[200px] bg-blue-600 z-20 min-w-[100px]">NIT / CI</th>
+                                        <th class="p-4 sticky left-[300px] bg-blue-600 z-20 min-w-[200px] shadow-[2px_0_5px_-2px_rgba(0,0,0,0.2)]">Cliente</th>
                                         <th class="p-4 text-right">Total Venta EPS</th>
                                         <th class="p-4 text-right">Retención IT</th>
                                         <th class="p-4 text-right">Comisión</th>
@@ -1360,11 +1360,11 @@
                     <div class="bg-white rounded-[32px] border border-slate-200 overflow-hidden shadow-sm">
                         <div class="overflow-x-auto">
                             <table id="tabla-log-maestro" class="w-full text-left text-xs whitespace-nowrap">
-                                <thead class="bg-slate-50 border-b border-slate-100 text-[9px] font-black text-slate-400 uppercase tracking-widest">
+                               <thead class="bg-slate-50 border-b border-slate-100 text-[9px] font-black text-slate-400 uppercase tracking-widest">
                                     <tr>
-                                        <th class="p-5">Fecha Reg</th>
-                                        <th class="p-5">N° Orden</th>
-                                        <th class="p-5">Cliente</th>
+                                        <th class="p-5 sticky left-0 bg-slate-50 z-20 min-w-[90px]">Fecha Reg</th>
+                                        <th class="p-5 sticky left-[90px] bg-slate-50 z-20 min-w-[110px]">N° Orden</th>
+                                        <th class="p-5 sticky left-[200px] bg-slate-50 z-20 min-w-[200px] shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)]">Cliente</th>
                                         <th class="p-5">EPS Tipo</th>
                                         <th class="p-5 text-right">Vol Pza</th>
                                         <th class="p-5 text-center">Cant Ped.</th>
@@ -5760,12 +5760,12 @@ renderAll = function() {
                     ? `<br><span class="bg-purple-100 text-purple-700 border border-purple-200 px-1.5 py-0.5 rounded text-[8px] font-black uppercase tracking-widest mt-1.5 inline-block shadow-sm" title="Editado el ${o.fechaEdicion || 'fecha desconocida'}"><i data-lucide="edit-2" class="w-2.5 h-2.5 inline mr-1 -mt-0.5"></i>Editado</span>` 
                     : '';
 
-                html += `
+               html += `
                     <tr class="hover:bg-slate-50 transition-colors border-b border-slate-100">
-                        <td class="p-4 text-slate-500 font-bold">${o.date}</td>
-                        <td class="p-4 font-black text-slate-800 align-top">${o.id} ${badgeEditado}</td>
-                        <td class="p-4 font-bold text-slate-600">${o.nit || '-'}</td>
-                        <td class="p-4 font-black text-blue-600">${o.client}</td>
+                        <td class="p-4 text-slate-500 font-bold sticky left-0 bg-white z-10 min-w-[90px]">${o.date}</td>
+                        <td class="p-4 font-black text-slate-800 align-top sticky left-[90px] bg-white z-10 min-w-[110px]">${o.id} ${badgeEditado}</td>
+                        <td class="p-4 font-bold text-slate-600 sticky left-[200px] bg-white z-10 min-w-[100px]">${o.nit || '-'}</td>
+                        <td class="p-4 font-black text-blue-600 sticky left-[300px] bg-white z-10 min-w-[200px] shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)]">${o.client}</td>
                         <td class="p-4 text-right font-medium">Bs ${baseTotal.toFixed(2)}</td>
                         <td class="p-4 text-right font-medium text-red-500">Bs ${it.toFixed(2)}</td>
                         <td class="p-4 text-right font-black text-orange-600 bg-orange-50/30">Bs ${comisionNeta.toFixed(2)}</td>
@@ -5851,11 +5851,17 @@ renderAll = function() {
                 if(saldoPend < 0.01) saldoPend = 0;
                 const colorSaldo = saldoPend > 0 ? 'text-red-500' : 'text-slate-300';
                 
+                let bgStatus = 'bg-slate-100 text-slate-600 border-slate-200';
+                if (o.status === 'PRODUCCION') bgStatus = 'bg-orange-100 text-orange-700 border-orange-300';
+                else if (o.status === 'INVENTARIO') bgStatus = 'bg-blue-100 text-blue-700 border-blue-300';
+                else if (o.status === 'DESPACHADO') bgStatus = 'bg-green-100 text-green-700 border-green-300';
+                else if (o.status === 'PERDIDA' || o.status === 'ANULADO') bgStatus = 'bg-red-100 text-red-700 border-red-300';
+                
                 html += `
                     <tr class="hover:bg-slate-50 transition-colors border-b border-slate-100">
-                        <td class="p-5 font-bold text-slate-500">${o.date}</td>
-                        <td class="p-5 font-black text-slate-800">${o.id}</td>
-                        <td class="p-5 font-bold">${o.client}</td>
+                        <td class="p-5 font-bold text-slate-500 sticky left-0 bg-white z-10 min-w-[90px]">${o.date}</td>
+                        <td class="p-5 font-black text-slate-800 sticky left-[90px] bg-white z-10 min-w-[110px]">${o.id}</td>
+                        <td class="p-5 font-bold sticky left-[200px] bg-white z-10 min-w-[200px] shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)]">${o.client}</td>
                         <td class="p-5 font-black text-blue-600">${item.name}</td>
                         <td class="p-5 text-right font-medium">${volUnit.toFixed(3)}</td>
                         <td class="p-5 text-center font-black">${item.qty}</td>
@@ -5866,7 +5872,7 @@ renderAll = function() {
                         <td class="p-5 uppercase text-[9px] font-black text-slate-500">${o.vendedorInterno}</td>
                         <td class="p-5 text-center font-black ${statusColor}">${o.estadoPago}</td>
                         <td class="p-5 text-center text-slate-400">${progParcial}</td>
-                        <td class="p-5 text-right"><span class="bg-slate-100 text-slate-600 px-3 py-1 rounded-lg text-[9px] font-black uppercase tracking-widest border border-slate-200">${o.status}</span></td>
+                       <td class="p-5 text-right"><span class="${bgStatus} px-3 py-1 rounded-lg text-[9px] font-black uppercase tracking-widest border">${o.status}</span></td>
                     </tr>
                 `;
             });
@@ -9536,8 +9542,17 @@ function renderCajaGeneral() {
         if(m.entrada) movimientos.push({ id: m.id, fecha: m.fecha, orden: '-', desc: m.desc, categoria: m.categoria, totalCobrar: 0, monto: parseFloat(m.monto), cuenta: m.entrada, tipo: 'INGRESO' });
     });
 
-    // 3. Ordenar por fecha cronológica y aplicar preferencia Ascendente/Descendente
-    const parseDate = (d) => { const p = d.split(d.includes('/')?'/':'-'); return new Date(p[2]||p[0], (p[1]||p[1])-1, p[0]||p[2]); };
+   // 3. Ordenar por fecha cronológica y aplicar preferencia Ascendente/Descendente
+    const parseDate = (d) => { 
+        if (!d) return new Date(0);
+        if (d.includes('-')) {
+            const p = d.split('-'); 
+            return new Date(p[0], p[1]-1, p[2]);
+        } else {
+            const p = d.split('/'); 
+            return new Date(p[2], p[1]-1, p[0]);
+        }
+    };
     movimientos.sort((a, b) => {
         const diff = parseDate(a.fecha) - parseDate(b.fecha);
         return cajaSortOrder === 'DESC' ? -diff : diff;
@@ -9559,13 +9574,13 @@ function renderCajaGeneral() {
         });
     }
 
-    if(textoBuscador) {
+   if(textoBuscador) {
         movimientosFiltrados = movimientosFiltrados.filter(m => {
             const catStr = m.categoria ? m.categoria.toLowerCase() : '';
             return (m.desc || '').toLowerCase().includes(textoBuscador) || 
                    (m.orden || '').toLowerCase().includes(textoBuscador) || 
                    catStr.includes(textoBuscador) || 
-                   m.monto.toString().includes(textoBuscador);
+                   (m.monto || 0).toString().includes(textoBuscador);
         });
     }
     
