@@ -5703,6 +5703,7 @@ renderAll = function() {
             selectVend.innerHTML = optionsVend;
 
             let html = '';
+            let rowIndex = 0; // Contador para el efecto cebra
             orders.filter(o => {
                 let matchMes = true; let matchVend = true; let matchTexto = true;
                 if (valMes !== 'ALL') {
@@ -5756,16 +5757,21 @@ renderAll = function() {
                     : '';
 
                 // NUEVO: Etiqueta visual de auditoría si el pedido fue modificado
+                // NUEVO: Etiqueta visual de auditoría si el pedido fue modificado
                 const badgeEditado = o.editado 
                     ? `<br><span class="bg-purple-100 text-purple-700 border border-purple-200 px-1.5 py-0.5 rounded text-[8px] font-black uppercase tracking-widest mt-1.5 inline-block shadow-sm" title="Editado el ${o.fechaEdicion || 'fecha desconocida'}"><i data-lucide="edit-2" class="w-2.5 h-2.5 inline mr-1 -mt-0.5"></i>Editado</span>` 
                     : '';
 
-               html += `
-                    <tr class="hover:bg-slate-50 transition-colors border-b border-slate-100">
-                        <td class="p-4 text-slate-500 font-bold sticky left-0 bg-white z-10 min-w-[90px]">${o.date}</td>
-                        <td class="p-4 font-black text-slate-800 align-top sticky left-[90px] bg-white z-10 min-w-[110px]">${o.id} ${badgeEditado}</td>
-                        <td class="p-4 font-bold text-slate-600 sticky left-[200px] bg-white z-10 min-w-[100px]">${o.nit || '-'}</td>
-                        <td class="p-4 font-black text-blue-600 sticky left-[300px] bg-white z-10 min-w-[200px] shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)]">${o.client}</td>
+                // Efecto Cebra: Intercala plomo claro y blanco
+                const rowBg = rowIndex % 2 === 0 ? 'bg-white' : 'bg-slate-100';
+                rowIndex++;
+
+                html += `
+                    <tr class="hover:bg-blue-50 transition-colors border-b border-slate-200 ${rowBg}">
+                        <td class="p-4 text-slate-500 font-bold sticky left-0 ${rowBg} z-10 min-w-[90px]">${o.date}</td>
+                        <td class="p-4 font-black text-slate-800 align-top sticky left-[90px] ${rowBg} z-10 min-w-[110px]">${o.id} ${badgeEditado}</td>
+                        <td class="p-4 font-bold text-slate-600 sticky left-[200px] ${rowBg} z-10 min-w-[100px]">${o.nit || '-'}</td>
+                        <td class="p-4 font-black text-blue-600 sticky left-[300px] ${rowBg} z-10 min-w-[200px] shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)]">${o.client}</td>
                         <td class="p-4 text-right font-medium">Bs ${baseTotal.toFixed(2)}</td>
                         <td class="p-4 text-right font-medium text-red-500">Bs ${it.toFixed(2)}</td>
                         <td class="p-4 text-right font-black text-orange-600 bg-orange-50/30">Bs ${comisionNeta.toFixed(2)}</td>
@@ -5819,6 +5825,7 @@ renderAll = function() {
     let optionsVend = `<option value="ALL">Todos los vendedores</option>`; Array.from(vendedores).sort().forEach(v => { optionsVend += `<option value="${v}" ${valVend === v ? 'selected' : ''}>${v}</option>`; }); selectVend.innerHTML = optionsVend;
 
     let html = ''; let totalM3 = 0;
+    let rowIndex = 0; // Contador para el efecto cebra
 
     orders.filter(o => {
         let matchMes = true; let matchVend = true; let matchTexto = true;
@@ -5857,11 +5864,15 @@ renderAll = function() {
                 else if (o.status === 'DESPACHADO') bgStatus = 'bg-green-100 text-green-700 border-green-300';
                 else if (o.status === 'PERDIDA' || o.status === 'ANULADO') bgStatus = 'bg-red-100 text-red-700 border-red-300';
                 
+                // Efecto Cebra: Intercala plomo claro y blanco
+                const rowBg = rowIndex % 2 === 0 ? 'bg-white' : 'bg-slate-100';
+                rowIndex++;
+
                 html += `
-                    <tr class="hover:bg-slate-50 transition-colors border-b border-slate-100">
-                        <td class="p-5 font-bold text-slate-500 sticky left-0 bg-white z-10 min-w-[90px]">${o.date}</td>
-                        <td class="p-5 font-black text-slate-800 sticky left-[90px] bg-white z-10 min-w-[110px]">${o.id}</td>
-                        <td class="p-5 font-bold sticky left-[200px] bg-white z-10 min-w-[200px] shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)]">${o.client}</td>
+                    <tr class="hover:bg-blue-50 transition-colors border-b border-slate-200 ${rowBg}">
+                        <td class="p-5 font-bold text-slate-500 sticky left-0 ${rowBg} z-10 min-w-[90px]">${o.date}</td>
+                        <td class="p-5 font-black text-slate-800 sticky left-[90px] ${rowBg} z-10 min-w-[110px]">${o.id}</td>
+                        <td class="p-5 font-bold sticky left-[200px] ${rowBg} z-10 min-w-[200px] shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)]">${o.client}</td>
                         <td class="p-5 font-black text-blue-600">${item.name}</td>
                         <td class="p-5 text-right font-medium">${volUnit.toFixed(3)}</td>
                         <td class="p-5 text-center font-black">${item.qty}</td>
