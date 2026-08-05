@@ -532,11 +532,11 @@
                         <div class="overflow-x-auto">
                             <table id="tabla-reg-ventas" class="w-full text-left text-xs whitespace-nowrap">
                                 <thead class="bg-blue-600 text-white border-b border-slate-100 text-[9px] font-black uppercase tracking-widest">
-                                    <tr>
-                                        <th class="p-4 sticky left-0 bg-blue-600 z-20 min-w-[90px]">Fecha</th>
-                                        <th class="p-4 sticky left-[90px] bg-blue-600 z-20 min-w-[110px]">N° Orden</th>
-                                        <th class="p-4 sticky left-[200px] bg-blue-600 z-20 min-w-[100px]">NIT / CI</th>
-                                        <th class="p-4 sticky left-[300px] bg-blue-600 z-20 min-w-[200px] shadow-[2px_0_5px_-2px_rgba(0,0,0,0.2)]">Cliente</th>
+                                   <tr>
+                                        <th class="p-4 md:sticky md:left-0 bg-blue-600 md:z-20 min-w-[90px]">Fecha</th>
+                                        <th class="p-4 md:sticky md:left-[90px] bg-blue-600 md:z-20 min-w-[110px]">N° Orden</th>
+                                        <th class="p-4 md:sticky md:left-[200px] bg-blue-600 md:z-20 min-w-[100px]">NIT / CI</th>
+                                        <th class="p-4 md:sticky md:left-[300px] bg-blue-600 md:z-20 min-w-[200px] md:shadow-[2px_0_5px_-2px_rgba(0,0,0,0.2)]">Cliente</th>
                                         <th class="p-4 text-right">Total Venta EPS</th>
                                         <th class="p-4 text-right">Retención IT</th>
                                         <th class="p-4 text-right">Comisión</th>
@@ -1380,9 +1380,9 @@
                             <table id="tabla-log-maestro" class="w-full text-left text-xs whitespace-nowrap">
                                <thead class="bg-slate-50 border-b border-slate-100 text-[9px] font-black text-slate-400 uppercase tracking-widest">
                                     <tr>
-                                        <th class="p-5 sticky left-0 bg-slate-50 z-20 min-w-[90px]">Fecha Reg</th>
-                                        <th class="p-5 sticky left-[90px] bg-slate-50 z-20 min-w-[110px]">N° Orden</th>
-                                        <th class="p-5 sticky left-[200px] bg-slate-50 z-20 min-w-[200px] shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)]">Cliente</th>
+                                        <th class="p-5 md:sticky md:left-0 bg-slate-50 md:z-20 min-w-[90px]">Fecha Reg</th>
+                                        <th class="p-5 md:sticky md:left-[90px] bg-slate-50 md:z-20 min-w-[110px]">N° Orden</th>
+                                        <th class="p-5 md:sticky md:left-[200px] bg-slate-50 md:z-20 min-w-[200px] md:shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)]">Cliente</th>
                                         <th class="p-5">EPS Tipo</th>
                                         <th class="p-5 text-right">Vol Pza</th>
                                         <th class="p-5 text-center">Cant Ped.</th>
@@ -5784,12 +5784,12 @@ renderAll = function() {
                 const rowBg = rowIndex % 2 === 0 ? 'bg-white' : 'bg-slate-100';
                 rowIndex++;
 
-                html += `
+               html += `
                     <tr class="hover:bg-blue-50 transition-colors border-b border-slate-200 ${rowBg}">
-                        <td class="p-4 text-slate-500 font-bold sticky left-0 ${rowBg} z-10 min-w-[90px]">${o.date}</td>
-                        <td class="p-4 font-black text-slate-800 align-top sticky left-[90px] ${rowBg} z-10 min-w-[110px]">${o.id} ${badgeEditado}</td>
-                        <td class="p-4 font-bold text-slate-600 sticky left-[200px] ${rowBg} z-10 min-w-[100px]">${o.nit || '-'}</td>
-                        <td class="p-4 font-black text-blue-600 sticky left-[300px] ${rowBg} z-10 min-w-[200px] shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)]">${o.client}</td>
+                        <td class="p-4 text-slate-500 font-bold md:sticky md:left-0 ${rowBg} md:z-10 min-w-[90px]">${o.date}</td>
+                        <td class="p-4 font-black text-slate-800 align-top md:sticky md:left-[90px] ${rowBg} md:z-10 min-w-[110px]">${o.id} ${badgeEditado}</td>
+                        <td class="p-4 font-bold text-slate-600 md:sticky md:left-[200px] ${rowBg} md:z-10 min-w-[100px]">${o.nit || '-'}</td>
+                        <td class="p-4 font-black text-blue-600 md:sticky md:left-[300px] ${rowBg} md:z-10 min-w-[200px] md:shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)]">${o.client}</td>
                         <td class="p-4 text-right font-medium">Bs ${baseTotal.toFixed(2)}</td>
                         <td class="p-4 text-right font-medium text-red-500">Bs ${it.toFixed(2)}</td>
                         <td class="p-4 text-right font-black text-orange-600 bg-orange-50/30">Bs ${comisionNeta.toFixed(2)}</td>
@@ -5887,11 +5887,11 @@ renderAll = function() {
                 const rowBg = rowIndex % 2 === 0 ? 'bg-white' : 'bg-slate-100';
                 rowIndex++;
 
-                html += `
+               html += `
                     <tr class="hover:bg-blue-50 transition-colors border-b border-slate-200 ${rowBg}">
-                        <td class="p-5 font-bold text-slate-500 sticky left-0 ${rowBg} z-10 min-w-[90px]">${o.date}</td>
-                        <td class="p-5 font-black text-slate-800 sticky left-[90px] ${rowBg} z-10 min-w-[110px]">${o.id}</td>
-                        <td class="p-5 font-bold sticky left-[200px] ${rowBg} z-10 min-w-[200px] shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)]">${o.client}</td>
+                        <td class="p-5 font-bold text-slate-500 md:sticky md:left-0 ${rowBg} md:z-10 min-w-[90px]">${o.date}</td>
+                        <td class="p-5 font-black text-slate-800 md:sticky md:left-[90px] ${rowBg} md:z-10 min-w-[110px]">${o.id}</td>
+                        <td class="p-5 font-bold md:sticky md:left-[200px] ${rowBg} md:z-10 min-w-[200px] md:shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)]">${o.client}</td>
                         <td class="p-5 font-black text-blue-600">${item.name}</td>
                         <td class="p-5 text-right font-medium">${volUnit.toFixed(3)}</td>
                         <td class="p-5 text-center font-black">${item.qty}</td>
