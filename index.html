@@ -9722,7 +9722,7 @@ function renderCajaGeneral() {
     // 6. FILTRAR LA TABLA INFERIOR SEGÚN LA CUENTA SELECCIONADA
     let movimientosCuenta = movimientosFiltrados;
     if (cajaCuentaFiltro !== 'ALL') {
-        movimientosCuenta = movimientosFiltrados.filter(m => m.cuenta === cajaCuentaFiltro);
+        movimientosCuenta = movimientosFiltrados.filter(m => m.cuenta && m.cuenta.toUpperCase().includes(cajaCuentaFiltro));
         document.getElementById('lbl-tabla-caja').innerText = `LIBRO MAYOR: EXTRACTO DE ${cajaCuentaFiltro}`;
     } else {
         document.getElementById('lbl-tabla-caja').innerText = `LIBRO MAYOR: TODAS LAS CUENTAS CONSOLIDADAS`;
@@ -9732,7 +9732,7 @@ function renderCajaGeneral() {
 
     let html = '';
     movimientosCuenta.forEach((m, idx) => {
-        const rowBg = idx % 2 === 0 ? 'bg-white' : 'bg-slate-50';
+        const rowBg = idx % 2 === 0 ? 'bg-green-50/50' : 'bg-green-100/70';
         const f = (val) => val ? `Bs ${val.toFixed(2)}` : '';
         
         let ingresoTxt = m.tipo === 'INGRESO' ? `<span class="text-blue-600 font-black">${f(m.monto)}</span>` : '';
@@ -9753,7 +9753,7 @@ function renderCajaGeneral() {
         const btnEliminar = (m.orden === '-' && m.rawId) ? `<button onclick="deleteMovimientoCaja(${m.rawId})" title="Eliminar Movimiento" class="text-red-400 hover:text-red-600 bg-red-50 p-1.5 rounded-lg border border-red-100 transition-colors shadow-sm"><i data-lucide="trash-2" class="w-4 h-4"></i></button>` : '';
 
         html += `
-        <tr class="hover:bg-blue-50 transition-colors border-b border-slate-100 text-xs ${rowBg}">
+        <tr class="hover:bg-green-200 transition-colors border-b border-green-200/50 text-xs ${rowBg}">
             <td class="p-4 font-bold text-slate-500 md:sticky md:left-0 ${rowBg} z-10 whitespace-nowrap">${m.displayDate}</td>
             <td class="p-4 font-black text-slate-800 whitespace-nowrap">${m.orden}</td>
             <td class="p-4 whitespace-normal min-w-[250px] leading-tight">
