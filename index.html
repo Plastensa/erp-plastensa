@@ -2578,61 +2578,60 @@
         </div>
     </div>
 
-    <!-- TARJETAS DE SALDOS Y BALANCE TOTAL -->
-    <div class="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-8 gap-2">
-        <div class="bg-white p-3 rounded-2xl border border-slate-200 shadow-sm text-center"><p class="text-[8px] font-black text-slate-400 uppercase">BNB</p><p id="saldo-bnb" class="text-sm font-black text-slate-800">0.00</p></div>
-        <div class="bg-white p-3 rounded-2xl border border-slate-200 shadow-sm text-center"><p class="text-[8px] font-black text-slate-400 uppercase">UNION</p><p id="saldo-union" class="text-sm font-black text-slate-800">0.00</p></div>
-        <div class="bg-white p-3 rounded-2xl border border-slate-200 shadow-sm text-center"><p class="text-[8px] font-black text-slate-400 uppercase">BISA</p><p id="saldo-bisa" class="text-sm font-black text-slate-800">0.00</p></div>
-        <div class="bg-white p-3 rounded-2xl border border-slate-200 shadow-sm text-center"><p class="text-[8px] font-black text-slate-400 uppercase">MERCANTIL</p><p id="saldo-mercantil" class="text-sm font-black text-slate-800">0.00</p></div>
-        <div class="bg-green-50 p-3 rounded-2xl border border-green-200 shadow-sm text-center"><p class="text-[8px] font-black text-green-600 uppercase">CAJA (Bs)</p><p id="saldo-caja" class="text-sm font-black text-green-800">0.00</p></div>
-        
-        <div class="bg-slate-100 p-3 rounded-2xl border border-slate-300 shadow-sm text-center"><p class="text-[8px] font-black text-slate-500 uppercase">CAJA (USD)</p><p id="saldo-cajausd" class="text-sm font-black text-slate-800">0.00</p></div>
-        <div class="bg-slate-100 p-3 rounded-2xl border border-slate-300 shadow-sm text-center"><p class="text-[8px] font-black text-slate-500 uppercase">BISA USDT</p><p id="saldo-bisausd" class="text-sm font-black text-slate-800">0.00</p></div>
-        <div class="bg-slate-100 p-3 rounded-2xl border border-slate-300 shadow-sm text-center"><p class="text-[8px] font-black text-slate-500 uppercase">TOWERBANK</p><p id="saldo-towerbank" class="text-sm font-black text-slate-800">0.00</p></div>
+    <div class="w-full mb-4">
+        <button onclick="toggleGraficosCaja()" class="w-full bg-slate-100 hover:bg-slate-200 text-slate-700 font-black text-xs uppercase tracking-widest p-4 rounded-2xl border border-slate-300 transition-colors flex justify-center items-center gap-2 shadow-sm">
+            <i data-lucide="bar-chart-2" class="w-5 h-5 text-indigo-600"></i> <span id="lbl-btn-grafico">Mostrar Analíticas Financieras</span> <i id="icon-grafico-dir" data-lucide="chevron-down" class="w-4 h-4"></i>
+        </button>
     </div>
 
-    <!-- TARJETAS DE BALANCE FILTRADO -->
-    <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <div class="bg-blue-50 p-4 rounded-2xl border border-blue-200 shadow-sm flex items-center justify-between">
-            <div><p class="text-[10px] font-black text-blue-600 uppercase tracking-widest">Total Ingresos (Equiv. Bs)</p><p id="total-ingresos" class="text-2xl font-black text-blue-800 mt-1">Bs 0.00</p></div>
-            <i data-lucide="trending-up" class="w-8 h-8 text-blue-300"></i>
+        <div id="panel-graficos-caja" class="hidden mb-6 bg-white p-6 rounded-3xl border border-slate-200 shadow-sm animate-in fade-in zoom-in duration-300">
+        <h3 class="text-sm font-black text-slate-800 uppercase mb-4 flex items-center gap-2"><i data-lucide="activity" class="text-blue-500"></i> Resumen de Flujo: Ingresos vs Egresos</h3>
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+            <div class="bg-blue-50 p-4 rounded-2xl border border-blue-200 shadow-sm flex items-center justify-between">
+                <div><p class="text-[10px] font-black text-blue-600 uppercase tracking-widest">Ingresos Reales</p><p id="total-ingresos" class="text-2xl font-black text-blue-800 mt-1">Bs 0.00</p></div>
+                <i data-lucide="trending-up" class="w-8 h-8 text-blue-300"></i>
+            </div>
+            <div class="bg-red-50 p-4 rounded-2xl border border-red-200 shadow-sm flex items-center justify-between">
+                <div><p class="text-[10px] font-black text-red-600 uppercase tracking-widest">Egresos Reales</p><p id="total-egresos" class="text-2xl font-black text-red-800 mt-1">Bs 0.00</p></div>
+                <i data-lucide="trending-down" class="w-8 h-8 text-red-300"></i>
+            </div>
+            <div class="bg-slate-900 p-4 rounded-2xl shadow-xl flex items-center justify-between">
+                <div><p class="text-[10px] font-black text-slate-400 uppercase tracking-widest">Balance del Periodo</p><p id="balance-periodo" class="text-2xl font-black text-white mt-1">Bs 0.00</p></div>
+                <i data-lucide="scale" class="w-8 h-8 text-slate-600"></i>
+            </div>
         </div>
-        <div class="bg-red-50 p-4 rounded-2xl border border-red-200 shadow-sm flex items-center justify-between">
-            <div><p class="text-[10px] font-black text-red-600 uppercase tracking-widest">Total Egresos (Equiv. Bs)</p><p id="total-egresos" class="text-2xl font-black text-red-800 mt-1">Bs 0.00</p></div>
-            <i data-lucide="trending-down" class="w-8 h-8 text-red-300"></i>
-        </div>
-        <div class="bg-slate-900 p-4 rounded-2xl shadow-xl flex items-center justify-between">
-            <div><p class="text-[10px] font-black text-slate-400 uppercase tracking-widest">Balance del Periodo</p><p id="balance-periodo" class="text-2xl font-black text-white mt-1">Bs 0.00</p></div>
-            <i data-lucide="scale" class="w-8 h-8 text-slate-600"></i>
-        </div>
+        <div id="grafico-barras-container" class="w-full h-40 flex items-end gap-2 border-b-2 border-slate-200 pb-2 overflow-x-auto">
+                    </div>
     </div>
 
-    <!-- TABLA LIBRO MAYOR HORIZONTAL -->
-    <div class="bg-white rounded-[32px] border border-slate-200 shadow-sm overflow-hidden mt-6">
+        <p class="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-2 pl-2">Cuentas Bancarias y Cajas (Haz clic para filtrar extracto)</p>
+    <div class="flex gap-2 overflow-x-auto pb-4 snap-x" id="caja-filtros-container">
+        <button onclick="setCajaFiltro('ALL')" data-cuenta="ALL" class="caja-filt-btn snap-start flex-shrink-0 bg-slate-900 text-white p-3 rounded-2xl border border-slate-700 shadow-md text-center min-w-[100px] transition-all transform"><p class="text-[8px] font-black uppercase tracking-widest text-slate-400">Libro Mayor</p><p class="text-sm font-black mt-1">TODAS</p></button>
+        <button onclick="setCajaFiltro('BNB')" data-cuenta="BNB" class="caja-filt-btn snap-start flex-shrink-0 bg-white p-3 rounded-2xl border border-slate-200 shadow-sm text-center min-w-[120px] transition-all hover:bg-blue-50"><p class="text-[8px] font-black text-slate-400 uppercase">BNB</p><p id="saldo-bnb" class="text-sm font-black text-slate-800 mt-1">0.00</p></button>
+        <button onclick="setCajaFiltro('UNION')" data-cuenta="UNION" class="caja-filt-btn snap-start flex-shrink-0 bg-white p-3 rounded-2xl border border-slate-200 shadow-sm text-center min-w-[120px] transition-all hover:bg-green-50"><p class="text-[8px] font-black text-slate-400 uppercase">UNION</p><p id="saldo-union" class="text-sm font-black text-slate-800 mt-1">0.00</p></button>
+        <button onclick="setCajaFiltro('BISA')" data-cuenta="BISA" class="caja-filt-btn snap-start flex-shrink-0 bg-white p-3 rounded-2xl border border-slate-200 shadow-sm text-center min-w-[120px] transition-all hover:bg-blue-50"><p class="text-[8px] font-black text-slate-400 uppercase">BISA</p><p id="saldo-bisa" class="text-sm font-black text-slate-800 mt-1">0.00</p></button>
+        <button onclick="setCajaFiltro('MERCANTIL')" data-cuenta="MERCANTIL" class="caja-filt-btn snap-start flex-shrink-0 bg-white p-3 rounded-2xl border border-slate-200 shadow-sm text-center min-w-[120px] transition-all hover:bg-blue-50"><p class="text-[8px] font-black text-slate-400 uppercase">MERCANTIL</p><p id="saldo-mercantil" class="text-sm font-black text-slate-800 mt-1">0.00</p></button>
+        <button onclick="setCajaFiltro('CAJA PLASTENSA')" data-cuenta="CAJA PLASTENSA" class="caja-filt-btn snap-start flex-shrink-0 bg-green-50 p-3 rounded-2xl border border-green-200 shadow-sm text-center min-w-[120px] transition-all hover:bg-green-100"><p class="text-[8px] font-black text-green-600 uppercase">CAJA (Bs)</p><p id="saldo-caja" class="text-sm font-black text-green-800 mt-1">0.00</p></button>
+        <button onclick="setCajaFiltro('CAJA DOLARES')" data-cuenta="CAJA DOLARES" class="caja-filt-btn snap-start flex-shrink-0 bg-slate-100 p-3 rounded-2xl border border-slate-300 shadow-sm text-center min-w-[120px] transition-all hover:bg-slate-200"><p class="text-[8px] font-black text-slate-500 uppercase">CAJA (USD)</p><p id="saldo-cajausd" class="text-sm font-black text-slate-800 mt-1">0.00</p></button>
+        <button onclick="setCajaFiltro('BISA USDT')" data-cuenta="BISA USDT" class="caja-filt-btn snap-start flex-shrink-0 bg-slate-100 p-3 rounded-2xl border border-slate-300 shadow-sm text-center min-w-[120px] transition-all hover:bg-slate-200"><p class="text-[8px] font-black text-slate-500 uppercase">BISA USDT</p><p id="saldo-bisausd" class="text-sm font-black text-slate-800 mt-1">0.00</p></button>
+        <button onclick="setCajaFiltro('TOWERBANK')" data-cuenta="TOWERBANK" class="caja-filt-btn snap-start flex-shrink-0 bg-slate-100 p-3 rounded-2xl border border-slate-300 shadow-sm text-center min-w-[120px] transition-all hover:bg-slate-200"><p class="text-[8px] font-black text-slate-500 uppercase">TOWERBANK</p><p id="saldo-towerbank" class="text-sm font-black text-slate-800 mt-1">0.00</p></button>
+    </div>
+
+        <div class="bg-white rounded-[32px] border border-slate-200 shadow-sm overflow-hidden mt-2">
+        <div class="bg-slate-50 px-6 py-4 border-b border-slate-100 flex justify-between items-center">
+            <h3 class="font-black text-slate-800 uppercase tracking-tight text-sm" id="lbl-tabla-caja">LIBRO MAYOR: TODAS LAS CUENTAS</h3>
+        </div>
         <div class="overflow-x-auto max-h-[600px] overflow-y-auto">
             <table class="w-full text-left text-xs whitespace-nowrap" id="tabla-caja-general">
-                <thead class="bg-slate-900 text-white sticky top-0 z-10">
-                    <tr class="text-[8px] font-black uppercase tracking-widest text-center">
-                        <th class="p-2 border-r border-slate-700 bg-slate-800 sticky left-0 z-20">Datos Generales</th>
-                        <th class="p-2 border-r border-slate-700" colspan="2">BNB (Bs)</th>
-                        <th class="p-2 border-r border-slate-700" colspan="2">UNION (Bs)</th>
-                        <th class="p-2 border-r border-slate-700" colspan="2">BISA (Bs)</th>
-                        <th class="p-2 border-r border-slate-700" colspan="2">MERCANTIL (Bs)</th>
-                        <th class="p-2 border-r border-green-800 bg-green-900" colspan="2">CAJA (Bs)</th>
-                        <th class="p-2 border-r border-slate-600 bg-slate-700" colspan="2">CAJA (USD)</th>
-                        <th class="p-2 border-r border-slate-600 bg-slate-700" colspan="2">BISA USDT</th>
-                        <th class="p-2 border-r border-slate-600 bg-slate-700" colspan="2">TOWERBANK</th>
-                    </tr>
-                    <tr class="text-[9px] font-bold uppercase text-slate-300 border-b-2 border-blue-500 text-center">
-                        <th class="p-2 border-r border-slate-700 bg-slate-800 sticky left-0 z-20 min-w-[300px] text-left">Fecha | N° Orden | Detalle/Cliente</th>
-                        <th class="p-2 border-r border-slate-700 text-blue-300">Ing</th><th class="p-2 border-r border-slate-700 text-red-300">Egr</th>
-                        <th class="p-2 border-r border-slate-700 text-blue-300">Ing</th><th class="p-2 border-r border-slate-700 text-red-300">Egr</th>
-                        <th class="p-2 border-r border-slate-700 text-blue-300">Ing</th><th class="p-2 border-r border-slate-700 text-red-300">Egr</th>
-                        <th class="p-2 border-r border-slate-700 text-blue-300">Ing</th><th class="p-2 border-r border-slate-700 text-red-300">Egr</th>
-                        <th class="p-2 border-r border-green-700 bg-green-800 text-green-300">Ing</th><th class="p-2 border-r border-green-700 bg-green-800 text-red-300">Egr</th>
-                        <th class="p-2 border-r border-slate-600 bg-slate-700 text-blue-300">Ing</th><th class="p-2 border-r border-slate-600 bg-slate-700 text-red-300">Egr</th>
-                        <th class="p-2 border-r border-slate-600 bg-slate-700 text-blue-300">Ing</th><th class="p-2 border-r border-slate-600 bg-slate-700 text-red-300">Egr</th>
-                        <th class="p-2 border-r border-slate-600 bg-slate-700 text-blue-300">Ing</th><th class="p-2 bg-slate-700 text-red-300">Egr</th>
+                <thead class="bg-slate-900 text-white sticky top-0 z-20">
+                    <tr class="text-[9px] font-black uppercase text-slate-300 tracking-widest border-b-2 border-indigo-500">
+                        <th class="p-4 md:sticky md:left-0 bg-slate-900 md:z-20 min-w-[90px]">Fecha</th>
+                        <th class="p-4">Ref / Orden</th>
+                        <th class="p-4 min-w-[250px]">Detalle / Cliente</th>
+                        <th class="p-4 text-center">Cuenta Afectada</th>
+                        <th class="p-4 text-right text-blue-300">Ingreso (Bs)</th>
+                        <th class="p-4 text-right text-red-300">Egreso (Bs)</th>
+                        <th class="p-4 text-center text-slate-400">X</th>
                     </tr>
                 </thead>
                 <tbody id="caja-general-body" class="divide-y divide-slate-100 bg-white"></tbody>
@@ -9509,6 +9508,28 @@ function exportarCSV(tipo) {
 // ==========================================
 var movimientosCajaExport = []; // Variable global para guardar lo que se ve en pantalla
 var cajaSortOrder = 'DESC'; // Mantiene el orden preferido por el usuario
+let cajaCuentaFiltro = 'ALL'; // NUEVO: Mantiene en memoria el banco seleccionado
+
+function setCajaFiltro(cuenta) {
+    cajaCuentaFiltro = cuenta;
+    renderCajaGeneral();
+}
+
+function toggleGraficosCaja() {
+    const panel = document.getElementById('panel-graficos-caja');
+    const lbl = document.getElementById('lbl-btn-grafico');
+    const icon = document.getElementById('icon-grafico-dir');
+    if (panel.classList.contains('hidden')) {
+        panel.classList.remove('hidden');
+        lbl.innerText = "Ocultar Analíticas Financieras";
+        icon.setAttribute('data-lucide', 'chevron-up');
+    } else {
+        panel.classList.add('hidden');
+        lbl.innerText = "Mostrar Analíticas Financieras";
+        icon.setAttribute('data-lucide', 'chevron-down');
+    }
+    if(window.lucide) lucide.createIcons();
+}
 
 function toggleCajaSort() {
     cajaSortOrder = cajaSortOrder === 'DESC' ? 'ASC' : 'DESC';
@@ -9557,25 +9578,26 @@ function renderCajaGeneral() {
     
     let movimientos = [];
     
-   // 1. Integrar cobros liquidados automáticos de ventas
+    // 1. Integrar cobros liquidados automáticos de ventas
     orders.forEach(o => {
         if(o.pagos && o.pagos.length > 0) {
             o.pagos.filter(p => p.verificado).forEach(p => {
                 movimientos.push({
                     fecha: p.fecha, orden: o.id, desc: o.client, categoria: '📦 VENTA (ERP)', totalCobrar: o.total,
-                    monto: parseFloat(p.monto), cuenta: p.cuenta, tipo: 'INGRESO'
+                    monto: parseFloat(p.monto), cuenta: p.cuenta, tipo: 'INGRESO', esTraspaso: false, rawId: null
                 });
             });
         }
     });
 
-   // 2. Integrar movimientos manuales (Egresos, Traspasos)
+    // 2. Integrar movimientos manuales (Egresos, Traspasos)
     dbMovimientosCaja.forEach(m => {
-        if(m.salida) movimientos.push({ id: m.id, fecha: m.fecha, orden: '-', desc: m.desc, categoria: m.categoria, totalCobrar: 0, monto: parseFloat(m.monto), cuenta: m.salida, tipo: 'EGRESO' });
-        if(m.entrada) movimientos.push({ id: m.id, fecha: m.fecha, orden: '-', desc: m.desc, categoria: m.categoria, totalCobrar: 0, monto: parseFloat(m.monto), cuenta: m.entrada, tipo: 'INGRESO' });
+        let isTraspaso = !!(m.salida && m.entrada);
+        if(m.salida) movimientos.push({ id: m.id, fecha: m.fecha, orden: '-', desc: m.desc, categoria: m.categoria, totalCobrar: 0, monto: parseFloat(m.monto), cuenta: m.salida, tipo: 'EGRESO', esTraspaso: isTraspaso, otraCuenta: m.entrada, rawId: m.id });
+        if(m.entrada) movimientos.push({ id: m.id, fecha: m.fecha, orden: '-', desc: m.desc, categoria: m.categoria, totalCobrar: 0, monto: parseFloat(m.monto), cuenta: m.entrada, tipo: 'INGRESO', esTraspaso: isTraspaso, otraCuenta: m.salida, rawId: m.id });
     });
 
-   // 3. Ordenar por fecha cronológica y aplicar preferencia Ascendente/Descendente
+    // 3. Ordenar por fecha cronológica y aplicar preferencia
     const parseDate = (d) => { 
         if (!d) return new Date(0);
         if (d.includes('-')) {
@@ -9607,7 +9629,7 @@ function renderCajaGeneral() {
         });
     }
 
-   if(textoBuscador) {
+    if(textoBuscador) {
         movimientosFiltrados = movimientosFiltrados.filter(m => {
             const catStr = m.categoria ? m.categoria.toLowerCase() : '';
             return (m.desc || '').toLowerCase().includes(textoBuscador) || 
@@ -9616,78 +9638,138 @@ function renderCajaGeneral() {
                    (m.monto || 0).toString().includes(textoBuscador);
         });
     }
-    
-    movimientosCajaExport = movimientosFiltrados; // Guardamos para exportar
 
-    // 5. Renderizar y calcular saldos individuales y totales
-    let html = '';
+    // 5. Calcular saldos GLOBALES de tarjetas (usando todos los movimientos filtrados)
     let saldos = { bnb:0, union:0, bisa:0, mercantil:0, caja:0, cajausd:0, bisausd:0, towerbank:0 };
     let totalIngresosEquiv = 0;
     let totalEgresosEquiv = 0;
     const tc = parseFloat(document.getElementById('caja-tc').value) || 6.96;
+    let chartData = {}; // Memoria para el Gráfico
 
-    movimientosFiltrados.forEach((m, idx) => {
+    movimientosFiltrados.forEach(m => {
         const isIng = m.tipo === 'INGRESO';
         let isUsd = m.cuenta.includes('DOLARES') || m.cuenta.includes('USDT') || m.cuenta.includes('TOWERBANK');
         let montoBs = isUsd ? m.monto * tc : m.monto;
-        
-        // Sumar a los totales de ingresos y egresos
-        if(isIng) totalIngresosEquiv += montoBs; else totalEgresosEquiv += montoBs;
 
-        // TRADUCTOR DE FECHAS AL VUELO: Transforma 2026-07-01 a 1/7/2026 solo para la pantalla
+        // Traductor de Fechas para Pantalla
         let displayDate = m.fecha;
         if(displayDate && displayDate.includes('-')) {
             const p = displayDate.split('-');
             if(p.length === 3) displayDate = `${parseInt(p[2])}/${parseInt(p[1])}/${p[0]}`;
         }
+        m.displayDate = displayDate; // Guardamos para usarlo luego
 
-        let cols = { bnI:'', bnO:'', unI:'', unO:'', biI:'', biO:'', meI:'', meO:'', cjI:'', cjO:'', cuI:'', cuO:'', buI:'', buO:'', twI:'', twO:'' };
-        
+        // Data para el Gráfico (Excluimos traspasos internos para no inflar los montos artificialmente)
+        if (!m.esTraspaso) {
+            if(isIng) totalIngresosEquiv += montoBs; else totalEgresosEquiv += montoBs;
+            if(!chartData[displayDate]) chartData[displayDate] = { ing: 0, egr: 0 };
+            if(isIng) chartData[displayDate].ing += montoBs; else chartData[displayDate].egr += montoBs;
+        }
+
         const acc = m.cuenta.toUpperCase();
-        if(acc.includes('BNB')) { isIng ? (cols.bnI=m.monto, saldos.bnb+=m.monto) : (cols.bnO=m.monto, saldos.bnb-=m.monto); }
-        else if(acc.includes('UNION')) { isIng ? (cols.unI=m.monto, saldos.union+=m.monto) : (cols.unO=m.monto, saldos.union-=m.monto); }
-        else if(acc.includes('MERCANTIL')) { isIng ? (cols.meI=m.monto, saldos.mercantil+=m.monto) : (cols.meO=m.monto, saldos.mercantil-=m.monto); }
-        else if(acc.includes('BISA USDT')) { isIng ? (cols.buI=m.monto, saldos.bisausd+=m.monto) : (cols.buO=m.monto, saldos.bisausd-=m.monto); }
-        else if(acc.includes('BISA')) { isIng ? (cols.biI=m.monto, saldos.bisa+=m.monto) : (cols.biO=m.monto, saldos.bisa-=m.monto); }
-        else if(acc.includes('DOLARES')) { isIng ? (cols.cuI=m.monto, saldos.cajausd+=m.monto) : (cols.cuO=m.monto, saldos.cajausd-=m.monto); }
-        else if(acc.includes('CAJA')) { isIng ? (cols.cjI=m.monto, saldos.caja+=m.monto) : (cols.cjO=m.monto, saldos.caja-=m.monto); }
-        else if(acc.includes('TOWERBANK')) { isIng ? (cols.twI=m.monto, saldos.towerbank+=m.monto) : (cols.twO=m.monto, saldos.towerbank-=m.monto); }
+        if(acc.includes('BNB')) { isIng ? saldos.bnb+=m.monto : saldos.bnb-=m.monto; }
+        else if(acc.includes('UNION')) { isIng ? saldos.union+=m.monto : saldos.union-=m.monto; }
+        else if(acc.includes('MERCANTIL')) { isIng ? saldos.mercantil+=m.monto : saldos.mercantil-=m.monto; }
+        else if(acc.includes('BISA USDT')) { isIng ? saldos.bisausd+=m.monto : saldos.bisausd-=m.monto; }
+        else if(acc.includes('BISA')) { isIng ? saldos.bisa+=m.monto : saldos.bisa-=m.monto; }
+        else if(acc.includes('DOLARES')) { isIng ? saldos.cajausd+=m.monto : saldos.cajausd-=m.monto; }
+        else if(acc.includes('CAJA')) { isIng ? saldos.caja+=m.monto : saldos.caja-=m.monto; }
+        else if(acc.includes('TOWERBANK')) { isIng ? saldos.towerbank+=m.monto : saldos.towerbank-=m.monto; }
+    });
 
-        const f = (val) => val ? val.toFixed(2) : '';
+    // DIBUJAR GRÁFICO DE BARRAS
+    const graficoContainer = document.getElementById('grafico-barras-container');
+    if(graficoContainer) {
+        if(Object.keys(chartData).length === 0) {
+            graficoContainer.innerHTML = '<p class="text-xs font-bold text-slate-400 w-full text-center py-4">No hay datos para graficar en este periodo.</p>';
+        } else {
+            let maxMonto = 0;
+            Object.values(chartData).forEach(d => {
+                if(d.ing > maxMonto) maxMonto = d.ing;
+                if(d.egr > maxMonto) maxMonto = d.egr;
+            });
+            if(maxMonto === 0) maxMonto = 1; // Para evitar división por cero
 
-        // Botón blindado de Eliminar (flex-shrink-0 hace que jamás se achique o se esconda)
-        const btnEliminar = (m.orden === '-' && m.id) ? `<button onclick="deleteMovimientoCaja(${m.id})" title="Eliminar Movimiento" class="text-red-400 hover:text-red-600 bg-red-50 px-2 py-1 rounded ml-2 border border-red-100 transition-colors shadow-sm flex-shrink-0 flex items-center justify-center"><i data-lucide="trash-2" class="w-3 h-3"></i></button>` : '';
-
-        // EFECTO CEBRA: Determinar el color de fondo usando el índice (par/impar)
-        const rowBg = idx % 2 === 0 ? 'bg-white' : 'bg-slate-50';
-
-       html += `
-        <tr class="hover:bg-blue-50 transition-colors border-b border-slate-100 text-[10px] ${rowBg}">
-            <td class="p-2 border-r border-slate-200 ${rowBg} sticky left-0 z-10 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)] min-w-[250px] max-w-[300px]">
-                <div class="flex justify-between items-center w-full gap-2">
-                    <div class="truncate flex-1" title="${m.desc}">
-                        <span class="font-bold text-slate-500">${displayDate}</span> 
-                        <span class="font-black ml-1">${m.orden}</span> 
-                        <span class="font-bold ml-1 text-slate-800">${m.desc}</span> 
-                        ${m.categoria ? `<br><span class="inline-block mt-1 bg-slate-100 border border-slate-200 text-slate-600 px-1.5 py-0.5 rounded text-[8px] font-black uppercase tracking-widest">${m.categoria}</span>` : ''}
+            const sortedDates = Object.keys(chartData).sort((a,b) => parseDate(a) - parseDate(b));
+            graficoContainer.innerHTML = sortedDates.map(date => {
+                const ingH = Math.max((chartData[date].ing / maxMonto) * 100, 2); 
+                const egrH = Math.max((chartData[date].egr / maxMonto) * 100, 2);
+                return `
+                <div class="flex flex-col items-center justify-end h-full gap-1 min-w-[40px] group relative cursor-pointer">
+                    <div class="absolute -top-12 bg-slate-800 text-white text-[9px] font-black p-1.5 rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap z-50 pointer-events-none">
+                        Día: ${date}<br>
+                        <span class="text-blue-400">Ingreso: Bs ${chartData[date].ing.toFixed(0)}</span><br>
+                        <span class="text-red-400">Egreso: Bs ${chartData[date].egr.toFixed(0)}</span>
                     </div>
-                    ${btnEliminar}
-                </div>
+                    <div class="flex gap-0.5 items-end h-32 w-full justify-center">
+                        <div class="w-3 bg-blue-500 rounded-t-sm transition-all" style="height: ${ingH}%"></div>
+                        <div class="w-3 bg-red-400 rounded-t-sm transition-all" style="height: ${egrH}%"></div>
+                    </div>
+                    <span class="text-[8px] font-bold text-slate-500 mt-1">${date.split('/')[0]}</span>
+                </div>`;
+            }).join('');
+        }
+    }
+
+    // ACTUALIZAR ESTILOS DE BOTONES SUPERIORES SEGÚN EL FILTRO ELEGIDO
+    document.querySelectorAll('.caja-filt-btn').forEach(b => {
+        b.classList.remove('ring-4', 'ring-indigo-400', 'scale-105', 'shadow-lg');
+        if (b.getAttribute('data-cuenta') === cajaCuentaFiltro) {
+            b.classList.add('ring-4', 'ring-indigo-400', 'scale-105', 'shadow-lg');
+        }
+    });
+
+    // 6. FILTRAR LA TABLA INFERIOR SEGÚN LA CUENTA SELECCIONADA
+    let movimientosCuenta = movimientosFiltrados;
+    if (cajaCuentaFiltro !== 'ALL') {
+        movimientosCuenta = movimientosFiltrados.filter(m => m.cuenta === cajaCuentaFiltro);
+        document.getElementById('lbl-tabla-caja').innerText = `LIBRO MAYOR: EXTRACTO DE ${cajaCuentaFiltro}`;
+    } else {
+        document.getElementById('lbl-tabla-caja').innerText = `LIBRO MAYOR: TODAS LAS CUENTAS CONSOLIDADAS`;
+    }
+
+    movimientosCajaExport = movimientosCuenta; // Guardamos para que el exportar baje solo lo que se ve!
+
+    let html = '';
+    movimientosCuenta.forEach((m, idx) => {
+        const rowBg = idx % 2 === 0 ? 'bg-white' : 'bg-slate-50';
+        const f = (val) => val ? `Bs ${val.toFixed(2)}` : '';
+        
+        let ingresoTxt = m.tipo === 'INGRESO' ? `<span class="text-blue-600 font-black">${f(m.monto)}</span>` : '';
+        let egresoTxt = m.tipo === 'EGRESO' ? `<span class="text-red-500 font-black">${f(m.monto)}</span>` : '';
+        
+        let badgeCuenta = '';
+        if (cajaCuentaFiltro === 'ALL' && m.esTraspaso) {
+            if (m.tipo === 'EGRESO') badgeCuenta = `<span class="bg-slate-100 text-slate-600 border border-slate-300 px-2 py-1 rounded-lg text-[9px] font-black uppercase shadow-sm">🔄 De ${m.cuenta} ➔ A ${m.otraCuenta}</span>`;
+            else badgeCuenta = `<span class="bg-slate-100 text-slate-600 border border-slate-300 px-2 py-1 rounded-lg text-[9px] font-black uppercase shadow-sm">🔄 De ${m.otraCuenta} ➔ A ${m.cuenta}</span>`;
+        } else {
+            let colorBadge = m.cuenta.includes('BNB') ? 'bg-blue-100 text-blue-700' : 
+                             m.cuenta.includes('UNION') ? 'bg-green-100 text-green-700' :
+                             m.cuenta.includes('BISA') ? 'bg-indigo-100 text-indigo-700' :
+                             m.cuenta.includes('MERCANTIL') ? 'bg-purple-100 text-purple-700' : 'bg-emerald-100 text-emerald-800';
+            badgeCuenta = `<span class="${colorBadge} px-2 py-1 rounded-lg text-[9px] font-black uppercase border shadow-sm">${m.cuenta}</span>`;
+        }
+
+        const btnEliminar = (m.orden === '-' && m.rawId) ? `<button onclick="deleteMovimientoCaja(${m.rawId})" title="Eliminar Movimiento" class="text-red-400 hover:text-red-600 bg-red-50 p-1.5 rounded-lg border border-red-100 transition-colors shadow-sm"><i data-lucide="trash-2" class="w-4 h-4"></i></button>` : '';
+
+        html += `
+        <tr class="hover:bg-blue-50 transition-colors border-b border-slate-100 text-xs ${rowBg}">
+            <td class="p-4 font-bold text-slate-500 md:sticky md:left-0 ${rowBg} z-10 whitespace-nowrap">${m.displayDate}</td>
+            <td class="p-4 font-black text-slate-800 whitespace-nowrap">${m.orden}</td>
+            <td class="p-4 whitespace-normal min-w-[250px] leading-tight">
+                <span class="font-bold text-slate-800 block">${m.desc}</span>
+                ${m.categoria ? `<span class="inline-block mt-1 bg-slate-200 text-slate-600 px-1.5 py-0.5 rounded text-[8px] font-black uppercase tracking-widest">${m.categoria}</span>` : ''}
             </td>
-            <td class="p-2 border-r border-slate-200 text-right font-black text-blue-600">${f(cols.bnI)}</td><td class="p-2 border-r border-slate-200 text-right font-bold text-red-500">${f(cols.bnO)}</td>
-            <td class="p-2 border-r border-slate-200 text-right font-black text-blue-600">${f(cols.unI)}</td><td class="p-2 border-r border-slate-200 text-right font-bold text-red-500">${f(cols.unO)}</td>
-            <td class="p-2 border-r border-slate-200 text-right font-black text-blue-600">${f(cols.biI)}</td><td class="p-2 border-r border-slate-200 text-right font-bold text-red-500">${f(cols.biO)}</td>
-            <td class="p-2 border-r border-slate-200 text-right font-black text-blue-600">${f(cols.meI)}</td><td class="p-2 border-r border-slate-200 text-right font-bold text-red-500">${f(cols.meO)}</td>
-            <td class="p-2 border-r border-green-200 bg-green-50/30 text-right font-black text-green-700">${f(cols.cjI)}</td><td class="p-2 border-r border-green-200 bg-green-50/30 text-right font-bold text-red-500">${f(cols.cjO)}</td>
-            <td class="p-2 border-r border-slate-200 bg-slate-50/50 text-right font-black text-blue-600">${f(cols.cuI)}</td><td class="p-2 border-r border-slate-200 bg-slate-50/50 text-right font-bold text-red-500">${f(cols.cuO)}</td>
-            <td class="p-2 border-r border-slate-200 bg-slate-50/50 text-right font-black text-blue-600">${f(cols.buI)}</td><td class="p-2 border-r border-slate-200 bg-slate-50/50 text-right font-bold text-red-500">${f(cols.buO)}</td>
-            <td class="p-2 border-r border-slate-200 bg-slate-50/50 text-right font-black text-blue-600">${f(cols.twI)}</td><td class="p-2 bg-slate-50/50 text-right font-bold text-red-500">${f(cols.twO)}</td>
+            <td class="p-4 text-center whitespace-nowrap">${badgeCuenta}</td>
+            <td class="p-4 text-right bg-blue-50/30">${ingresoTxt}</td>
+            <td class="p-4 text-right bg-red-50/30">${egresoTxt}</td>
+            <td class="p-4 text-center">${btnEliminar}</td>
         </tr>`;
     });
 
-    tbody.innerHTML = html || `<tr><td colspan="17" class="p-8 text-center text-slate-400 font-bold italic">No hay movimientos en este periodo.</td></tr>`;
+    tbody.innerHTML = html || `<tr><td colspan="7" class="p-8 text-center text-slate-400 font-bold italic">No hay movimientos en la vista actual.</td></tr>`;
 
-    // Actualizar Tarjetas
+    // Actualizar Tarjetas de Saldo
     document.getElementById('saldo-bnb').innerText = saldos.bnb.toFixed(2);
     document.getElementById('saldo-union').innerText = saldos.union.toFixed(2);
     document.getElementById('saldo-bisa').innerText = saldos.bisa.toFixed(2);
@@ -9701,6 +9783,8 @@ function renderCajaGeneral() {
     document.getElementById('total-ingresos').innerText = `Bs ${totalIngresosEquiv.toFixed(2)}`;
     document.getElementById('total-egresos').innerText = `Bs ${totalEgresosEquiv.toFixed(2)}`;
     document.getElementById('balance-periodo').innerText = `Bs ${(totalIngresosEquiv - totalEgresosEquiv).toFixed(2)}`;
+    
+    if(window.lucide) lucide.createIcons();
 }
 
 function submitMovimientoCaja(e) {
@@ -9755,16 +9839,27 @@ function submitMovimientoCaja(e) {
 function exportarCajaCSV() {
     if(movimientosCajaExport.length === 0) return alert("No hay datos para exportar en este filtro.");
     
-    let csv = "\uFEFFFecha,Orden,Detalle,Tipo,Cuenta,Monto\n";
+    let csv = "\uFEFFFECHA,REF / ORDEN,DETALLE / CLIENTE,CATEGORIA,CUENTA AFECTADA,TIPO DE MOVIMIENTO,MONTO\n";
     movimientosCajaExport.forEach(m => {
         let desc = m.desc ? m.desc.replace(/,/g, '') : '';
-        csv += `${m.fecha},${m.orden},"${desc}",${m.tipo},${m.cuenta},${m.monto}\n`;
+        let cuenta = m.cuenta ? m.cuenta.replace(/,/g, '') : '';
+        let categoria = m.categoria ? m.categoria.replace(/,/g, '') : 'S/R';
+        
+        // Si es traspaso, lo indicamos en el tipo para mayor claridad
+        let tipoExport = m.tipo;
+        if (m.esTraspaso) {
+            tipoExport = m.tipo === 'EGRESO' ? `TRASPASO HACIA ${m.otraCuenta}` : `TRASPASO DESDE ${m.otraCuenta}`;
+        }
+
+        csv += `${m.displayDate || m.fecha},${m.orden},"${desc}",${categoria},${cuenta},${tipoExport},${m.monto}\n`;
     });
 
     const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
     const link = document.createElement("a");
     link.href = URL.createObjectURL(blob);
-    link.download = `caja_general_plastensa_${new Date().toISOString().slice(0,10)}.csv`;
+    
+    const filtroNombre = cajaCuentaFiltro === 'ALL' ? 'Libro_Mayor_Consolidado' : `Extracto_${cajaCuentaFiltro}`;
+    link.download = `${filtroNombre}_Plastensa_${new Date().toISOString().slice(0,10)}.csv`;
     link.style.visibility = 'hidden';
     document.body.appendChild(link);
     link.click();
