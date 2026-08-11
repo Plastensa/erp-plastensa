@@ -1719,7 +1719,7 @@
                 </div>
 
                 <!-- TAB: COTIZADOR -->
-                <div id="tab-ventas" class="tab-content hidden max-w-6xl mx-auto space-y-6">
+                <div id="tab-ventas" class="tab-content hidden space-y-6">
                     <div class="bg-white rounded-[40px] shadow-2xl border border-slate-200 overflow-hidden grid lg:grid-cols-2">
                         
                         <!-- Columna Izquierda: Datos -->
@@ -1735,16 +1735,16 @@
                             <div class="grid grid-cols-2 gap-4 border-b border-slate-100 pb-8">
                                 <div class="col-span-2 relative">
                                     <label class="text-[10px] font-black uppercase text-slate-400 ml-2 tracking-widest block mb-2">Cliente / Proyecto / Obra</label>
-                                    <input type="text" id="cot-client" autocomplete="off" class="w-full px-4 py-4 bg-slate-50 border border-slate-100 rounded-xl font-bold text-lg outline-none focus:ring-2 focus:ring-blue-500 transition-all" placeholder="Escribe para buscar o crea uno nuevo..." onkeyup="filterClientDropdown()" onfocus="filterClientDropdown()" oninput="autoFillClient()"/>
+                                    <input type="text" id="cot-client" autocomplete="off" class="w-full px-4 py-4 bg-slate-50 border border-slate-100 rounded-xl font-bold text-lg outline-none focus:ring-2 focus:ring-blue-500 transition-all" placeholder="Escribe para buscar o crea uno nuevo..." onkeyup="filterClientDropdown()" onfocus="filterClientDropdown()" oninput="this.value = this.value.toUpperCase(); autoFillClient()"/>
                                     <div id="client-dropdown" class="hidden absolute z-50 w-full mt-2 bg-white border border-slate-100 rounded-xl shadow-2xl max-h-[200px] overflow-auto p-2"></div>
                                 </div>
                                 <div>
-                                    <label class="text-[10px] font-black uppercase text-blue-500 ml-2 tracking-widest block mb-2">NIT / CI <span class="text-red-500">*</span></label>
+                                    <label class="text-[10px] font-black uppercase text-blue-500 ml-2 tracking-widest block mb-2">NIT / CI <span id="asterisco-nit" class="text-red-500">*</span></label>
                                     <input type="text" id="cot-nit" required class="w-full px-4 py-3 bg-white border border-blue-200 rounded-xl font-bold outline-none focus:ring-2 focus:ring-blue-500"/>
                                 </div>
                                 <div>
                                     <label class="text-[10px] font-black uppercase text-blue-500 ml-2 tracking-widest block mb-2">Celular (Envío) <span class="text-red-500">*</span></label>
-                                    <input type="text" id="cot-phone" required class="w-full px-4 py-3 bg-white border border-blue-200 rounded-xl font-bold outline-none focus:ring-2 focus:ring-blue-500" placeholder="Ej. 77XXXXXX"/>
+                                    <input type="text" id="cot-phone" required class="w-full px-4 py-3 bg-white border border-blue-200 rounded-xl font-bold outline-none focus:ring-2 focus:ring-blue-500" placeholder="Ej. 77123456"/>
                                 </div>
                                 
                                 <div class="col-span-2 relative mt-2">
@@ -3775,6 +3775,20 @@ function handleFileUpload(e) {
             currentType = t;
             document.getElementById('btn-cf').className = t==='CF' ? 'flex-1 py-4 rounded-2xl font-black text-xs transition-all bg-blue-600 text-white shadow-lg' : 'flex-1 py-4 rounded-2xl font-black text-xs transition-all text-slate-400 hover:bg-slate-200';
             document.getElementById('btn-sf').className = t==='SF' ? 'flex-1 py-4 rounded-2xl font-black text-xs transition-all bg-orange-500 text-white shadow-lg' : 'flex-1 py-4 rounded-2xl font-black text-xs transition-all text-slate-400 hover:bg-slate-200';
+            
+            // LÓGICA DINÁMICA DE NIT: Obligatorio en CF, Opcional en SF
+            const nitInput = document.getElementById('cot-nit');
+            const nitAsterisco = document.getElementById('asterisco-nit');
+            if(nitInput && nitAsterisco) {
+                if(t === 'CF') {
+                    nitInput.required = true;
+                    nitAsterisco.classList.remove('hidden');
+                } else {
+                    nitInput.required = false;
+                    nitAsterisco.classList.add('hidden');
+                }
+            }
+
             if(currentSelected) updateAdderMath(); 
             recalculateCart();
         }
@@ -4003,8 +4017,16 @@ function handleFileUpload(e) {
     const cNit = document.getElementById('cot-nit').value.trim();
     const cPhone = document.getElementById('cot-phone').value.trim();
     
-    if (cNit === '' || cPhone === '') {
-        alert("OBLIGATORIO: Por favor ingresa el NIT/CI y el Celular del cliente antes de guardar la cotización.");
+    // 1. VALIDACIÓN DINÁMICA DEL NIT
+    if (currentType === 'CF' && cNit === '') {
+        alert("🛑 OBLIGATORIO:\n\nPor favor ingresa el NIT o CI del cliente.\nEs obligatorio para poder facturar la venta.");
+        return;
+    }
+    
+    // 2. ESCUDO ANTI-TRAMPAS EN TELÉFONOS
+    const soloNumeros = /^\d+$/.test(cPhone);
+    if (!soloNumeros || cPhone.length !== 8 || cPhone === "00000000" || cPhone === "11111111" || cPhone === "12345678") {
+        alert("🛑 OBLIGATORIO:\n\nEl número de celular ingresado no es válido.\n\nReglas:\n- Debe tener exactamente 8 dígitos.\n- Solo se admiten números.\n- No se admiten números de relleno (00000000).\n\nRequerimos un teléfono real para coordinar despachos y cobranza.");
         return;
     }
     
