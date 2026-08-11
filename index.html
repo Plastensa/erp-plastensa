@@ -26,7 +26,7 @@
             background: #0f172a; z-index: 9999; display: flex; align-items: center; justify-content: center;
         }
 
-	/* MODO OSCURO (INVERSIÓN DE COLOR) */
+	/* MODO OSCURO (INVERSIÓN DE COLOR MEJORADA) */
         @media screen {
             html.dark-theme {
                 filter: invert(0.92) hue-rotate(180deg);
@@ -38,6 +38,25 @@
             html.dark-theme #scanner-container, 
             html.dark-theme #scanner-container-exp {
                 filter: invert(1) hue-rotate(180deg);
+            }
+            /* 1. Diferenciación de Tarjetas vs Fondo */
+            html.dark-theme .bg-white {
+                background-color: #e2e8f0 !important; /* Se invierte a un gris claro que resalta sobre el fondo oscuro */
+            }
+            /* 2. Apagado de sombras 'fantasma' y encendido de bordes nítidos */
+            html.dark-theme .shadow-sm,
+            html.dark-theme .shadow-md,
+            html.dark-theme .shadow-lg,
+            html.dark-theme .shadow-xl,
+            html.dark-theme .shadow-2xl {
+                box-shadow: none !important;
+                border-color: #cbd5e1 !important; /* Borde gris oscuro elegante */
+            }
+            /* 3. Ajuste para tablas y cabeceras claras */
+            html.dark-theme .bg-slate-50,
+            html.dark-theme .bg-slate-100 {
+                background-color: #f1f5f9 !important;
+                border-color: #cbd5e1 !important;
             }
         }
 
