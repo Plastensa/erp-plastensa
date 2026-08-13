@@ -2801,6 +2801,7 @@
         let dbSchedules = []; let dbReportesCorte = []; let dbDespachos = []; let dbBloques = [];
         let dbKardex = []; // NUEVO: Historial de Inventario PT
         let dbTolva = 0; // Tolva en la Nube (Sin límite de llenado)
+        let dbCotizacionesPerdidas = []; // NUEVO: Historial súper liviano de pérdidas
         let pizarraMateriaPrima = {}; // Pizarra de Saldos en tiempo real
 	let dbMateriaPrima = { historial: [], saldoActual: 0 };
         let dbMpTipos = [
@@ -2862,7 +2863,8 @@ function save() {
         dbBancoRetazos: JSON.stringify(dbBancoRetazos),
         dbLiquidaciones: JSON.stringify(dbLiquidaciones),
         dbTolva: dbTolva,
-        pizarraMateriaPrima: JSON.stringify(pizarraMateriaPrima)
+        pizarraMateriaPrima: JSON.stringify(pizarraMateriaPrima),
+        dbCotizacionesPerdidas: JSON.stringify(dbCotizacionesPerdidas)
     }).catch(error => console.error("Error guardando centrales: ", error));
 
     // 2. Guardar Catálogo de Productos (Cajón SEPARADO)
@@ -3284,6 +3286,7 @@ function iniciarRadar(userEmail) {
             
             dbTolva = data.dbTolva !== undefined ? parseFloat(data.dbTolva) : (parseFloat(localStorage.getItem('plast_vol_maquina')) || 0);
             pizarraMateriaPrima = data.pizarraMateriaPrima ? JSON.parse(data.pizarraMateriaPrima) : {};
+	    dbCotizacionesPerdidas = data.dbCotizacionesPerdidas ? JSON.parse(data.dbCotizacionesPerdidas) : [];
             
             erpDataLoaded = true;
             radarActivo = true;
@@ -3347,7 +3350,7 @@ function iniciarRadar(userEmail) {
         let tempQ = [];
         snapshot.forEach(doc => tempQ.push(doc.data()));
         quotes = tempQ.sort((a,b) => String(b.id).localeCompare(String(a.id)));
-        if(erpDataLoaded && currentUser) { renderQuotes(); iniciarAsistente(); }
+        if(erpDataLoaded && currentUser) { renderQuotes(); }
     });
 
     db.collection("pedidos").onSnapshot((snapshot) => {
@@ -3469,6 +3472,16 @@ function aplicarPermisosVisuales(role) {
 function iniciarAsistente() {
     setTimeout(() => {
         if(currentUser.role !== 'ADMIN' && currentUser.role !== 'VENDEDOR') return; 
+        
+        // REGLA: El asistente solo se muestra 2 veces (Mañana y Tarde)
+        const hoyStr = new Date().toLocaleDateString();
+        const horaActual = new Date().getHours();
+        const turno = horaActual < 14 ? 'MANANA' : 'TARDE';
+        const cacheKey = `plast_asistente_${hoyStr}_${turno}`;
+
+        // Si la computadora ya anotó que lo vio en este turno, el asistente no salta.
+        if (localStorage.getItem(cacheKey) === 'VISTO') return;
+
         const hoy = new Date(); hoy.setHours(0,0,0,0);
         const llamadas = quotes.filter(q => {
             if(q.status !== 'SEGUIMIENTO' || (currentUser.role !== 'ADMIN' && q.vendedorInterno !== currentUser.name) || !q.nextContactDate) return false;
@@ -3484,6 +3497,7 @@ function iniciarAsistente() {
             const dias = Math.floor((hoy - saleDate) / (1000 * 60 * 60 * 24));
             return dias >= 28 && dias <= 35; 
         });
+
         if(llamadas.length > 0 || radar.length > 0) {
             const astLlamadas = document.getElementById('ast-llamadas');
             const astRadar = document.getElementById('ast-radar');
@@ -3495,8 +3509,12 @@ function iniciarAsistente() {
                 <div class="bg-blue-50 border border-blue-100 p-4 rounded-xl flex justify-between items-center shadow-sm">
                     <div><p class="font-black text-slate-800 text-sm">${o.client}</p><p class="text-xs font-bold text-slate-500 mt-1"><i data-lucide="history" class="w-3 h-3 inline mr-1 text-blue-400"></i> Última compra: Pedido ${o.id}</p></div>
                 </div>`).join('');
+            
             document.getElementById('assistant-modal').classList.remove('hidden');
             lucide.createIcons();
+            
+            // Marcamos como "VISTO" en el disco de la computadora
+            localStorage.setItem(cacheKey, 'VISTO');
         }
     }, 1500);
 }
@@ -5314,19 +5332,57 @@ function renderSalidasEPS() {
         return new Date(ds);
     }
 
+    const hoyLimpio = new Date(hoy.getFullYear(), hoy.getMonth(), hoy.getDate());
+
+    // 1. LIMPIEZA DE MÁS DE 90 DÍAS
     const oldLen = quotes.length;
     quotes = quotes.filter(q => {
         const diffTime = Math.abs(hoy - parseDateStr(q.date));
         const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
         return diffDays <= 90; 
     });
-    if(quotes.length !== oldLen) save(); 
+    let eliminadas = (quotes.length !== oldLen);
 
+    // 2. ROBOT AUTO-LIMPIADOR DE COTIZACIONES VENCIDAS
+    for (let i = quotes.length - 1; i >= 0; i--) {
+        let q = quotes[i];
+        
+        // Solo limpiamos las que están activas y NO requieren aprobación del admin
+        if (q.status === 'SEGUIMIENTO' && !q.requiereAprobacion) {
+            const fCotiz = parseDateStr(q.date);
+            const vDias = q.validezDias || 15;
+            const fVenc = new Date(fCotiz);
+            fVenc.setDate(fVenc.getDate() + parseInt(vDias));
+            const vencLimpio = new Date(fVenc.getFullYear(), fVenc.getMonth(), fVenc.getDate());
+            
+            if (hoyLimpio > vencLimpio) {
+                // Anotamos en la bolsa de estadísticas (Embudo)
+                if (typeof dbCotizacionesPerdidas !== 'undefined') {
+                    dbCotizacionesPerdidas.push({
+                        id: q.id, date: q.date, status: 'PERDIDA', motivoCierre: 'Vencimiento automático de plazo', vendedorInterno: q.vendedorInterno || 'Sistema'
+                    });
+                }
+                // Borramos de Firebase para ahorrar espacio y dinero
+                db.collection("cotizaciones").doc(String(q.id).replace(/\//g, '-')).delete();
+                // Quitamos de la memoria de la pantalla
+                quotes.splice(i, 1);
+                eliminadas = true;
+            }
+        }
+    }
+    
+    if (eliminadas) save(); 
+
+    // 3. BUSCADOR INTELIGENTE
     const searchName = (document.getElementById('quote-search-name')?.value || '').toLowerCase();
     const searchDate = document.getElementById('quote-search-date')?.value || ''; 
     
     const filteredQuotes = quotes.filter(q => {
-        const matchName = q.client.toLowerCase().includes(searchName) || q.id.toLowerCase().includes(searchName);
+        // AHORA BUSCA POR CLIENTE, N° DE ORDEN Y TAMBIÉN ADENTRO DE LOS ÍTEMS
+        const matchName = q.client.toLowerCase().includes(searchName) || 
+                          q.id.toLowerCase().includes(searchName) || 
+                          (q.items && q.items.some(it => it.name.toLowerCase().includes(searchName)));
+                          
         let matchDate = true;
         if(searchDate) {
             const [sy, sm] = searchDate.split('-');
@@ -5464,10 +5520,19 @@ function confirmarCierreVenta() {
     const reason = document.getElementById('close-reason').value;
     const q = quotes.find(x => x.id === quoteToClose);
     if(q) { 
-        q.status = 'PERDIDA'; 
-        q.motivoCierre = reason; 
-        db.collection("cotizaciones").doc(String(q.id).replace(/\//g, '-')).set(q);
-        showToast("Cotización marcada como perdida."); 
+        // 1. Guardamos la estadística liviana
+        dbCotizacionesPerdidas.push({
+            id: q.id, date: q.date, status: 'PERDIDA', motivoCierre: reason, vendedorInterno: q.vendedorInterno || 'Sistema'
+        });
+        
+        // 2. Aniquilamos el documento pesado de Firebase para ahorrar memoria
+        db.collection("cotizaciones").doc(String(q.id).replace(/\//g, '-')).delete();
+        
+        // 3. Limpiamos la pantalla
+        quotes = quotes.filter(x => x.id !== quoteToClose);
+        save();
+        renderQuotes();
+        showToast("Cotización perdida y archivada en estadísticas. Archivo original borrado."); 
     }
     document.getElementById('close-quote-modal').classList.add('hidden');
 }
@@ -5500,15 +5565,15 @@ function renderDashboard() {
     }
 
     let fOrders = orders;
-    let fQuotes = quotes;
+    let fPerdidas = dbCotizacionesPerdidas || []; // Lemos la bolsa de estadísticas
     
     if (mesFiltro) {
         fOrders = orders.filter(o => getYearMonth(o.date) === mesFiltro);
-        fQuotes = quotes.filter(q => getYearMonth(q.date) === mesFiltro);
+        fPerdidas = fPerdidas.filter(q => getYearMonth(q.date) === mesFiltro);
     }
 
     const ganadas = fOrders.length;
-    const perdidas = fQuotes.filter(q => q.status === 'PERDIDA').length;
+    const perdidas = fPerdidas.length;
     const totalGestionadas = ganadas + perdidas;
     const conversion = totalGestionadas > 0 ? ((ganadas / totalGestionadas) * 100).toFixed(1) : 0;
 
@@ -5521,7 +5586,7 @@ function renderDashboard() {
     if(dTasa) dTasa.innerText = conversion + '%';
 
     const motivos = {};
-    fQuotes.filter(q => q.status === 'PERDIDA').forEach(q => { 
+    fPerdidas.forEach(q => { 
         motivos[q.motivoCierre] = (motivos[q.motivoCierre] || 0) + 1; 
     });
     
@@ -5543,7 +5608,7 @@ function renderDashboard() {
         if(!vends[v]) vends[v] = { g: 0, p: 0 };
         vends[v].g++;
     });
-    fQuotes.filter(q => q.status === 'PERDIDA').forEach(q => {
+    fPerdidas.forEach(q => {
         const v = q.vendedorInterno || 'Sistema';
         if(!vends[v]) vends[v] = { g: 0, p: 0 };
         vends[v].p++;
@@ -8872,6 +8937,13 @@ function imprimirTicketTermico(t, prevWindow = null) {
         return;
     }
 
+    // --- BÚSQUEDA DEL COMERCIAL Y SU TELÉFONO ---
+    const ordenVinculada = orders.find(x => x.id === t.orderId);
+    const nombreVendedor = ordenVinculada ? (ordenVinculada.vendedorInterno || 'No Asignado') : 'No Asignado';
+    const datosVendedor = dbIntSellers.find(u => u.name === nombreVendedor);
+    const telefonoVendedor = datosVendedor && datosVendedor.phone ? datosVendedor.phone : 'S/N';
+    // -------------------------------------------
+
     let itemsRows = '';
     t.items.forEach(it => {
         const obsTkt = it.obs ? `<br><span style="font-size: 9px; font-weight: bold; border: 1px solid #000; padding: 1px 3px;">REQ: ${it.obs}</span>` : '';
@@ -8919,7 +8991,8 @@ function imprimirTicketTermico(t, prevWindow = null) {
                 <tr><td style="font-weight: bold;">Cliente:</td><td>${t.cliente}</td></tr>
                 <tr><td style="font-weight: bold;">Fecha:</td><td>${t.fecha.split(',')[0]}</td></tr>
                 <tr><td style="font-weight: bold;">Hora:</td><td>${t.fecha.split(',')[1] || ''}</td></tr>
-                <tr><td style="font-weight: bold;">Comercial:</td><td>${t.operador}</td></tr>
+                <tr><td style="font-weight: bold;">Comercial:</td><td>${nombreVendedor} - ${telefonoVendedor}</td></tr>
+                <tr><td style="font-weight: bold;">Despachador:</td><td>${t.operador}</td></tr>
                 <tr><td style="font-weight: bold;">Estado Pago:</td><td>${t.estadoFinanciero || 'NO PAGADO'}</td></tr>
                 <tr><td style="font-weight: bold;">Conductor:</td><td>${t.conductor}</td></tr>
                 <tr><td style="font-weight: bold;">Placa:</td><td>${t.placa || '-'}</td></tr>
