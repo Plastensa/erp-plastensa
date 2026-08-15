@@ -3021,10 +3021,11 @@ function registrarMovimientoInventario(itemName, qty, tipo, motivo) {
     const hora = new Date().toLocaleTimeString();
     const operador = currentUser ? currentUser.name : 'Sistema';
     
-    const nuevoKardex = { id: Date.now(), fecha, hora, item: itemName, qty, tipo, motivo, operador };
+    // CORRECCIÓN: Se añade un número aleatorio para evitar que operaciones simultáneas sobreescriban el mismo ID
+    const idUnico = Date.now() + Math.floor(Math.random() * 10000);
+    const nuevoKardex = { id: idUnico, fecha, hora, item: itemName, qty, tipo, motivo, operador };
     db.collection("kardex_pt").doc(String(nuevoKardex.id)).set(nuevoKardex);
 }
-
         function downloadInventarioTemplate() {
     let csvContent = "\uFEFFItem (Nombre Exacto),Densidad,Stock Actual (Pzas)\n";
     
@@ -10919,8 +10920,10 @@ async function robotAuditorInventarioGlobal() {
                     if (k.tipo === 'INGRESO') {
                         stats[nombre].ini += (parseFloat(k.qty) || 0);
                     } else {
+                        // CORRECCIÓN: Ignoramos las bajas por reproceso en el Kardex para no contar doble.
+                        // El Robot ahora leerá la "baja" directamente desde el reporte de la máquina.
                         if (k.motivo && k.motivo.toLowerCase().includes('reproceso')) {
-                            stats[nombre].bajas += (parseFloat(k.qty) || 0);
+                            // No hacer nada, el robot audita esto directamente del reporte de corte
                         } else {
                             stats[nombre].ini -= (parseFloat(k.qty) || 0);
                         }
@@ -10932,6 +10935,20 @@ async function robotAuditorInventarioGlobal() {
         // 3. Procesar Cortes (Solo los posteriores al Reset)
         arrCortes.forEach(r => {
             const timestampCorte = r.id; 
+
+            // CORRECCIÓN: El Robot lee el texto exacto de la máquina para recuperar los egresos fantasma del pasado
+            if (r.bloques && typeof r.bloques === 'string' && r.bloques.includes('REPROCESO PT:')) {
+                const partesReproceso = r.bloques.replace('REPROCESO PT:', '').trim().split('x ');
+                if (partesReproceso.length === 2) {
+                    const qtyReproceso = parseFloat(partesReproceso[0]) || 0;
+                    const nombreReproceso = normalizarNombre(partesReproceso[1]);
+                    
+                    if (stats[nombreReproceso] && timestampCorte >= stats[nombreReproceso].timestampReset) {
+                        stats[nombreReproceso].bajas += qtyReproceso;
+                    }
+                }
+            }
+
             if (r.detalleCortes && r.detalleCortes.length > 0) {
                 r.detalleCortes.forEach(c => {
                     const nombre = normalizarNombre(c.item);
