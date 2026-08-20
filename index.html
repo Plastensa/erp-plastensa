@@ -2881,7 +2881,6 @@ function save() {
         dbMpTipos: JSON.stringify(dbMpTipos),
         dbPreciosBase: JSON.stringify(dbPreciosBase),
         dbBancoRetazos: JSON.stringify(dbBancoRetazos),
-        dbLiquidaciones: JSON.stringify(dbLiquidaciones),
         dbTolva: dbTolva,
         pizarraMateriaPrima: JSON.stringify(pizarraMateriaPrima),
         dbCotizacionesPerdidas: JSON.stringify(dbCotizacionesPerdidas)
@@ -3301,7 +3300,6 @@ function iniciarRadar(userEmail) {
             
             dbMpTipos = data.dbMpTipos ? JSON.parse(data.dbMpTipos) : [];
            dbPreciosBase = data.dbPreciosBase ? JSON.parse(data.dbPreciosBase) : { ajusteGlobal: 0, matriz: [] };
-            dbLiquidaciones = data.dbLiquidaciones ? JSON.parse(data.dbLiquidaciones) : [];
             let tempRetazos = data.dbBancoRetazos ? JSON.parse(data.dbBancoRetazos) : null;
             dbBancoRetazos = (!tempRetazos || Array.isArray(tempRetazos)) ? { D8: 0, D10: 0, D13: 0, D15: 0, D20: 0 } : tempRetazos;
             
@@ -3418,6 +3416,16 @@ function iniciarRadar(userEmail) {
         snapshot.forEach(doc => tempD.push(doc.data()));
         dbDespachos = tempD.sort((a,b) => String(b.idTicket).localeCompare(String(a.idTicket)));
         if(erpDataLoaded && currentUser) { renderDespacho(); renderTransporte(); renderTransporteDetail(); }
+    });
+    // NUEVO RADAR: LIQUIDACIONES INDEPENDIENTES
+    db.collection("liquidaciones").orderBy("id", "desc").onSnapshot((snapshot) => {
+        let tempL = [];
+        snapshot.forEach(doc => tempL.push(doc.data()));
+        dbLiquidaciones = tempL;
+        if(erpDataLoaded && currentUser) {
+            if(typeof renderLiquidaciones === 'function') renderLiquidaciones();
+            if(typeof renderTransporteDetail === 'function') renderTransporteDetail();
+        }
     });
 }
 
@@ -9940,7 +9948,7 @@ function renderCajaGeneral() {
     if(window.lucide) lucide.createIcons();
 }
 
-function submitMovimientoCaja(e) {
+async function submitMovimientoCaja(e) {
     e.preventDefault();
     const salida = document.getElementById('caja-mov-salida').value;
     const entrada = document.getElementById('caja-mov-entrada').value;
@@ -9971,13 +9979,20 @@ function submitMovimientoCaja(e) {
         let liq = dbLiquidaciones.find(l => l.id === window.liquidacionEnProceso);
         if (liq) {
             liq.estado = 'PAGADO';
-            liq.viajesIds.forEach(idTicket => {
-                let desp = dbDespachos.find(d => d.idTicket === idTicket);
-                if (desp) {
-                    desp.estadoFlete = 'PAGADO';
-                    db.collection("despachos_tickets").doc(String(desp.idTicket).replace(/\//g, '-')).set(desp);
-                }
-            });
+            try {
+                const batch = db.batch();
+                batch.set(db.collection("liquidaciones").doc(String(liq.id)), liq);
+                liq.viajesIds.forEach(idTicket => {
+                    let desp = dbDespachos.find(d => d.idTicket === idTicket);
+                    if (desp) {
+                        desp.estadoFlete = 'PAGADO';
+                        batch.set(db.collection("despachos_tickets").doc(String(desp.idTicket).replace(/\//g, '-')), desp);
+                    }
+                });
+                await batch.commit();
+            } catch (error) {
+                alert("⚠️ Se guardó en Caja, pero la red falló al intentar marcar la liquidación como pagada. Por favor revise.");
+            }
         }
         window.liquidacionEnProceso = null;
     }
@@ -10406,91 +10421,157 @@ function toggleViajeLiq(chk) {
     document.getElementById('btn-generar-liq-masiva').classList.remove('hidden');
 }
 
-function generarLiquidacion() {
+async function generarLiquidacion() {
     const seleccionados = Array.from(document.querySelectorAll('.viaje-chk:checked')).map(cb => cb.value);
     if(seleccionados.length === 0) return;
 
-    if(!confirm(`¿Desea generar una planilla de liquidación para los ${seleccionados.length} viajes seleccionados de ${choferLiquidacionActiva}?`)) return;
+    // VERIFICAR SI EL CHOFER YA TIENE UNA LIQUIDACIÓN PENDIENTE
+    let liqPendiente = dbLiquidaciones.find(l => l.chofer === choferLiquidacionActiva && l.estado === 'PENDIENTE');
+    let isAdding = false;
 
-    let sumaTotal = 0;
-    let viajesDetalle = [];
-
-    seleccionados.forEach(idTkt => {
-        let t = dbDespachos.find(d => d.idTicket === idTkt);
-        if(t) {
-            t.estadoFlete = 'EN LIQUIDACIÓN';
-            db.collection("despachos_tickets").doc(String(t.idTicket).replace(/\//g, '-')).set(t);
-            
-            const o = orders.find(x => x.id === t.orderId);
-            const volTotalPedido = o ? (o.volGlobalCotizacion || 0) : 0;
-            const precioPorM3 = (o && o.trans > 0 && volTotalPedido > 0) ? (o.trans / volTotalPedido) : 0;
-            const pago = precioPorM3 * t.volM3;
-            sumaTotal += pago;
-
-            // Agregamos Material, Volumen y Precio M3
-            const materialStr = t.items.map(i => i.name).join(', ');
-
-            viajesDetalle.push({
-                ticket: t.idTicket,
-                fecha: t.fecha.split(',')[0],
-                orden: t.orderId,
-                cliente: t.cliente,
-                material: materialStr,
-                volM3: t.volM3,
-                precioM3: precioPorM3,
-                pago: pago
-            });
+    if (liqPendiente) {
+        if(confirm(`📌 DETECCIÓN:\nEl chofer ${choferLiquidacionActiva} ya tiene la liquidación LIQ-${liqPendiente.id} en estado PENDIENTE.\n\n¿Deseas AÑADIR estos ${seleccionados.length} viajes a esa misma liquidación?\n\n(Si seleccionas 'Cancelar', se creará una liquidación NUEVA separada).`)) {
+            isAdding = true;
         }
-    });
+    }
 
-    const nuevaLiq = {
-        id: Date.now(),
-        fechaReg: new Date().toLocaleDateString(),
-        chofer: choferLiquidacionActiva,
-        total: sumaTotal,
-        viajesIds: seleccionados,
-        detalle: viajesDetalle,
-        estado: 'PENDIENTE',
-        operador: currentUser ? currentUser.name : 'Sistema'
-    };
+    if(!isAdding && !confirm(`¿Desea generar una NUEVA planilla de liquidación para los ${seleccionados.length} viajes seleccionados de ${choferLiquidacionActiva}?`)) return;
 
-    dbLiquidaciones.unshift(nuevaLiq);
-    save();
+    const btnOriginal = document.getElementById('btn-generar-liq-masiva').innerHTML;
+    document.getElementById('btn-generar-liq-masiva').innerHTML = "Procesando...";
+    document.getElementById('btn-generar-liq-masiva').disabled = true;
 
-    choferLiquidacionActiva = null;
-    document.getElementById('btn-generar-liq-masiva').classList.add('hidden');
-    renderTransporteDetail();
-    renderLiquidaciones();
-    showToast("Liquidación generada con éxito.");
+    try {
+        const batch = db.batch(); // CAJA FUERTE ACTIVADA
+        let sumaTotal = 0;
+        let viajesDetalle = [];
+
+        seleccionados.forEach(idTkt => {
+            let t = dbDespachos.find(d => d.idTicket === idTkt);
+            if(t) {
+                t.estadoFlete = 'EN LIQUIDACIÓN';
+                // Guardar ticket en la caja fuerte
+                batch.set(db.collection("despachos_tickets").doc(String(t.idTicket).replace(/\//g, '-')), t);
+
+                const o = orders.find(x => x.id === t.orderId);
+                const volTotalPedido = o ? (o.volGlobalCotizacion || 0) : 0;
+                const precioPorM3 = (o && o.trans > 0 && volTotalPedido > 0) ? (o.trans / volTotalPedido) : 0;
+                const pago = precioPorM3 * t.volM3;
+                sumaTotal += pago;
+
+                viajesDetalle.push({
+                    ticket: t.idTicket,
+                    fecha: t.fecha.split(',')[0],
+                    orden: t.orderId,
+                    cliente: t.cliente,
+                    material: t.items.map(i => i.name).join(', '),
+                    volM3: t.volM3,
+                    precioM3: precioPorM3,
+                    pago: pago
+                });
+            }
+        });
+
+        if (isAdding) {
+            liqPendiente.total += sumaTotal;
+            liqPendiente.viajesIds = liqPendiente.viajesIds.concat(seleccionados);
+            liqPendiente.detalle = liqPendiente.detalle.concat(viajesDetalle);
+            batch.set(db.collection("liquidaciones").doc(String(liqPendiente.id)), liqPendiente);
+        } else {
+            const nuevaLiq = {
+                id: Date.now(),
+                fechaReg: new Date().toLocaleDateString(),
+                chofer: choferLiquidacionActiva,
+                total: sumaTotal,
+                viajesIds: seleccionados,
+                detalle: viajesDetalle,
+                estado: 'PENDIENTE',
+                operador: currentUser ? currentUser.name : 'Sistema'
+            };
+            batch.set(db.collection("liquidaciones").doc(String(nuevaLiq.id)), nuevaLiq);
+        }
+
+        // ENVIAR TODO JUNTO A GOOGLE
+        await batch.commit();
+
+        choferLiquidacionActiva = null;
+        document.getElementById('btn-generar-liq-masiva').classList.add('hidden');
+        document.getElementById('btn-generar-liq-masiva').disabled = false;
+        document.getElementById('btn-generar-liq-masiva').innerHTML = btnOriginal;
+
+        showToast(isAdding ? "Viajes añadidos a la liquidación pendiente." : "Liquidación generada con éxito.");
+
+    } catch (error) {
+        console.error("Error al generar liquidación:", error);
+        alert("❌ ERROR DE RED:\nSe cortó la conexión antes de guardar. Ningún viaje fue alterado.\n\nRevisa tu internet e intenta de nuevo.");
+        document.getElementById('btn-generar-liq-masiva').disabled = false;
+        document.getElementById('btn-generar-liq-masiva').innerHTML = btnOriginal;
+    }
 }
 
-function eliminarLiquidacion(id) {
+async function eliminarLiquidacion(id) {
     const liq = dbLiquidaciones.find(l => l.id === id);
     if(!liq) return;
 
-    if (liq.estado === 'PAGADO') {
-        alert("🛑 OPERACIÓN DENEGADA:\nEsta liquidación ya fue PAGADA y el dinero salió de Caja.\nNo se puede eliminar para evitar descuadres contables.");
-        return;
+    if (liq.estado === 'PAGADO') return alert("🛑 OPERACIÓN DENEGADA:\nEsta liquidación ya fue PAGADA. No se puede eliminar.");
+
+    if(!confirm("⚠️ ¿Estás seguro de ELIMINAR esta liquidación por completo?\n\nTodos los viajes volverán a estar 'DISPONIBLES' en la Bitácora.")) return;
+
+    try {
+        const batch = db.batch();
+        liq.viajesIds.forEach(idTicket => {
+            let t = dbDespachos.find(d => d.idTicket === idTicket);
+            if(t) {
+                t.estadoFlete = 'PENDIENTE';
+                batch.set(db.collection("despachos_tickets").doc(String(t.idTicket).replace(/\//g, '-')), t);
+            }
+        });
+
+        batch.delete(db.collection("liquidaciones").doc(String(id)));
+        await batch.commit();
+        showToast("Liquidación anulada. Viajes liberados en la bitácora.");
+    } catch (error) {
+        alert("❌ ERROR DE RED:\nSe cortó la conexión y la anulación fue abortada de forma segura.");
     }
+}
 
-    if(!confirm("⚠️ ¿Estás seguro de ELIMINAR esta liquidación?\n\nLos viajes seleccionados volverán a estar 'DISPONIBLES' en la Bitácora para que puedas modificarlos o crear una nueva liquidación.")) return;
+async function removerViajeDeLiquidacion(liqId, idTicket) {
+    if(!confirm(`¿Quitar el ticket ${idTicket} de esta liquidación?\nEl viaje volverá a estar disponible en la bitácora.`)) return;
 
-    // 1. Liberar los viajes en la base de datos de Despachos
-    liq.viajesIds.forEach(idTicket => {
-        let t = dbDespachos.find(d => d.idTicket === idTicket);
-        if(t) {
+    const liq = dbLiquidaciones.find(l => l.id === liqId);
+    if(!liq || liq.estado === 'PAGADO') return;
+
+    const dIndex = liq.detalle.findIndex(d => d.ticket === idTicket);
+    if(dIndex === -1) return;
+
+    try {
+        const batch = db.batch();
+        const montoRestar = liq.detalle[dIndex].pago;
+
+        liq.detalle.splice(dIndex, 1);
+        liq.viajesIds = liq.viajesIds.filter(id => id !== idTicket);
+        liq.total -= montoRestar;
+
+        const t = dbDespachos.find(x => x.idTicket === idTicket);
+        if (t) {
             t.estadoFlete = 'PENDIENTE';
-            db.collection("despachos_tickets").doc(String(t.idTicket).replace(/\//g, '-')).set(t);
+            batch.set(db.collection("despachos_tickets").doc(String(t.idTicket).replace(/\//g, '-')), t);
         }
-    });
 
-    // 2. Eliminar la liquidación de la memoria
-    dbLiquidaciones = dbLiquidaciones.filter(l => l.id !== id);
-    save();
+        if(liq.viajesIds.length === 0) {
+            batch.delete(db.collection("liquidaciones").doc(String(liq.id)));
+            document.getElementById('modal-liquidacion').classList.add('hidden');
+        } else {
+            batch.set(db.collection("liquidaciones").doc(String(liq.id)), liq);
+        }
 
-    renderTransporteDetail();
-    renderLiquidaciones();
-    showToast("Liquidación anulada. Viajes liberados en la bitácora.");
+        await batch.commit();
+        if(liq.viajesIds.length > 0) verLiquidacion(liq.id); // Recarga la vista si quedan viajes
+        showToast("Viaje devuelto a la bitácora.");
+
+    } catch(e) {
+        alert("Error de conexión. Intente de nuevo.");
+    }
 }
 
 function renderLiquidaciones() {
@@ -10544,6 +10625,7 @@ function verLiquidacion(id) {
                         <th class="p-3 text-right">Vol (M³)</th>
                         <th class="p-3 text-right">Precio/M³</th>
                         <th class="p-3 text-right">Pago Viaje</th>
+			${l.estado === 'PENDIENTE' ? '<th class="p-3 text-center w-8">Quitar</th>' : ''}
                     </tr>
                 </thead>
                 <tbody class="divide-y divide-slate-100">
@@ -10554,6 +10636,7 @@ function verLiquidacion(id) {
                         <td class="p-3 text-right font-black text-blue-600">${(d.volM3 || 0).toFixed(2)}</td>
                         <td class="p-3 text-right font-bold text-slate-500">Bs ${(d.precioM3 || 0).toFixed(2)}</td>
                         <td class="p-3 text-right font-black text-yellow-600">Bs ${d.pago.toFixed(2)}</td>
+			${l.estado === 'PENDIENTE' ? `<td class="p-3 text-center"><button onclick="removerViajeDeLiquidacion(${l.id}, '${d.ticket}')" title="Quitar de esta liquidación" class="text-red-500 hover:text-red-700 bg-red-50 hover:bg-red-100 p-1.5 rounded-lg border border-red-100 transition-colors"><i data-lucide="minus-circle" class="w-4 h-4"></i></button></td>` : ''}
                     </tr>`).join('')}
                 </tbody>
             </table>
