@@ -11943,7 +11943,7 @@ function imprimirReporteEntregas() {
 // ==========================================
 // ROBOT RECUPERADOR DE LIQUIDACIONES
 // ==========================================
-function robotRecuperarLiquidaciones() {
+async function robotRecuperarLiquidaciones() {
     const confirmacion = confirm("🤖 ROBOT RECUPERADOR\n\n¿Deseas escanear el historial de despachos para reconstruir las carpetas de Liquidación de Choferes que fueron borradas por error del sistema?");
     if (!confirmacion) return;
 
@@ -11956,10 +11956,10 @@ function robotRecuperarLiquidaciones() {
     // Evita duplicar los que SÍ existen
     let ticketsYaEnLiquidacion = new Set();
     dbLiquidaciones.forEach(liq => {
-        liq.viajesIds.forEach(id => ticketsYaEnLiquidacion.add(id));
+        if (liq.viajesIds) liq.viajesIds.forEach(id => ticketsYaEnLiquidacion.add(id));
     });
 
-    // Filtra los huérfanos
+    // Filtra los huérfanos (los que no tienen carpeta de liquidación)
     let ticketsHuerfanos = viajesLiquidados.filter(d => !ticketsYaEnLiquidacion.has(d.idTicket));
 
     if (ticketsHuerfanos.length === 0) {
@@ -11974,56 +11974,67 @@ function robotRecuperarLiquidaciones() {
         gruposPorChofer[t.conductor].push(t);
     });
 
-    // Recrear las liquidaciones
-    Object.keys(gruposPorChofer).forEach(chofer => {
-        let viajesChofer = gruposPorChofer[chofer];
-        let sumaTotal = 0;
-        let viajesIds = [];
-        let detalle = [];
-        let todosPagados = true;
+    try {
+        const batch = db.batch(); // CAJA FUERTE ACTIVADA PARA EL ROBOT
 
-        viajesChofer.forEach(t => {
-            viajesIds.push(t.idTicket);
-            if(t.estadoFlete !== 'PAGADO') todosPagados = false;
+        // Recrear las liquidaciones
+        Object.keys(gruposPorChofer).forEach(chofer => {
+            let viajesChofer = gruposPorChofer[chofer];
+            let sumaTotal = 0;
+            let viajesIds = [];
+            let detalle = [];
+            let todosPagados = true;
 
-            const o = orders.find(x => x.id === t.orderId);
-            const volTotalPedido = o ? (o.volGlobalCotizacion || 0) : 0;
-            const precioPorM3 = (o && o.trans > 0 && volTotalPedido > 0) ? (o.trans / volTotalPedido) : 0;
-            const pago = precioPorM3 * t.volM3;
-            sumaTotal += pago;
+            viajesChofer.forEach(t => {
+                viajesIds.push(t.idTicket);
+                // Si al menos 1 viaje dice 'EN LIQUIDACIÓN', la carpeta completa es PENDIENTE
+                if(t.estadoFlete !== 'PAGADO') todosPagados = false;
 
-            detalle.push({
-                ticket: t.idTicket,
-                fecha: t.fecha.split(',')[0],
-                orden: t.orderId,
-                cliente: t.cliente,
-                material: t.items.map(i => i.name).join(', '),
-                volM3: t.volM3,
-                precioM3: precioPorM3,
-                pago: pago
+                const o = orders.find(x => x.id === t.orderId);
+                const volTotalPedido = o ? (o.volGlobalCotizacion || 0) : 0;
+                const precioPorM3 = (o && o.trans > 0 && volTotalPedido > 0) ? (o.trans / volTotalPedido) : 0;
+                const pago = precioPorM3 * t.volM3;
+                sumaTotal += pago;
+
+                detalle.push({
+                    ticket: t.idTicket,
+                    fecha: t.fecha.split(',')[0],
+                    orden: t.orderId,
+                    cliente: t.cliente,
+                    material: t.items.map(i => i.name).join(', '),
+                    volM3: t.volM3,
+                    precioM3: precioPorM3,
+                    pago: pago
+                });
             });
+
+            const nuevaLiq = {
+                id: Date.now() + Math.floor(Math.random() * 1000), // Random para evitar IDs duplicados por velocidad
+                fechaReg: new Date().toLocaleDateString(),
+                chofer: chofer,
+                total: sumaTotal,
+                viajesIds: viajesIds,
+                detalle: detalle,
+                estado: todosPagados ? 'PAGADO' : 'PENDIENTE',
+                operador: 'Robot Recuperador'
+            };
+
+            // Inyectamos a la NUEVA colección en la nube (El cajón correcto)
+            batch.set(db.collection("liquidaciones").doc(String(nuevaLiq.id)), nuevaLiq);
+            recuperadas++;
         });
 
-        const nuevaLiq = {
-            id: Date.now() + Math.floor(Math.random() * 1000), // Random para evitar IDs duplicados por velocidad
-            fechaReg: new Date().toLocaleDateString(),
-            chofer: chofer,
-            total: sumaTotal,
-            viajesIds: viajesIds,
-            detalle: detalle,
-            estado: todosPagados ? 'PAGADO' : 'PENDIENTE',
-            operador: 'Robot Recuperador'
-        };
+        await batch.commit(); // SUBIMOS TODO DE GOLPE A GOOGLE
+        
+        if (typeof renderTransporteDetail === 'function') renderTransporteDetail();
+        if (typeof renderLiquidaciones === 'function') renderLiquidaciones();
+        
+        alert(`✅ RECUPERACIÓN EXITOSA\n\nEl sistema agrupó ${ticketsHuerfanos.length} viajes y reconstruyó ${recuperadas} carpetas de liquidación directamente en la Nube.\n\nVe a la pestaña "Logística y Fletes" para revisarlas.`);
 
-        dbLiquidaciones.unshift(nuevaLiq);
-        recuperadas++;
-    });
-
-    save();
-    if (typeof renderTransporteDetail === 'function') renderTransporteDetail();
-    if (typeof renderLiquidaciones === 'function') renderLiquidaciones();
-    
-    alert(`✅ RECUPERACIÓN EXITOSA\n\nEl sistema agrupó ${ticketsHuerfanos.length} viajes perdidos y reconstruyó ${recuperadas} carpetas de liquidación.\n\nVe a la pestaña "Logística y Fletes" para revisarlas.`);
+    } catch (error) {
+        console.error("Error en Robot Recuperador:", error);
+        alert("❌ Error de conexión. No se pudieron guardar las liquidaciones recuperadas.");
+    }
 }
 
 // === BLINDAJE ADICIONAL AL BACKUP ===
