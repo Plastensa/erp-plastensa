@@ -2259,7 +2259,8 @@
                                         <option value="Agustín (Interno)">Agustín (Interno)</option>
                                         <option value="Limberth (Interno)">Limberth (Interno)</option>
                                         <option value="Martín (Interno)">Martín (Interno)</option>
-                                        <option value="Externo / Cliente">Externo / Cliente</option>
+                                        <option value="Externo (Contratado)">Externo (Contratado)</option>
+                                        <option value="Cliente (Recojo en Planta)">Cliente (Recojo en Planta)</option>
                                     </select>
                                 </div>
                                 <div>
@@ -2427,6 +2428,8 @@
                                     <option value="Agustín (Interno)">Agustín (Interno)</option>
                                     <option value="Limberth (Interno)">Limberth (Interno)</option>
                                     <option value="Martín (Interno)">Martín (Interno)</option>
+                                    <option value="Externo (Contratado)">Externo (Contratado)</option>
+                                    <option value="Cliente (Recojo en Planta)">Cliente (Recojo en Planta)</option>
                                 </select>
                                <button onclick="exportarTransporteDetalleCSV()" class="bg-yellow-500 text-slate-900 px-4 py-2 rounded-xl font-black text-xs uppercase shadow-md hover:bg-yellow-400 flex items-center gap-2"><i data-lucide="download" class="w-4 h-4"></i> Exportar</button>
                             </div>
@@ -6399,7 +6402,7 @@ function renderTransporte() {
 
     const consolidado = {};
     despachosChoferes.forEach(t => {
-        if(t.conductor === 'Externo / Cliente') return; // No se liquida al cliente
+        if(t.conductor === 'Cliente (Recojo en Planta)') return; // No se liquida al cliente, pero SÍ al Externo
         if(!consolidado[t.conductor]) consolidado[t.conductor] = { viajes: 0, m3: 0, pago: 0 };
         consolidado[t.conductor].viajes += 1;
         consolidado[t.conductor].m3 += t.volM3;
@@ -6541,7 +6544,7 @@ function exportarLiquidacionCSV() {
     let csv = "CONDUCTOR,VIAJES,M3 TRANSPORTADOS,PAGO GENERADO (Bs)\n";
     const consolidado = {};
     despachosChoferes.forEach(t => {
-        if(t.conductor === 'Externo / Cliente') return;
+        if(t.conductor === 'Cliente (Recojo en Planta)') return;
         if(!consolidado[t.conductor]) consolidado[t.conductor] = { viajes: 0, m3: 0, pago: 0 };
         consolidado[t.conductor].viajes += 1;
         consolidado[t.conductor].m3 += t.volM3;
@@ -6970,11 +6973,12 @@ if(!dbPreciosBase || !dbPreciosBase.matriz || dbPreciosBase.matriz.length === 0 
     localStorage.setItem('plast_precios_base', JSON.stringify(dbPreciosBase));
 }
 
-let dbTransportistas = JSON.parse(localStorage.getItem('plast_transportistas')) || [
+let dbTransportistas = [
     { id: '1', nombre: 'Agustín (Interno)' },
     { id: '2', nombre: 'Limberth (Interno)' },
     { id: '3', nombre: 'Martín (Interno)' },
-    { id: '4', nombre: 'Externo / Cliente' }
+    { id: '4', nombre: 'Externo (Contratado)' },
+    { id: '5', nombre: 'Cliente (Recojo en Planta)' }
 ];
 
 function generarCorrelativoMensual() {
