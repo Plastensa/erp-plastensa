@@ -4048,31 +4048,84 @@ function handleFileUpload(e) {
         }
 
         function renderCart() { 
-            const tbody = document.getElementById('cart-items');
-            if(cart.length === 0) {
-                tbody.innerHTML = `<tr><td colspan="5" class="p-8 text-center text-slate-400 font-bold italic">La cotización está vacía</td></tr>`;
-            } else {
-                tbody.innerHTML = cart.map(i => `
-                <tr class="hover:bg-slate-50 transition-colors">
-                    <td class="p-4">
-                        <span class="font-black text-slate-800 block">${i.name}</span>
-                        ${i.obs ? `<span class="text-[10px] text-orange-600 font-bold uppercase bg-orange-50 px-2 py-0.5 rounded mt-1 inline-block border border-orange-100">Corte: ${i.obs}</span>` : ''}
-                    </td>
-                    <td class="p-4 text-center">
-                        <span class="font-black text-slate-700 block">${i.qty} Pzas</span>
-                        <span class="text-[10px] text-slate-400 font-bold uppercase">(${i.volTotal.toFixed(2)} M3)</span>
-                    </td>
-                    <td class="p-4 text-right font-bold text-slate-500">Bs ${i.unitPrice.toFixed(2)}</td>
-                    <td class="p-4 text-right font-black text-blue-600 text-lg">Bs ${i.subtotal.toFixed(2)}</td>
-                    <td class="p-4 text-center">
-                        <button type="button" onclick="removeFromCart(${i.uid})" class="bg-red-50 text-red-500 hover:bg-red-100 px-3 py-2 rounded-xl transition-colors font-black flex items-center justify-center mx-auto shadow-sm border border-red-100">
-                            <i data-lucide="trash-2" class="w-4 h-4 mr-1"></i> <span class="text-xs">BORRAR</span>
-                        </button>
-                    </td>
-                </tr>`).join('');
-            }
-            lucide.createIcons();
+    const tbody = document.getElementById('cart-items');
+    if(cart.length === 0) {
+        tbody.innerHTML = `<tr><td colspan="5" class="p-8 text-center text-slate-400 font-bold italic">La cotización está vacía</td></tr>`;
+    } else {
+        tbody.innerHTML = cart.map(i => `
+        <tr class="hover:bg-slate-50 transition-colors">
+            <td class="p-4">
+                <span class="font-black text-slate-800 block">${i.name}</span>
+                ${i.obs ? `<span class="text-[10px] text-orange-600 font-bold uppercase bg-orange-50 px-2 py-0.5 rounded mt-1 inline-block border border-orange-100">Corte: ${i.obs}</span>` : ''}
+            </td>
+            
+            <!-- NUEVA COLUMNA EDITABLE -->
+            <td class="p-4 text-center">
+                <div class="flex flex-col items-center justify-center gap-1">
+                    <div class="flex items-center gap-1">
+                        <input type="number" 
+                               value="${i.qty}" 
+                               min="1" 
+                               step="0.01" 
+                               onchange="updateCartItemQty(${i.uid}, this)" 
+                               class="w-20 text-center font-black text-slate-800 bg-white border-2 border-slate-200 rounded-xl p-1.5 outline-none focus:border-blue-500 focus:ring-4 focus:ring-blue-500/20 transition-all shadow-sm">
+                        <span class="text-xs font-bold text-slate-500">Pzas</span>
+                    </div>
+                    <span class="text-[10px] text-slate-400 font-bold uppercase">(${i.volTotal.toFixed(2)} M³)</span>
+                </div>
+            </td>
+
+            <td class="p-4 text-right font-bold text-slate-500">Bs ${i.unitPrice.toFixed(2)}</td>
+            <td class="p-4 text-right font-black text-blue-600 text-lg">Bs ${i.subtotal.toFixed(2)}</td>
+            <td class="p-4 text-center">
+                <button type="button" onclick="removeFromCart(${i.uid})" class="bg-red-50 text-red-500 hover:bg-red-100 px-3 py-2 rounded-xl transition-colors font-black flex items-center justify-center mx-auto shadow-sm border border-red-100">
+                    <i data-lucide="trash-2" class="w-4 h-4 mr-1"></i> <span class="text-xs">BORRAR</span>
+                </button>
+            </td>
+        </tr>`).join('');
+    }
+    lucide.createIcons();
+}
+
+// NUEVA FUNCIÓN PARA ACTUALIZAR CANTIDADES DIRECTO EN LA TABLA
+function updateCartItemQty(uid, inputElement) {
+    const newQty = parseFloat(inputElement.value);
+
+    // 1. VALIDACIÓN DE SEGURIDAD: Prevenir negativos, ceros o vacíos
+    if (isNaN(newQty) || newQty <= 0) {
+        alert("⚠️ ERROR: La cantidad de piezas debe ser un número mayor a cero.");
+        
+        // Restaurar el valor original en el input
+        const item = cart.find(i => i.uid === uid);
+        if (item) {
+            inputElement.value = item.qty;
         }
+        
+        // Efecto visual: Pintar de rojo temporalmente para alertar al usuario
+        inputElement.classList.replace('border-slate-200', 'border-red-500');
+        inputElement.classList.replace('text-slate-800', 'text-red-600');
+        inputElement.classList.add('bg-red-50');
+        
+        setTimeout(() => {
+            inputElement.classList.replace('border-red-500', 'border-slate-200');
+            inputElement.classList.replace('text-red-600', 'text-slate-800');
+            inputElement.classList.remove('bg-red-50');
+        }, 1500);
+        
+        return; // Detenemos la ejecución aquí
+    }
+
+    // 2. ACTUALIZACIÓN MATEMÁTICA
+    const item = cart.find(i => i.uid === uid);
+    if (item) {
+        item.qty = newQty;
+        item.volTotal = newQty * item.volUnit; // Recalculamos el volumen de ese ítem
+        
+        // Disparamos el recálculo general (Esto actualizará la tarifa si el nuevo volumen salta de escala)
+        recalculateCart(); 
+        showToast("Cantidad actualizada a " + newQty + " piezas.");
+    }
+}
 
         function removeFromCart(uid) { 
             cart = cart.filter(i => i.uid !== uid); 
@@ -4120,7 +4173,21 @@ function handleFileUpload(e) {
 
     const cMapa = document.getElementById('cot-mapa') ? document.getElementById('cot-mapa').value.trim() : '';
     const vendedorSeleccionado = document.getElementById('cot-interno').value;
-    const existingClientIndex = dbClients.findIndex(x => x.name.toLowerCase() === cName.toLowerCase() || (x.nit && x.nit === cNit));
+    // 1. Definimos los NITs "comodín" que el sistema debe ignorar para no mezclar clientes
+const nitsGenericos = ["0", "123", "1234567", "S/N", "CF", "SN", ""];
+const nitLimpio = cNit.trim().toUpperCase();
+const esNitGenerico = nitsGenericos.includes(nitLimpio);
+
+// 2. Buscamos al cliente con la lógica inteligente
+const existingClientIndex = dbClients.findIndex(x => {
+    // a) ¿Es exactamente el mismo nombre?
+    const coincideNombre = x.name.trim().toLowerCase() === cName.trim().toLowerCase();
+    
+    // b) ¿Es el mismo NIT? (Solo cuenta si NO es un NIT genérico)
+    const coincideNit = !esNitGenerico && x.nit && x.nit.trim().toUpperCase() === nitLimpio;
+    
+    return coincideNombre || coincideNit;
+});
     
     if(existingClientIndex === -1) {
         dbClients.push({ id: Date.now(), name: cName, nit: cNit, phone: cPhone, propietario: vendedorSeleccionado });
