@@ -1189,8 +1189,9 @@
                                     </div>
                                     <div>
                                         <label class="text-[10px] font-black uppercase text-slate-400 ml-2 block mb-1">Densidad</label>
-                                        <select id="precio-dens" class="w-full bg-slate-50 border border-slate-200 p-3 rounded-xl font-bold outline-none text-slate-700">
+                                       <select id="precio-dens" class="w-full bg-slate-50 border border-slate-200 p-3 rounded-xl font-bold outline-none text-slate-700">
                                             <option value="D8">D8</option><option value="D10">D10</option>
+                                            <option value="C">C</option>
                                             <option value="D13">D13</option><option value="D15">D15</option>
                                             <option value="D20">D20</option><option value="SR">SR</option>
                                         </select>
@@ -3800,10 +3801,10 @@ function handleFileUpload(e) {
                 let nombreItem = cols[1].trim();
                 let densidadCalculada = '-';
                 
-                // Busca letras al principio seguidas inmediatamente de un número
-                let match = nombreItem.match(/^[a-zA-Z]+(\d+)/);
+                // Busca letras al principio seguidas inmediatamente de un número o letra C / SR
+                let match = nombreItem.match(/^([a-zA-Z]+?)(SR|C|\d+)(?=\/|$|-)/i);
                 if (match) {
-                    densidadCalculada = 'D' + match[1]; // <-- Aquí le agregamos la "D" al número extraído
+                    densidadCalculada = ['SR', 'C'].includes(match[2].toUpperCase()) ? match[2].toUpperCase() : 'D' + match[2];
                 } else if (cols[4] && cols[4].trim() !== '') {
                     let fallbackDens = cols[4].trim();
                     // Si en la columna 4 viene solo el número (ej: "10"), le ponemos la "D" también
@@ -3866,7 +3867,11 @@ function handleFileUpload(e) {
             const s = document.getElementById('cot-search').value.toLowerCase(); 
             const dd = document.getElementById('cot-dropdown'); 
             if(!s) { dd.classList.add('hidden'); return; } 
-            const f = products.filter(p => (p.name||'').toLowerCase().includes(s) || (p.code||'').toLowerCase().includes(s)); 
+            const f = products.filter(p => { 
+                const matchText = (p.name||'').toLowerCase().includes(s) || (p.code||'').toLowerCase().includes(s); 
+                const tienePrecio = (Number(p.pCF1) > 0 || Number(p.pCF2) > 0 || Number(p.pCF3) > 0 || Number(p.pSF1) > 0); 
+                return matchText && tienePrecio; 
+            }); 
             if(f.length === 0) { 
                 dd.innerHTML = `<div class="p-6 text-center text-slate-400 font-bold">No se encontró en el catálogo</div>`; 
             } else { 
@@ -4347,7 +4352,11 @@ const existingClientIndex = dbClients.findIndex(x => {
             const dd = document.getElementById('edit-dropdown');
             if(!s) { dd.classList.add('hidden'); return; }
             
-            const filtered = products.filter(p => (p.name||'').toLowerCase().includes(s) || (p.code||'').toLowerCase().includes(s));
+            const filtered = products.filter(p => {
+                const matchText = (p.name||'').toLowerCase().includes(s) || (p.code||'').toLowerCase().includes(s);
+                const tienePrecio = (Number(p.pCF1) > 0 || Number(p.pCF2) > 0 || Number(p.pCF3) > 0 || Number(p.pSF1) > 0);
+                return matchText && tienePrecio;
+            });
             if(filtered.length === 0) {
                 dd.innerHTML = `<div class="p-4 text-center text-slate-400 font-bold text-xs">No se encontró en el catálogo</div>`;
             } else {
@@ -7076,11 +7085,11 @@ function sincronizarPreciosCatalogo() {
             if (!prod || !prod.name) return;
 
             // Extrae perfectamente las letras (Familia) y los números (Densidad)
-            const match = prod.name.trim().match(/^([A-Za-z]+)(\d+)/);
+            const match = prod.name.trim().match(/^([A-Za-z]+?)(SR|C|\d+)(?=\/|$|-)/i);
             if (!match) return; 
 
-            const familiaProd = match[1].toUpperCase(); // Ej: SR o LAM
-            const densProd = 'D' + match[2];            // Ej: D10 o D13
+            const familiaProd = match[1].toUpperCase(); 
+            const densProd = ['SR', 'C'].includes(match[2].toUpperCase()) ? match[2].toUpperCase() : 'D' + match[2];
 
             const regla = dbPreciosBase.matriz.find(p => 
                 (p.familia || '').toUpperCase().trim() === familiaProd && 
@@ -7570,8 +7579,8 @@ function renderSalaCorte() {
         const item = o ? o.items[s.itemIdx] : null;
         if(!item) return;
 
-        const match = item.name.match(/^([A-Z]+)(\d+|SR)/);
-        const densRequerida = match ? (match[2] === 'SR' ? 'SR' : 'D' + match[2]) : 'D8';
+        const match = item.name.match(/^([A-Za-z]+?)(SR|C|\d+)(?=\/|$|-)/i);
+        const densRequerida = match ? (['SR', 'C'].includes(match[2].toUpperCase()) ? match[2].toUpperCase() : 'D' + match[2]) : 'D8';
         const obsKey = (item.obs || '').trim();
         
         // Llave maestra de agrupación: Une por Nombre + Densidad + Corte Especial
@@ -7698,8 +7707,8 @@ function iniciarCorteAgrupado(idsString) {
         const item = ord ? ord.items[sched.itemIdx] : null;
         if(!item) return;
 
-        const match = item.name.match(/^([A-Z]+)(\d+|SR)/);
-        const densRequerida = match ? (match[2] === 'SR' ? 'SR' : 'D' + match[2]) : 'D8';
+        const match = item.name.match(/^([A-Za-z]+?)(SR|C|\d+)(?=\/|$|-)/i);
+        const densRequerida = match ? (['SR', 'C'].includes(match[2].toUpperCase()) ? match[2].toUpperCase() : 'D' + match[2]) : 'D8';
         const volUnitCalc = sched.volTotal / sched.qty;
 
         const fusionKey = `${item.name}-${densRequerida}-${item.obs || ''}`;
@@ -7941,8 +7950,8 @@ function addCartItemCorte() {
     if(!prod) return alert("Producto no encontrado en el catálogo.");
     if(corteCart.some(i => i.name === itemName)) return alert("El ítem ya está en la lista.");
 
-    const match = itemName.match(/^([A-Z]+)(\d+|SR)/);
-    const dens = match ? (match[2] === 'SR' ? 'SR' : 'D' + match[2]) : 'D8';
+    const match = itemName.match(/^([A-Za-z]+?)(SR|C|\d+)(?=\/|$|-)/i);
+    const dens = match ? (['SR', 'C'].includes(match[2].toUpperCase()) ? match[2].toUpperCase() : 'D' + match[2]) : 'D8';
 
     corteCart.push({
         name: prod.name,
@@ -8095,8 +8104,8 @@ function procesarEjecucionCorte() {
     } else {
         if(!corteOperacionActiva.ptInputName || corteOperacionActiva.ptInputQty <= 0) return alert("ERROR: Debe fijar un Producto Terminado de inventario como matriz.");
         volEntradaReal = corteOperacionActiva.ptInputVol;
-        const match = corteOperacionActiva.ptInputName.match(/^([A-Z]+)(\d+|SR)/);
-        const d = match ? (match[2] === 'SR' ? 'SR' : 'D' + match[2]) : 'D8';
+        const match = corteOperacionActiva.ptInputName.match(/^([A-Za-z]+?)(SR|C|\d+)(?=\/|$|-)/i);
+    const d = match ? (['SR', 'C'].includes(match[2].toUpperCase()) ? match[2].toUpperCase() : 'D' + match[2]) : 'D8';
         setDensidadesOrigen.add(d);
         if(d === 'SR') origenEsSR = true;
     }
@@ -8106,7 +8115,14 @@ function procesarEjecucionCorte() {
 
     corteCart.forEach(it => {
         if(it.dens === 'SR') productoSRDetectado = true;
-        if(!setDensidadesOrigen.has(it.dens)) incompatibilidadDensidad = true;
+        
+        let compatible = setDensidadesOrigen.has(it.dens);
+        // EXCEPCIÓN DE SEGURIDAD: Un producto "C" es compatible si viene de un bloque D8 o D10
+        if (it.dens === 'C' && (setDensidadesOrigen.has('D8') || setDensidadesOrigen.has('D10'))) {
+            compatible = true;
+        }
+        
+        if(!compatible) incompatibilidadDensidad = true;
     });
 
     if (productoSRDetectado && !origenEsSR) {
@@ -8336,16 +8352,16 @@ function aplicarReglasProducto() {
 
     // 2. Aplicar Restricciones
     if (familia === 'PB') {
-        selDens.innerHTML = '<option value="D8">D8</option><option value="D10">D10</option>';
+        selDens.innerHTML = '<option value="D8">D8</option><option value="D10">D10</option><option value="C">C</option>';
         wrapLargo.innerHTML = '<select id="prod-largo" required class="w-full bg-slate-900 border border-slate-600 p-3 rounded-xl outline-none font-bold text-yellow-400 text-center"><option value="100">100</option><option value="120">120</option><option value="130">130</option></select>';
     } 
     else if (familia === 'PC') {
-        selDens.innerHTML = '<option value="D8">D8</option><option value="D10">D10</option>';
+        selDens.innerHTML = '<option value="D8">D8</option><option value="D10">D10</option><option value="C">C</option>';
         wrapLargo.innerHTML = '<input type="number" id="prod-largo" step="0.5" required placeholder="Lado base" class="w-full bg-slate-900 border border-slate-600 p-3 rounded-xl outline-none font-bold text-white text-center focus:ring-2 focus:ring-blue-500">';
         contAncho.classList.add('hidden'); inpAncho.required = false;
     }
     else if (familia === 'PT') {
-        selDens.innerHTML = '<option value="D8">D8</option><option value="D10">D10</option>';
+        selDens.innerHTML = '<option value="D8">D8</option><option value="D10">D10</option><option value="C">C</option>';
         wrapLargo.innerHTML = '<select id="prod-largo" required class="w-full bg-slate-900 border border-slate-600 p-3 rounded-xl outline-none font-bold text-yellow-400 text-center"><option value="100">100</option><option value="120">120</option><option value="130">130</option><option value="200">200</option><option value="300">300</option><option value="400">400</option></select>';
     }
     else if (familia === 'SR') {
@@ -8393,7 +8409,8 @@ function normalizarNombre(nombre) { return nombre ? nombre.trim().toLowerCase().
 function crearProductoManual(e) {
     e.preventDefault();
     const familia = document.getElementById('prod-familia').value;
-    const densStr = document.getElementById('prod-dens').value.replace('D', '');
+    const rawDens = document.getElementById('prod-dens').value;
+    const densStr = rawDens.startsWith('D') ? rawDens.replace('D', '') : rawDens;
     
     let alto = parseFloat(document.getElementById('prod-alto').value)||0;
     let largo = parseFloat(document.getElementById('prod-largo').value)||0;
