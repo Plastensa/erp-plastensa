@@ -3802,13 +3802,13 @@ function handleFileUpload(e) {
                 let densidadCalculada = '-';
                 
                 // Busca letras al principio seguidas inmediatamente de un número o letra C / SR
-                let match = nombreItem.match(/^([a-zA-Z]+?)(SR|C|\d+)(?=\/|$|-)/i);
+                let match = nombreItem.match(/^([a-zA-Z]+?)(SR|C|\d+)(?=\/|$|-|\()/i);
                 if (match) {
                     densidadCalculada = ['SR', 'C'].includes(match[2].toUpperCase()) ? match[2].toUpperCase() : 'D' + match[2];
-                } else if (cols[4] && cols[4].trim() !== '') {
-                    let fallbackDens = cols[4].trim();
-                    // Si en la columna 4 viene solo el número (ej: "10"), le ponemos la "D" también
-                    if (!isNaN(fallbackDens)) {
+                } else if (cols[3] && cols[3].trim() !== '') {
+                    let fallbackDens = cols[3].trim();
+                    // Si en la columna 3 viene solo el número (ej: "10"), le ponemos la "D" también
+                    if (!isNaN(fallbackDens) && fallbackDens !== '') {
                         densidadCalculada = 'D' + fallbackDens;
                     } else {
                         densidadCalculada = fallbackDens;
@@ -7085,7 +7085,7 @@ function sincronizarPreciosCatalogo() {
             if (!prod || !prod.name) return;
 
             // Extrae perfectamente las letras (Familia) y los números (Densidad)
-            const match = prod.name.trim().match(/^([A-Za-z]+?)(SR|C|\d+)(?=\/|$|-)/i);
+            const match = prod.name.trim().match(/^([A-Za-z]+?)(SR|C|\d+)(?=\/|$|-|\()/i);
             if (!match) return; 
 
             const familiaProd = match[1].toUpperCase(); 
@@ -7579,7 +7579,7 @@ function renderSalaCorte() {
         const item = o ? o.items[s.itemIdx] : null;
         if(!item) return;
 
-        const match = item.name.match(/^([A-Za-z]+?)(SR|C|\d+)(?=\/|$|-)/i);
+        const match = item.name.match(/^([A-Za-z]+?)(SR|C|\d+)(?=\/|$|-|\()/i);
         const densRequerida = match ? (['SR', 'C'].includes(match[2].toUpperCase()) ? match[2].toUpperCase() : 'D' + match[2]) : 'D8';
         const obsKey = (item.obs || '').trim();
         
@@ -7707,7 +7707,7 @@ function iniciarCorteAgrupado(idsString) {
         const item = ord ? ord.items[sched.itemIdx] : null;
         if(!item) return;
 
-        const match = item.name.match(/^([A-Za-z]+?)(SR|C|\d+)(?=\/|$|-)/i);
+        const match = item.name.match(/^([A-Za-z]+?)(SR|C|\d+)(?=\/|$|-|\()/i);
         const densRequerida = match ? (['SR', 'C'].includes(match[2].toUpperCase()) ? match[2].toUpperCase() : 'D' + match[2]) : 'D8';
         const volUnitCalc = sched.volTotal / sched.qty;
 
@@ -7950,7 +7950,7 @@ function addCartItemCorte() {
     if(!prod) return alert("Producto no encontrado en el catálogo.");
     if(corteCart.some(i => i.name === itemName)) return alert("El ítem ya está en la lista.");
 
-    const match = itemName.match(/^([A-Za-z]+?)(SR|C|\d+)(?=\/|$|-)/i);
+    const match = itemName.match(/^([A-Za-z]+?)(SR|C|\d+)(?=\/|$|-|\()/i);
     const dens = match ? (['SR', 'C'].includes(match[2].toUpperCase()) ? match[2].toUpperCase() : 'D' + match[2]) : 'D8';
 
     corteCart.push({
@@ -8104,7 +8104,7 @@ function procesarEjecucionCorte() {
     } else {
         if(!corteOperacionActiva.ptInputName || corteOperacionActiva.ptInputQty <= 0) return alert("ERROR: Debe fijar un Producto Terminado de inventario como matriz.");
         volEntradaReal = corteOperacionActiva.ptInputVol;
-        const match = corteOperacionActiva.ptInputName.match(/^([A-Za-z]+?)(SR|C|\d+)(?=\/|$|-)/i);
+        const match = corteOperacionActiva.ptInputName.match(/^([A-Za-z]+?)(SR|C|\d+)(?=\/|$|-|\()/i);
     const d = match ? (['SR', 'C'].includes(match[2].toUpperCase()) ? match[2].toUpperCase() : 'D' + match[2]) : 'D8';
         setDensidadesOrigen.add(d);
         if(d === 'SR') origenEsSR = true;
