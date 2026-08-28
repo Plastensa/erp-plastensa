@@ -4816,6 +4816,18 @@ function initAppDates() {
     }
     
     if(document.getElementById('jar-hora')) document.getElementById('jar-hora').value = timeStr;
+
+    // NUEVO: Recuperar y guardar Tipo de Cambio automáticamente
+    const inputTC = document.getElementById('caja-tc');
+    if (inputTC) {
+        const guardadoTC = localStorage.getItem('plastensa_tc');
+        if (guardadoTC) inputTC.value = guardadoTC; // Carga el último valor si existe
+        
+        // Guarda en memoria cada vez que modificas el número
+        inputTC.addEventListener('input', function() {
+            localStorage.setItem('plastensa_tc', this.value);
+        });
+    }
 }
 setTimeout(initAppDates, 500);
 // CORRECCIÓN: Puente para evitar el error de que el sistema no encuentra la función antigua
@@ -10045,22 +10057,74 @@ async function submitMovimientoCaja(e) {
     if(salida === entrada) return alert("La cuenta de origen y destino no pueden ser iguales.");
 
     // Traductor de fecha: convierte YYYY-MM-DD a D/M/YYYY
-        let rawDate = document.getElementById('caja-mov-fecha').value;
-        let formattedDate = rawDate;
-        if(rawDate && rawDate.includes('-')) {
-            const parts = rawDate.split('-');
-            formattedDate = `${parseInt(parts[2])}/${parseInt(parts[1])}/${parts[0]}`;
+    let rawDate = document.getElementById('caja-mov-fecha').value;
+    let formattedDate = rawDate;
+    if(rawDate && rawDate.includes('-')) {
+        const parts = rawDate.split('-');
+        formattedDate = `${parseInt(parts[2])}/${parseInt(parts[1])}/${parts[0]}`;
+    }
+
+    const monto = parseFloat(document.getElementById('caja-mov-monto').value);
+    const desc = document.getElementById('caja-mov-desc').value;
+    const categoria = document.getElementById('caja-mov-categoria') ? document.getElementById('caja-mov-categoria').value : '';
+
+    // --- LÓGICA DE CRUCE DE MONEDAS ---
+    const cuentasUSD = ['CAJA DOLARES', 'BISA USDT', 'TOWERBANK'];
+    const isSalidaUSD = cuentasUSD.includes(salida);
+    const isEntradaUSD = cuentasUSD.includes(entrada);
+
+    if (salida && entrada && isSalidaUSD !== isEntradaUSD) {
+        const tc = parseFloat(document.getElementById('caja-tc').value) || 6.96;
+        let montoSalida = 0;
+        let montoEntrada = 0;
+
+        if (isSalidaUSD && !isEntradaUSD) {
+            // Vendiendo dólares (USD a BS)
+            const confirmacion = confirm(`💱 CRUCE DE MONEDA DETECTADO:\n\nEstás retirando ${monto} USD de [${salida}] a un T.C. de ${tc}.\nSe ingresarán ${(monto * tc).toFixed(2)} Bs a [${entrada}].\n\n(Asegúrate de haber ingresado el monto en Dólares en el formulario).\n\n¿Deseas continuar?`);
+            if(!confirmacion) return;
+            montoSalida = monto;
+            montoEntrada = parseFloat((monto * tc).toFixed(2));
+        } else if (!isSalidaUSD && isEntradaUSD) {
+            // Comprando dólares (BS a USD)
+            const confirmacion = confirm(`💱 CRUCE DE MONEDA DETECTADO:\n\nEstás retirando ${monto} Bs de [${salida}] a un T.C. de ${tc}.\nSe ingresarán ${(monto / tc).toFixed(2)} USD a [${entrada}].\n\n(Asegúrate de haber ingresado el monto en Bolivianos en el formulario).\n\n¿Deseas continuar?`);
+            if(!confirmacion) return;
+            montoSalida = monto;
+            montoEntrada = parseFloat((monto / tc).toFixed(2));
         }
 
+        // Asiento 1: Egreso de la cuenta origen
         dbMovimientosCaja.push({
             id: Date.now(),
             fecha: formattedDate,
-            monto: parseFloat(document.getElementById('caja-mov-monto').value),
-            desc: document.getElementById('caja-mov-desc').value,
-           categoria: document.getElementById('caja-mov-categoria') ? document.getElementById('caja-mov-categoria').value : '',
+            monto: montoSalida,
+            desc: `[Cambio de Moneda] Retiro hacia ${entrada} - ${desc}`,
+            categoria: categoria,
+            salida: salida,
+            entrada: ''
+        });
+
+        // Asiento 2: Ingreso a la cuenta destino
+        dbMovimientosCaja.push({
+            id: Date.now() + 1,
+            fecha: formattedDate,
+            monto: montoEntrada,
+            desc: `[Cambio de Moneda] Ingreso desde ${salida} - ${desc}`,
+            categoria: categoria,
+            salida: '',
+            entrada: entrada
+        });
+    } else {
+        // Movimiento normal (Misma moneda o simple ingreso/egreso sin traspaso cruzado)
+        dbMovimientosCaja.push({
+            id: Date.now(),
+            fecha: formattedDate,
+            monto: monto,
+            desc: desc,
+            categoria: categoria,
             salida: salida,
             entrada: entrada
         });
+    }
 
     // MAGIA DE LA LIQUIDACIÓN: Cierre del círculo
     if (window.liquidacionEnProceso) {
