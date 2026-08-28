@@ -3555,7 +3555,6 @@ function iniciarRadar(userEmail) {
                 if(currentUser) renderAll();
             }
         } else {
-            // Este es tu seguro antiguo que dejé intacto
             dbIntSellers = [{name: 'Administrador Planta', email: 'admin@plastensa.com', pass: '1234nando', ci:'0', phone:'0', role: 'ADMIN'}];
             erpDataLoaded = true;
             save();
@@ -3565,37 +3564,38 @@ function iniciarRadar(userEmail) {
         erpDataLoaded = false; 
     });
 
-    // === NUEVOS RADARES PARA LOS CAJONES SEPARADOS ===
+    // === NUEVOS RADARES PARA LOS CAJONES SEPARADOS (CANDADO DE CARGA ELIMINADO) ===
     db.collection("plastensa_erp").doc("datos_productos").onSnapshot((doc) => {
-        if (doc.exists && erpDataLoaded) { 
+        if (doc.exists) { 
             products = JSON.parse(doc.data().products); 
             if(currentUser) { renderCatalogList(); renderInventarioBloques(); } 
         }
     });
 
     db.collection("plastensa_erp").doc("datos_clientes").onSnapshot((doc) => {
-        if (doc.exists && erpDataLoaded) { 
+        if (doc.exists) { 
             dbClients = JSON.parse(doc.data().dbClients); 
             if(currentUser) renderClientes(); 
         }
     });
 
     db.collection("plastensa_erp").doc("datos_caja").onSnapshot((doc) => {
-        if (doc.exists && erpDataLoaded) { 
+        if (doc.exists) { 
             dbMovimientosCaja = JSON.parse(doc.data().dbMovimientosCaja); 
             if(currentUser) renderCajaGeneral(); 
         }
     });
 
-    // RADAR MÓDULO RRHH (Este es el que le faltaba a tu código antiguo)
+    // RADAR MÓDULO RRHH
     db.collection("plastensa_erp").doc("datos_rrhh").onSnapshot((doc) => {
-        if (doc.exists && erpDataLoaded) { 
+        if (doc.exists) { 
             const data = doc.data();
             dbDirectorioRRHH = data.dbDirectorioRRHH ? JSON.parse(data.dbDirectorioRRHH) : [];
             dbAsistenciaAuditada = data.dbAsistenciaAuditada ? JSON.parse(data.dbAsistenciaAuditada) : [];
             dbBoletasEmitidas = data.dbBoletasEmitidas ? JSON.parse(data.dbBoletasEmitidas) : [];
             if(currentUser) { 
                 if(typeof renderDirectorioRRHH === 'function') renderDirectorioRRHH(); 
+                if(typeof renderPlanillaGeneral === 'function') renderPlanillaGeneral(); 
             } 
         }
     });
@@ -3607,14 +3607,14 @@ function iniciarRadar(userEmail) {
         let tempQ = [];
         snapshot.forEach(doc => tempQ.push(doc.data()));
         quotes = tempQ.sort((a,b) => String(b.id).localeCompare(String(a.id)));
-        if(erpDataLoaded && currentUser) { renderQuotes(); }
+        if(currentUser) { renderQuotes(); }
     });
 
     db.collection("pedidos").onSnapshot((snapshot) => {
         let tempO = [];
         snapshot.forEach(doc => tempO.push(doc.data()));
         orders = tempO.sort(ordenarPedidosRecientesPrimero);
-        if(erpDataLoaded && currentUser) { 
+        if(currentUser) { 
             renderTesoreria(); renderRegistroVentas(); renderProduction(); renderInventory(); renderHistorialAdmin();
         }
     });
@@ -3630,7 +3630,7 @@ function iniciarRadar(userEmail) {
                 return parseInt(a.id) - parseInt(b.id);
             });
         }
-        if(erpDataLoaded && currentUser) renderSilos();
+        if(currentUser) renderSilos();
     });
 
     // RADARES INDIVIDUALES: PRODUCCIÓN FASE 2 (BLOQUERA, CORTES Y DESPACHOS)
@@ -3638,29 +3638,29 @@ function iniciarRadar(userEmail) {
         let tempB = [];
         snapshot.forEach(doc => tempB.push(doc.data()));
         dbBloques = tempB; 
-        if(erpDataLoaded && currentUser) { renderInventarioBloques(); renderVolumenMaquina(); renderSalaCorte(); }
+        if(currentUser) { renderInventarioBloques(); renderVolumenMaquina(); renderSalaCorte(); }
     });
 
     db.collection("cortes_programados").onSnapshot((snapshot) => {
         let tempS = [];
         snapshot.forEach(doc => tempS.push(doc.data()));
         dbSchedules = tempS;
-        if(erpDataLoaded && currentUser) { renderPlanDiario(); renderProduction(); renderSalaCorte(); }
+        if(currentUser) { renderPlanDiario(); renderProduction(); renderSalaCorte(); }
     });
 
     db.collection("despachos_tickets").orderBy("idTicket", "desc").limit(1000).onSnapshot((snapshot) => {
         let tempD = [];
         snapshot.forEach(doc => tempD.push(doc.data()));
         dbDespachos = tempD.sort((a,b) => String(b.idTicket).localeCompare(String(a.idTicket)));
-        if(erpDataLoaded && currentUser) { renderDespacho(); renderTransporte(); renderTransporteDetail(); }
+        if(currentUser) { renderDespacho(); renderTransporte(); renderTransporteDetail(); }
     });
-    
+
     // NUEVO RADAR: LIQUIDACIONES INDEPENDIENTES
     db.collection("liquidaciones").orderBy("id", "desc").onSnapshot((snapshot) => {
         let tempL = [];
         snapshot.forEach(doc => tempL.push(doc.data()));
         dbLiquidaciones = tempL;
-        if(erpDataLoaded && currentUser) {
+        if(currentUser) {
             if(typeof renderLiquidaciones === 'function') renderLiquidaciones();
             if(typeof renderTransporteDetail === 'function') renderTransporteDetail();
         }
@@ -5053,24 +5053,30 @@ function initAppDates() {
     const d = new Date(); 
     const dateStr = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
     const timeStr = `${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`;
+    const monthStr = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`;
     
     // Automatizar fecha y bloquearla para que no la editen
     const fechaInput = document.getElementById('mp-fecha');
     if(fechaInput) {
         fechaInput.value = dateStr;
-        fechaInput.readOnly = true; // Bloquea la edición manual
-        fechaInput.classList.add('bg-slate-100'); // Color gris para indicar que es automático
+        fechaInput.readOnly = true; 
+        fechaInput.classList.add('bg-slate-100'); 
     }
     
     if(document.getElementById('jar-hora')) document.getElementById('jar-hora').value = timeStr;
+
+    // Llenar automáticamente el mes de la planilla
+    const planillaMes = document.getElementById('planilla-filtro-mes');
+    if(planillaMes && !planillaMes.value) {
+        planillaMes.value = monthStr;
+    }
 
     // NUEVO: Recuperar y guardar Tipo de Cambio automáticamente
     const inputTC = document.getElementById('caja-tc');
     if (inputTC) {
         const guardadoTC = localStorage.getItem('plastensa_tc');
-        if (guardadoTC) inputTC.value = guardadoTC; // Carga el último valor si existe
+        if (guardadoTC) inputTC.value = guardadoTC; 
         
-        // Guarda en memoria cada vez que modificas el número
         inputTC.addEventListener('input', function() {
             localStorage.setItem('plastensa_tc', this.value);
         });
