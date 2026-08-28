@@ -3528,7 +3528,7 @@ function iniciarRadar(userEmail) {
             
             dbTolva = data.dbTolva !== undefined ? parseFloat(data.dbTolva) : (parseFloat(localStorage.getItem('plast_vol_maquina')) || 0);
             pizarraMateriaPrima = data.pizarraMateriaPrima ? JSON.parse(data.pizarraMateriaPrima) : {};
-	    dbCotizacionesPerdidas = data.dbCotizacionesPerdidas ? JSON.parse(data.dbCotizacionesPerdidas) : [];
+            dbCotizacionesPerdidas = data.dbCotizacionesPerdidas ? JSON.parse(data.dbCotizacionesPerdidas) : [];
             
             erpDataLoaded = true;
             radarActivo = true;
@@ -3555,6 +3555,7 @@ function iniciarRadar(userEmail) {
                 if(currentUser) renderAll();
             }
         } else {
+            // Este es tu seguro antiguo que dejé intacto
             dbIntSellers = [{name: 'Administrador Planta', email: 'admin@plastensa.com', pass: '1234nando', ci:'0', phone:'0', role: 'ADMIN'}];
             erpDataLoaded = true;
             save();
@@ -3586,7 +3587,7 @@ function iniciarRadar(userEmail) {
         }
     });
 
-    // RADAR MÓDULO RRHH
+    // RADAR MÓDULO RRHH (Este es el que le faltaba a tu código antiguo)
     db.collection("plastensa_erp").doc("datos_rrhh").onSnapshot((doc) => {
         if (doc.exists && erpDataLoaded) { 
             const data = doc.data();
@@ -3619,7 +3620,6 @@ function iniciarRadar(userEmail) {
     });
 
     // RADARES INDIVIDUALES: PRODUCCIÓN FASE 1 (MATERIA PRIMA Y SILOS)
-
     db.collection("silos_estado").onSnapshot((snapshot) => {
         let tempSilos = [];
         snapshot.forEach(doc => tempSilos.push(doc.data()));
@@ -3654,6 +3654,7 @@ function iniciarRadar(userEmail) {
         dbDespachos = tempD.sort((a,b) => String(b.idTicket).localeCompare(String(a.idTicket)));
         if(erpDataLoaded && currentUser) { renderDespacho(); renderTransporte(); renderTransporteDetail(); }
     });
+    
     // NUEVO RADAR: LIQUIDACIONES INDEPENDIENTES
     db.collection("liquidaciones").orderBy("id", "desc").onSnapshot((snapshot) => {
         let tempL = [];
