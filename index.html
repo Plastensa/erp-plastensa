@@ -404,13 +404,12 @@
                 </button>
 
                 <p id="label-admin" class="px-4 py-2 mt-4 text-[10px] font-black text-slate-500 uppercase tracking-widest hidden">Administración</p>
-
-		<button id="nav-directorio" onclick="showTab('directorio')" class="nav-btn w-full flex items-center justify-between p-4 rounded-xl transition-all text-slate-400 hover:bg-slate-800 hover:text-slate-200 hidden" data-tab="directorio">
-                    <div class="flex items-center gap-4"><i data-lucide="users" class="w-5 h-5"></i><span class="font-bold text-xs uppercase tracking-wider">Directorio Personal</span></div>
-                </button>
-
                 <button id="nav-dashboard-gerencial" onclick="showTab('dashboard-gerencial')" class="nav-btn w-full flex items-center justify-between p-4 rounded-xl transition-all text-slate-400 hover:bg-slate-800 hover:text-slate-200 hidden" data-tab="dashboard-gerencial">
+
                     <div class="flex items-center gap-4"><i data-lucide="pie-chart" class="w-5 h-5"></i><span class="font-bold text-xs uppercase tracking-wider">Dashboard Ventas</span></div>
+                </button>
+                <button id="nav-directorio" onclick="showTab('directorio')" class="nav-btn w-full flex items-center justify-between p-4 rounded-xl transition-all text-slate-400 hover:bg-slate-800 hover:text-slate-200 hidden" data-tab="directorio">
+                    <div class="flex items-center gap-4"><i data-lucide="users" class="w-5 h-5"></i><span class="font-bold text-xs uppercase tracking-wider">Directorio Personal</span></div>
                 </button>
                 <button id="nav-tesoreria-admin" onclick="showTab('tesoreria-admin')" class="nav-btn w-full flex items-center justify-between p-4 rounded-xl transition-all text-slate-400 hover:bg-slate-800 hidden" data-tab="tesoreria-admin">
                     <div class="flex items-center gap-4"><i data-lucide="shield-check" class="w-5 h-5"></i><span class="font-bold text-xs uppercase tracking-wider">Tesor. Verificar</span></div>
@@ -421,9 +420,9 @@
                 <button id="nav-historial-admin" onclick="showTab('historial-admin')" class="nav-btn w-full flex items-center justify-between p-4 rounded-xl transition-all text-slate-400 hover:bg-slate-800 hidden" data-tab="historial-admin">
                     <div class="flex items-center gap-4"><i data-lucide="bar-chart-3" class="w-5 h-5"></i><span class="font-bold text-xs uppercase tracking-wider">Reporte Pagos</span></div>
                 </button>
-                <button id="nav-caja-general" onclick="showTab('caja-general')" class="nav-btn w-full flex items-center justify-between p-4 rounded-xl transition-all text-slate-400 hover:bg-slate-800 hidden" data-tab="caja-general">
-                    <div class="flex items-center gap-4"><i data-lucide="book-open-check" class="w-5 h-5"></i><span class="font-bold text-xs uppercase tracking-wider">Caja General</span></div>
-                </button>
+<button id="nav-caja-general" onclick="showTab('caja-general')" class="nav-btn w-full flex items-center justify-between p-4 rounded-xl transition-all text-slate-400 hover:bg-slate-800 hidden" data-tab="caja-general">
+    <div class="flex items-center gap-4"><i data-lucide="book-open-check" class="w-5 h-5"></i><span class="font-bold text-xs uppercase tracking-wider">Caja General</span></div>
+</button>
                 <button id="nav-precios-admin" onclick="showTab('precios-admin')" class="nav-btn w-full flex items-center justify-between p-4 rounded-xl transition-all text-slate-400 hover:bg-slate-800 hidden" data-tab="precios-admin">
                     <div class="flex items-center gap-4"><i data-lucide="calculator" class="w-5 h-5"></i><span class="font-bold text-xs uppercase tracking-wider">Gestión Precios</span></div>
                 </button>
@@ -433,19 +432,6 @@
                 <button id="nav-seguridad" onclick="showTab('seguridad')" class="nav-btn w-full flex items-center justify-between p-4 rounded-xl transition-all text-red-400 hover:bg-slate-800 hover:text-red-300 hidden" data-tab="seguridad">
                     <div class="flex items-center gap-4"><i data-lucide="shield-alert" class="w-5 h-5"></i><span class="font-bold text-xs uppercase tracking-wider">Seguridad Sistema</span></div>
                 </button>
-
-                <!-- NUEVO MENÚ: RECURSOS HUMANOS -->
-                <p id="label-rrhh" class="px-4 py-2 mt-4 text-[10px] font-black text-slate-500 uppercase tracking-widest hidden">Recursos Humanos</p>
-                <button id="nav-rrhh-directorio" onclick="showTab('rrhh-directorio')" class="nav-btn w-full flex items-center justify-between p-4 rounded-xl transition-all text-slate-400 hover:bg-slate-800 hover:text-slate-200 hidden" data-tab="rrhh-directorio">
-                    <div class="flex items-center gap-4"><i data-lucide="users" class="w-5 h-5"></i><span class="font-bold text-xs uppercase tracking-wider">Directorio RRHH</span></div>
-                </button>
-                <button id="nav-rrhh-asistencia" onclick="showTab('rrhh-asistencia')" class="nav-btn w-full flex items-center justify-between p-4 rounded-xl transition-all text-slate-400 hover:bg-slate-800 hover:text-slate-200 hidden" data-tab="rrhh-asistencia">
-                    <div class="flex items-center gap-4"><i data-lucide="clock" class="w-5 h-5"></i><span class="font-bold text-xs uppercase tracking-wider">Lector ZKTeco</span></div>
-                </button>
-                <button id="nav-rrhh-planilla" onclick="showTab('rrhh-planilla')" class="nav-btn w-full flex items-center justify-between p-4 rounded-xl transition-all text-slate-400 hover:bg-slate-800 hover:text-slate-200 hidden" data-tab="rrhh-planilla">
-                    <div class="flex items-center gap-4"><i data-lucide="file-spreadsheet" class="w-5 h-5"></i><span class="font-bold text-xs uppercase tracking-wider">Planilla de Sueldos</span></div>
-                </button>
-                <!-- FIN NUEVO MENÚ -->
 
                 <p id="label-produccion" class="px-4 py-2 mt-4 text-[10px] font-black text-slate-500 uppercase tracking-widest">Producción</p>
                 <button id="nav-materia-prima" onclick="showTab('materia-prima')" class="nav-btn w-full flex items-center justify-between p-4 rounded-xl transition-all text-slate-400 hover:bg-slate-800 hover:text-slate-200 hidden" data-tab="materia-prima">
@@ -2789,200 +2775,9 @@
                         </div>
                     </div>
                 </div>
-
-<!-- ========================================== -->
-                <!-- MÓDULO RRHH: DIRECTORIO AVANZADO           -->
-                <!-- ========================================== -->
-                <div id="tab-rrhh-directorio" class="tab-content hidden space-y-6">
-                    <div class="flex flex-col md:flex-row justify-between items-center mb-6 gap-4 border-l-8 border-indigo-600 pl-6 bg-white p-4 rounded-3xl shadow-sm">
-                        <div>
-                            <h2 class="text-3xl font-black uppercase italic text-slate-800">Directorio General (RRHH)</h2>
-                            <p class="text-[10px] font-black text-slate-400 uppercase tracking-widest mt-1">Configuración Salarial y Control ZKTeco</p>
-                        </div>
-                    </div>
-                    
-                    <div class="grid lg:grid-cols-3 gap-6">
-                        <div class="lg:col-span-1 bg-white p-6 rounded-[32px] border border-slate-200 shadow-sm h-fit">
-                            <h3 class="font-black text-slate-800 uppercase mb-4 flex items-center gap-2 text-sm"><i data-lucide="user-plus" class="text-indigo-600 w-5 h-5"></i> Registrar Empleado</h3>
-                            <form id="form-rrhh-emp" onsubmit="guardarEmpleadoRRHH(event)" class="space-y-4">
-                                <input type="hidden" id="rrhh-emp-uid">
-                                <div>
-                                    <label class="text-[10px] font-black uppercase text-slate-400 ml-2 block mb-1">Nombre Completo</label>
-                                    <input type="text" id="rrhh-emp-nombre" required class="w-full bg-slate-50 border border-slate-200 p-3 rounded-xl font-bold outline-none focus:ring-2 focus:ring-indigo-500">
-                                </div>
-                                <div class="grid grid-cols-2 gap-3">
-                                    <div>
-                                        <label class="text-[10px] font-black uppercase text-indigo-500 ml-2 block mb-1">ID ZKTeco (Reloj)</label>
-                                        <input type="number" id="rrhh-emp-idzk" required placeholder="Ej. 2122" class="w-full bg-indigo-50 border border-indigo-200 p-3 rounded-xl font-black text-indigo-700 outline-none focus:ring-2 focus:ring-indigo-500">
-                                    </div>
-                                    <div>
-                                        <label class="text-[10px] font-black uppercase text-slate-400 ml-2 block mb-1">Área / Depto</label>
-                                        <select id="rrhh-emp-area" class="w-full bg-slate-50 border border-slate-200 p-3 rounded-xl font-bold text-xs outline-none">
-                                            <option value="Planta">Planta</option>
-                                            <option value="Corte">Sala Corte</option>
-                                            <option value="Externo">Externo (Chofer)</option>
-                                            <option value="Ventas">Ventas / Comercial</option>
-                                            <option value="Administracion">Administración</option>
-                                        </select>
-                                    </div>
-                                </div>
-                                <div class="grid grid-cols-2 gap-3">
-                                    <div>
-                                        <label class="text-[10px] font-black uppercase text-slate-400 ml-2 block mb-1">Salario Básico (Bs)</label>
-                                        <input type="number" id="rrhh-emp-salario" required step="0.01" class="w-full bg-slate-50 border border-slate-200 p-3 rounded-xl font-black outline-none">
-                                    </div>
-                                    <div>
-                                        <label class="text-[10px] font-black uppercase text-orange-500 ml-2 block mb-1" title="Para Planta: Tarifa por M3">Bono (Bs/M³)</label>
-                                        <input type="number" id="rrhh-emp-bono" step="0.001" placeholder="Ej: 0.18" class="w-full bg-orange-50 border border-orange-200 p-3 rounded-xl font-black text-orange-700 outline-none">
-                                    </div>
-                                </div>
-                                <div class="grid grid-cols-2 gap-3">
-                                    <div>
-                                        <label class="text-[10px] font-black uppercase text-slate-400 ml-2 block mb-1">Fecha Ingreso</label>
-                                        <input type="date" id="rrhh-emp-fecha" class="w-full bg-slate-50 border border-slate-200 p-3 rounded-xl font-bold text-xs outline-none">
-                                    </div>
-                                    <div>
-                                        <label class="text-[10px] font-black uppercase text-slate-400 ml-2 block mb-1">Cuenta Banco (Pagos)</label>
-                                        <input type="text" id="rrhh-emp-banco" placeholder="BNB - 12345" class="w-full bg-slate-50 border border-slate-200 p-3 rounded-xl font-bold text-xs outline-none">
-                                    </div>
-                                </div>
-                                <div class="flex gap-2 pt-2">
-                                    <button type="button" onclick="limpiarFormRRHH()" class="bg-slate-100 text-slate-500 p-3 rounded-xl font-black text-xs uppercase hover:bg-slate-200 transition-colors">Limpiar</button>
-                                    <button type="submit" id="btn-save-emp" class="flex-1 bg-indigo-600 text-white p-3 rounded-xl font-black text-xs uppercase shadow-md hover:bg-indigo-700 transition-colors">Guardar Ficha</button>
-                                </div>
-                            </form>
-                        </div>
-                        <div class="lg:col-span-2 bg-white rounded-[32px] border border-slate-200 shadow-sm overflow-hidden flex flex-col">
-                            <div class="p-4 bg-slate-50 border-b border-slate-100 flex justify-between items-center">
-                                <div class="flex items-center gap-2 w-full md:w-1/2">
-                                    <i data-lucide="search" class="w-4 h-4 text-slate-400"></i>
-                                    <input type="text" id="rrhh-buscar-emp" onkeyup="renderDirectorioRRHH()" placeholder="Buscar por Nombre, ID ZKTeco o Área..." class="w-full bg-transparent border-none outline-none font-bold text-xs text-slate-700">
-                                </div>
-                                <span class="bg-indigo-100 text-indigo-700 px-2 py-1 rounded text-[9px] font-black uppercase tracking-widest"><span id="lbl-total-emp">0</span> Activos</span>
-                            </div>
-                            <div class="overflow-x-auto flex-1 max-h-[500px] overflow-y-auto">
-                                <table class="w-full text-left text-xs whitespace-nowrap">
-                                    <thead class="bg-slate-900 text-slate-300 sticky top-0 z-10 text-[9px] font-black uppercase tracking-widest">
-                                        <tr>
-                                            <th class="p-3">ID ZK</th>
-                                            <th class="p-3">Nombre Completo</th>
-                                            <th class="p-3">Área</th>
-                                            <th class="p-3 text-right text-blue-300">S. Básico</th>
-                                            <th class="p-3 text-right text-orange-300">Bono/M3</th>
-                                            <th class="p-3 text-center">Acciones</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody id="rrhh-directorio-body" class="divide-y divide-slate-100 bg-white"></tbody>
-                                </table>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- ========================================== -->
-                <!-- MÓDULO RRHH: LECTOR ZKTECO Y AUDITORÍA     -->
-                <!-- ========================================== -->
-                <div id="tab-rrhh-asistencia" class="tab-content hidden space-y-6">
-                    <div class="flex flex-col md:flex-row justify-between items-start md:items-center mb-4 gap-4 border-l-8 border-teal-500 pl-6 bg-white p-4 rounded-3xl shadow-sm">
-                        <div>
-                            <h2 class="text-3xl font-black uppercase italic text-slate-800">Lector Biométrico</h2>
-                            <p class="text-[10px] font-black text-slate-400 uppercase tracking-widest mt-1">Auditoría y Corrección de Asistencia (.csv)</p>
-                        </div>
-                        <div class="flex gap-2">
-                            <input type="file" id="zk-upload-file" accept=".csv" class="hidden" onchange="leerArchivoZKTeco(event)">
-                            <button onclick="document.getElementById('zk-upload-file').click()" class="bg-teal-600 text-white px-6 py-3 rounded-xl font-black text-xs uppercase tracking-widest shadow-md hover:bg-teal-700 transition-colors flex items-center gap-2">
-                                <i data-lucide="upload" class="w-4 h-4"></i> CARGAR DATOS ZKTECO
-                            </button>
-                        </div>
-                    </div>
-                    
-                    <div id="zk-estadisticas" class="hidden grid grid-cols-2 md:grid-cols-4 gap-4 mb-4">
-                        <div class="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm text-center">
-                            <p class="text-[10px] font-black text-slate-400 uppercase tracking-widest">Rango Evaluado</p>
-                            <p id="zk-lbl-rango" class="font-black text-slate-800 text-sm mt-1">--</p>
-                        </div>
-                        <div class="bg-red-50 p-4 rounded-2xl border border-red-200 shadow-sm text-center">
-                            <p class="text-[10px] font-black text-red-500 uppercase tracking-widest">Atrasos Totales</p>
-                            <p id="zk-lbl-atrasos" class="font-black text-red-600 text-xl mt-1">0 min</p>
-                        </div>
-                        <div class="bg-orange-50 p-4 rounded-2xl border border-orange-200 shadow-sm text-center">
-                            <p class="text-[10px] font-black text-orange-500 uppercase tracking-widest">Faltas Detectadas</p>
-                            <p id="zk-lbl-faltas" class="font-black text-orange-600 text-xl mt-1">0</p>
-                        </div>
-                        <div class="bg-green-50 p-4 rounded-2xl border border-green-200 shadow-sm text-center flex flex-col justify-center">
-                            <button onclick="guardarAuditoriaAsistencia()" class="w-full bg-green-600 text-white p-2 rounded-lg font-black text-[10px] uppercase shadow-sm hover:bg-green-700">✓ APROBAR Y GUARDAR MES</button>
-                        </div>
-                    </div>
-
-                    <div class="bg-white rounded-[32px] border border-slate-200 shadow-sm overflow-hidden">
-                        <div class="p-4 bg-slate-50 border-b border-slate-100 flex flex-col md:flex-row justify-between items-center gap-4">
-    <select id="zk-filtro-empleado" onchange="renderTablaAuditoriaZk()" class="bg-white border border-slate-200 p-2 rounded-lg font-bold text-xs outline-none w-full md:w-64"></select>
-    
-    <!-- NUEVO: CONTROL GLOBAL DE FERIADOS -->
-    <div class="flex gap-2 items-center bg-white p-1.5 rounded-lg border border-slate-200 shadow-sm w-full md:w-auto">
-        <span class="text-[9px] font-black uppercase text-slate-400 ml-1">Masivo:</span>
-        <input type="date" id="zk-global-date" class="bg-slate-50 border border-slate-100 p-1.5 rounded font-bold text-xs outline-none">
-        <select id="zk-global-action" class="bg-slate-50 border border-slate-100 p-1.5 rounded font-bold text-xs outline-none">
-            <option value="FERIADO">Día Feriado</option>
-            <option value="NO_LABORADO">Día No Laborado Gral.</option>
-        </select>
-        <button onclick="aplicarJustificacionGlobal()" class="bg-blue-600 text-white px-3 py-1.5 rounded font-black text-[10px] uppercase hover:bg-blue-700 transition-colors">Aplicar a Todos</button>
+        </main>
     </div>
 </div>
-                        <div class="overflow-x-auto max-h-[600px] overflow-y-auto">
-                            <table class="w-full text-left text-xs whitespace-nowrap">
-                                <thead class="bg-slate-900 text-slate-300 sticky top-0 z-10 text-[9px] font-black uppercase tracking-widest border-b-2 border-teal-500">
-                                    <tr>
-                                        <th class="p-3">Día</th>
-                                        <th class="p-3">Empleado</th>
-                                        <th class="p-3 text-center">Entrada M.</th>
-                                        <th class="p-3 text-center">Salida M.</th>
-                                        <th class="p-3 text-center text-red-300">Min. Atraso</th>
-                                        <th class="p-3 text-center">Estado / Justificación</th>
-                                    </tr>
-                                </thead>
-                                <tbody id="zk-auditoria-body" class="divide-y divide-slate-100 bg-white">
-                                    <tr><td colspan="6" class="p-10 text-center font-bold text-slate-400 italic">Sube el archivo .csv del ZKTeco para iniciar.</td></tr>
-                                </tbody>
-                            </table>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- ========================================== -->
-                <!-- MÓDULO RRHH: PLANILLA DE SUELDOS           -->
-                <!-- ========================================== -->
-                <div id="tab-rrhh-planilla" class="tab-content hidden space-y-6">
-                    <div class="flex flex-col md:flex-row justify-between items-center mb-4 gap-4 border-l-8 border-green-600 pl-6 bg-white p-4 rounded-3xl shadow-sm">
-                        <div>
-                            <h2 class="text-3xl font-black uppercase italic text-slate-800">Planilla Mensual</h2>
-                            <p class="text-[10px] font-black text-slate-400 uppercase tracking-widest mt-1">Generación de Boletas de Pago y Anticipos</p>
-                        </div>
-                        <div class="flex gap-2 items-center">
-                            <input type="month" id="planilla-filtro-mes" onchange="renderPlanillaGeneral()" class="bg-slate-50 border border-slate-200 p-3 rounded-xl font-bold text-xs outline-none">
-                            <button onclick="exportarPlanillaBancoCSV()" class="bg-slate-900 text-white px-4 py-3 rounded-xl font-black text-xs uppercase shadow-md hover:bg-slate-800 transition-colors flex items-center gap-2"><i data-lucide="download" class="w-4 h-4"></i> TXT BANCO</button>
-                        </div>
-                    </div>
-
-                    <div class="bg-white rounded-[32px] border border-slate-200 shadow-sm overflow-hidden">
-                        <div class="overflow-x-auto">
-                            <table class="w-full text-left text-[10px] whitespace-nowrap">
-                                <thead class="bg-slate-100 text-slate-500 border-b border-slate-200 font-black uppercase tracking-widest">
-                                    <tr>
-                                        <th class="p-3">Empleado</th>
-                                        <th class="p-3 text-right bg-blue-50/50 text-blue-600">Haber Básico</th>
-                                        <th class="p-3 text-right bg-orange-50/50 text-orange-600">Bono Prod.</th>
-                                        <th class="p-3 text-center text-red-500" title="Atrasos y Faltas Injustificadas (-)">Faltas/Ret</th>
-                                        <th class="p-3 text-center text-red-500" title="Anticipos en Caja (-)">Anticipos</th>
-                                        <th class="p-3 text-right bg-green-50 text-green-700 text-xs">Líquido Pagable</th>
-                                        <th class="p-3 text-center">Acción</th>
-                                    </tr>
-                                </thead>
-                                <tbody id="rrhh-planilla-body" class="divide-y divide-slate-100 bg-white"></tbody>
-                            </table>
-                        </div>
-                    </div>
-                </div>
 
 <!-- MODAL DESCARGA KARDEX -->
 <div id="kardex-modal" class="hidden fixed inset-0 bg-slate-900/80 backdrop-blur-sm z-[9999] flex items-center justify-center p-4">
@@ -3001,9 +2796,6 @@
         </div>
         <button onclick="ejecutarDescargaKardex()" class="w-full bg-blue-600 hover:bg-blue-700 text-white p-4 rounded-2xl font-black shadow-lg transition-colors flex items-center justify-center gap-2 mb-2"><i data-lucide="download"></i> DESCARGAR CSV</button>
         <button onclick="document.getElementById('kardex-modal').classList.add('hidden')" class="w-full text-slate-400 font-bold text-xs p-2 uppercase hover:text-slate-600">Cancelar</button>
-    			</div>
-		</div>
-        </main>
     </div>
 </div>
 
@@ -3048,10 +2840,6 @@
         let dbBancoRetazos = { D8: 0, D10: 0, D13: 0, D15: 0, D20: 0 };
         let dbLiquidaciones = [];
         let liquidacionEnProceso = null; // Memoria oculta para cerrar el círculo del pago
-	let dbDirectorioRRHH = []; // Personal completo (Operarios, Externos, Administracion)
-        let dbAsistenciaAuditada = []; // Resultados limpios del archivo ZK
-        let dbBoletasEmitidas = []; // Historial de boletas de pago generadas
-        let tempAsistenciaZK = {}; // Memoria temporal mientras lees el archivo CSV
 
         // VARIABLES DE MEMORIA DEL SISTEMA Y CARRITO
         let cart = [];
@@ -3116,13 +2904,6 @@ function save() {
     db.collection("plastensa_erp").doc("datos_caja").set({
         dbMovimientosCaja: JSON.stringify(dbMovimientosCaja)
     }, { merge: true }).catch(error => console.error("Error guardando caja: ", error));
-
-    // 5. Guardar Módulo RRHH (Cajón SEPARADO)
-    db.collection("plastensa_erp").doc("datos_rrhh").set({
-        dbDirectorioRRHH: JSON.stringify(dbDirectorioRRHH),
-        dbAsistenciaAuditada: JSON.stringify(dbAsistenciaAuditada),
-        dbBoletasEmitidas: JSON.stringify(dbBoletasEmitidas)
-    }, { merge: true }).catch(error => console.error("Error guardando RRHH: ", error));
 
     localStorage.setItem('plast_products', JSON.stringify(products));
     console.log("✅ Guardado particionado en 4 cajones exitoso.");
@@ -3555,13 +3336,7 @@ function iniciarRadar(userEmail) {
                 if(currentUser) renderAll();
             }
         } else {
-            } else {
-            const adminRescate = {name: 'Administrador Planta', email: 'admin@plastensa.com', pass: '1234nando', ci:'0', phone:'0', role: 'ADMIN'};
-            dbIntSellers = [adminRescate];
-            if(currentUser && currentUser.email === adminRescate.email) currentUser = adminRescate;
-            erpDataLoaded = true;
-            save();
-        }
+            dbIntSellers = [{name: 'Administrador Planta', email: 'admin@plastensa.com', pass: '1234nando', ci:'0', phone:'0', role: 'ADMIN'}];
             erpDataLoaded = true;
             save();
         }
@@ -3591,20 +3366,6 @@ function iniciarRadar(userEmail) {
             if(currentUser) renderCajaGeneral(); 
         }
     });
-
-    // RADAR MÓDULO RRHH
-    db.collection("plastensa_erp").doc("datos_rrhh").onSnapshot((doc) => {
-        if (doc.exists && erpDataLoaded) { 
-            const data = doc.data();
-            dbDirectorioRRHH = data.dbDirectorioRRHH ? JSON.parse(data.dbDirectorioRRHH) : [];
-            dbAsistenciaAuditada = data.dbAsistenciaAuditada ? JSON.parse(data.dbAsistenciaAuditada) : [];
-            dbBoletasEmitidas = data.dbBoletasEmitidas ? JSON.parse(data.dbBoletasEmitidas) : [];
-            if(currentUser) { 
-                if(typeof renderDirectorioRRHH === 'function') renderDirectorioRRHH(); 
-            } 
-        }
-    });
-
     // ==================================================
 
     // RADARES INDIVIDUALES: COTIZACIONES Y PEDIDOS
@@ -3674,7 +3435,7 @@ function iniciarRadar(userEmail) {
 
 // 3. Matriz Estricta de Roles y Permisos (Intacta)
 function aplicarPermisosVisuales(role) {
-    const adminTabs = ['dashboard-gerencial', 'directorio', 'tesoreria-admin', 'salidas-eps', 'historial-admin', 'precios-admin', 'transporte','caja-general', 'seguridad', 'rrhh-directorio', 'rrhh-asistencia', 'rrhh-planilla'];
+    const adminTabs = ['dashboard-gerencial', 'directorio', 'tesoreria-admin', 'salidas-eps', 'historial-admin', 'precios-admin', 'transporte','caja-general', 'seguridad'];
     const comercialTabs = ['clientes', 'catalogo', 'ventas', 'cotizaciones', 'registro-ventas'];
     const produccionTabs = ['materia-prima', 'expansion', 'bloquera', 'inventario-bloques', 'corte', 'reporte-corte', 'produccion', 'plan-diario', 'inventario'];
     const finanzasTabs = ['tesoreria'];
@@ -3694,21 +3455,8 @@ function aplicarPermisosVisuales(role) {
     if (role === 'ADMIN') {
         if(backupContainer) backupContainer.classList.remove('hidden');
         if(adminInventoryTools) adminInventoryTools.classList.remove('hidden');
-        
-        const labelRrhh = document.getElementById('label-rrhh');
-        if (labelRrhh) labelRrhh.classList.remove('hidden');
-        
-        const btnRrhhDirectorio = document.getElementById('nav-rrhh-directorio');
-        if (btnRrhhDirectorio) btnRrhhDirectorio.classList.remove('hidden');
-        
-        const btnRrhhAsistencia = document.getElementById('nav-rrhh-asistencia');
-        if (btnRrhhAsistencia) btnRrhhAsistencia.classList.remove('hidden');
-        
-        const btnRrhhPlanilla = document.getElementById('nav-rrhh-planilla');
-        if (btnRrhhPlanilla) btnRrhhPlanilla.classList.remove('hidden');
-
         showTab('ventas');
-    }
+    } 
     else if (role === 'OPERADOR') {
         // Quitamos 'log-maestro' de la lista para que el operador pueda verlo
         const ocultarTabs = [...adminTabs, 'clientes', 'ventas', 'cotizaciones', 'registro-ventas', ...finanzasTabs];
@@ -12515,606 +12263,6 @@ function ejecutarDescargaKardex() {
           alert("Error al conectar con la nube. Revise su conexión.");
       });
 }
-
-// =========================================================
-// MÓDULO RRHH: DIRECTORIO Y LECTOR ZKTECO
-// =========================================================
-
-function guardarEmpleadoRRHH(e) {
-    e.preventDefault();
-    const uidInput = document.getElementById('rrhh-emp-uid').value;
-    const nombre = document.getElementById('rrhh-emp-nombre').value.toUpperCase().trim();
-    const idZk = document.getElementById('rrhh-emp-idzk').value.trim();
-    const area = document.getElementById('rrhh-emp-area').value;
-    const salario = parseFloat(document.getElementById('rrhh-emp-salario').value) || 0;
-    const bono = parseFloat(document.getElementById('rrhh-emp-bono').value) || 0;
-    const fecha = document.getElementById('rrhh-emp-fecha').value;
-    const banco = document.getElementById('rrhh-emp-banco').value.toUpperCase().trim();
-
-    if (uidInput) {
-        // Editando
-        const index = dbDirectorioRRHH.findIndex(emp => String(emp.id) === String(uidInput));
-        if (index > -1) {
-            dbDirectorioRRHH[index] = { ...dbDirectorioRRHH[index], nombre, idZk, area, salario, bono, fecha, banco };
-            showToast("Empleado actualizado correctamente.");
-        }
-    } else {
-        // Nuevo
-        if (dbDirectorioRRHH.find(emp => emp.idZk === idZk)) {
-            return alert("Error: El ID de ZKTeco ya está asignado a otro empleado.");
-        }
-        dbDirectorioRRHH.push({ id: Date.now(), nombre, idZk, area, salario, bono, fecha, banco, estado: 'ACTIVO' });
-        showToast("Empleado registrado en la base de datos.");
-    }
-
-    save(); limpiarFormRRHH(); renderDirectorioRRHH();
-}
-
-function limpiarFormRRHH() {
-    document.getElementById('form-rrhh-emp').reset();
-    document.getElementById('rrhh-emp-uid').value = '';
-    document.getElementById('btn-save-emp').innerText = "GUARDAR FICHA";
-}
-
-function editarEmpleadoRRHH(id) {
-    const emp = dbDirectorioRRHH.find(e => String(e.id) === String(id));
-    if (!emp) return;
-    document.getElementById('rrhh-emp-uid').value = emp.id;
-    document.getElementById('rrhh-emp-nombre').value = emp.nombre;
-    document.getElementById('rrhh-emp-idzk').value = emp.idZk;
-    document.getElementById('rrhh-emp-area').value = emp.area;
-    document.getElementById('rrhh-emp-salario').value = emp.salario;
-    document.getElementById('rrhh-emp-bono').value = emp.bono;
-    document.getElementById('rrhh-emp-fecha').value = emp.fecha || '';
-    document.getElementById('rrhh-emp-banco').value = emp.banco || '';
-    document.getElementById('btn-save-emp').innerText = "ACTUALIZAR FICHA";
-}
-
-function darBajaEmpleadoRRHH(id) {
-    if(!confirm("¿Estás seguro de dar de BAJA a este empleado?\nNo aparecerá en planillas futuras, pero su historial se mantendrá.")) return;
-    const emp = dbDirectorioRRHH.find(e => String(e.id) === String(id));
-    if (emp) { emp.estado = 'BAJA'; save(); renderDirectorioRRHH(); }
-}
-
-function renderDirectorioRRHH() {
-    const tbody = document.getElementById('rrhh-directorio-body');
-    if (!tbody) return;
-
-    const term = document.getElementById('rrhh-buscar-emp').value.toLowerCase();
-    const filtrados = dbDirectorioRRHH.filter(e => e.estado !== 'BAJA' && 
-        (e.nombre.toLowerCase().includes(term) || e.idZk.includes(term) || e.area.toLowerCase().includes(term))
-    );
-
-    document.getElementById('lbl-total-emp').innerText = filtrados.length;
-
-    if (filtrados.length === 0) {
-        tbody.innerHTML = `<tr><td colspan="6" class="p-8 text-center text-slate-400 font-bold italic">No hay empleados registrados o activos.</td></tr>`;
-        return;
-    }
-
-    tbody.innerHTML = filtrados.sort((a,b) => a.area.localeCompare(b.area)).map(e => `
-        <tr class="hover:bg-indigo-50/30 transition-colors border-b border-slate-100">
-            <td class="p-4 font-black text-indigo-600 text-sm">#${e.idZk}</td>
-            <td class="p-4 font-bold text-slate-700">
-                <span class="block">${e.nombre}</span>
-                ${e.banco ? `<span class="text-[9px] text-slate-400 uppercase tracking-widest block mt-1"><i data-lucide="building" class="w-3 h-3 inline mr-1"></i>${e.banco}</span>` : ''}
-            </td>
-            <td class="p-4"><span class="bg-slate-100 text-slate-600 px-2 py-1 rounded text-[10px] font-black uppercase tracking-widest shadow-sm border border-slate-200">${e.area}</span></td>
-            <td class="p-4 text-right font-black text-blue-600">Bs ${e.salario.toFixed(2)}</td>
-            <td class="p-4 text-right font-black text-orange-600">${e.bono > 0 ? `Bs ${e.bono.toFixed(2)}` : '-'}</td>
-            <td class="p-4 text-center">
-                <button onclick="editarEmpleadoRRHH(${e.id})" class="text-blue-500 hover:bg-blue-100 p-2 rounded-lg bg-blue-50 shadow-sm border border-blue-200 transition-colors mr-1"><i data-lucide="edit-3" class="w-4 h-4"></i></button>
-                <button onclick="darBajaEmpleadoRRHH(${e.id})" class="text-red-500 hover:bg-red-100 p-2 rounded-lg bg-red-50 shadow-sm border border-red-200 transition-colors" title="Dar de Baja"><i data-lucide="user-minus" class="w-4 h-4"></i></button>
-            </td>
-        </tr>
-    `).join('');
-    if(window.lucide) lucide.createIcons();
-}
-
-// --- LECTOR DEL BIOMÉTRICO (ZKTeco CSV) ---
-function leerArchivoZKTeco(event) {
-    const file = event.target.files[0];
-    if (!file) return;
-
-    if(dbDirectorioRRHH.length === 0) return alert("❌ Primero debes registrar a los empleados en el Directorio RRHH asignándoles su ID del reloj.");
-
-    showToast("Procesando archivo ZK...");
-    const reader = new FileReader();
-
-    reader.onload = function(e) {
-        const text = e.target.result;
-        // Divide por saltos de línea (compatible con tabulaciones \t o espacios)
-        const lines = text.split(/\r?\n/);
-        let dataAgrupada = {};
-
-        lines.forEach(line => {
-            const cols = line.trim().split(/\s+/); // Separa por espacios o tabs múltiples
-            if (cols.length >= 2) {
-                const idReloj = cols[0];
-                const fechaStr = cols[1]; // 2026-07-01
-                const horaStr = cols[2];  // 07:55:43
-
-                if (!dataAgrupada[idReloj]) dataAgrupada[idReloj] = {};
-                if (!dataAgrupada[idReloj][fechaStr]) dataAgrupada[idReloj][fechaStr] = [];
-                dataAgrupada[idReloj][fechaStr].push(horaStr);
-            }
-        });
-
-        // 2. Procesar marcas (Entrada y Salida)
-        tempAsistenciaZK = {};
-        let minDateStr = '2099-12-31'; let maxDateStr = '2000-01-01';
-
-        for (const [idReloj, dias] of Object.entries(dataAgrupada)) {
-            // Verifica que el ID exista en tu directorio (si es basura, lo ignora)
-            const empleado = dbDirectorioRRHH.find(emp => String(emp.idZk) === String(idReloj) && emp.estado !== 'BAJA');
-            if (!empleado) continue;
-
-            tempAsistenciaZK[empleado.id] = { nombre: empleado.nombre, idZk: idReloj, marcas: [] };
-
-            for (const [fechaStr, horas] of Object.entries(dias)) {
-                if (fechaStr < minDateStr) minDateStr = fechaStr;
-                if (fechaStr > maxDateStr) maxDateStr = fechaStr;
-
-                horas.sort(); // Ordena las horas cronológicamente
-                const entrada = horas[0]; // La primera marca del día
-                const salida = horas.length > 1 ? horas[horas.length - 1] : null; // La última (si hay más de 1)
-
-                // 3. Auditor de Atrasos (Matemática pura)
-                let minAtraso = 0;
-                let msjConflicto = '';
-                let estadoFlag = 'OK';
-
-                if (!salida) {
-                    estadoFlag = 'FALTA_MARCA';
-                    msjConflicto = 'Marcó entrada pero olvidó salida';
-                }
-
-                // Cálculo de Minutos de Atraso (Se supone Entrada 08:00)
-                const horaTeoricaStr = `${fechaStr}T08:00:00`;
-                const horaRealStr = `${fechaStr}T${entrada}`;
-                
-                try {
-                    const tEntradaTeorica = new Date(horaTeoricaStr).getTime();
-                    const tEntradaReal = new Date(horaRealStr).getTime();
-                    
-                    if (tEntradaReal > tEntradaTeorica) {
-                        minAtraso = Math.floor((tEntradaReal - tEntradaTeorica) / 60000);
-                        if(minAtraso > 0 && estadoFlag === 'OK') estadoFlag = 'ATRASO';
-                    }
-                } catch(err){}
-
-                tempAsistenciaZK[empleado.id].marcas.push({
-                    fecha: fechaStr,
-                    entrada: entrada,
-                    salida: salida,
-                    atrasoMin: minAtraso,
-                    estado: estadoFlag,
-                    obs: msjConflicto
-                });
-            }
-        }
-
-        // --- CALCULAR DÍAS DE FALTA ---
-        // Generar un array con todas las fechas del rango
-        let fechasDelMes = [];
-        let curD = new Date(minDateStr + "T00:00:00");
-        let endD = new Date(maxDateStr + "T00:00:00");
-        while(curD <= endD) {
-            if(curD.getDay() !== 0) { // Ignoramos Domingos para la falta
-                const y = curD.getFullYear();
-                const m = String(curD.getMonth()+1).padStart(2,'0');
-                const d = String(curD.getDate()).padStart(2,'0');
-                fechasDelMes.push(`${y}-${m}-${d}`);
-            }
-            curD.setDate(curD.getDate() + 1);
-        }
-
-        // Revisar si algún empleado no vino un día laborable
-        for (const empId of Object.keys(tempAsistenciaZK)) {
-            const empleadoData = tempAsistenciaZK[empId];
-            const fechasMarcadas = empleadoData.marcas.map(m => m.fecha);
-
-            fechasDelMes.forEach(diaLaborable => {
-                if(!fechasMarcadas.includes(diaLaborable)) {
-                    empleadoData.marcas.push({
-                        fecha: diaLaborable,
-                        entrada: null,
-                        salida: null,
-                        atrasoMin: 0,
-                        estado: 'FALTA',
-                        obs: 'No asistió / No marcó'
-                    });
-                }
-            });
-            // Re-ordenar por fecha
-            empleadoData.marcas.sort((a,b) => new Date(a.fecha) - new Date(b.fecha));
-        }
-
-        document.getElementById('zk-lbl-rango').innerText = `${minDateStr} al ${maxDateStr}`;
-        document.getElementById('zk-estadisticas').classList.remove('hidden');
-        
-        // Llenar selector para auditar
-        const selFiltro = document.getElementById('zk-filtro-empleado');
-        selFiltro.innerHTML = `<option value="ALL">📋 Mostrar Todo el Personal (Consolidado)</option>` + 
-                              Object.keys(tempAsistenciaZK).map(empId => `<option value="${empId}">${tempAsistenciaZK[empId].nombre}</option>`).join('');
-        
-        renderTablaAuditoriaZk();
-        event.target.value = ''; // Limpiar input file
-        showToast("Lectura completada con éxito.");
-    };
-    reader.readAsText(file);
-}
-
-function renderTablaAuditoriaZk() {
-    const tbody = document.getElementById('zk-auditoria-body');
-    const filtro = document.getElementById('zk-filtro-empleado').value;
-
-    let html = '';
-    let totAtrasos = 0; let totFaltas = 0;
-
-    const renderFila = (empId, data) => {
-        data.marcas.forEach((m, idx) => {
-            totAtrasos += m.atrasoMin;
-            if (m.estado.includes('FALTA')) totFaltas++;
-
-            let colorFila = 'bg-white hover:bg-slate-50';
-            let statusBadge = '<span class="bg-green-100 text-green-700 px-2 py-0.5 rounded text-[9px] font-black uppercase">OK</span>';
-            
-            if (m.estado === 'ATRASO') {
-                statusBadge = `<span class="bg-red-100 text-red-600 px-2 py-0.5 rounded text-[9px] font-black uppercase">Atraso</span>`;
-            } else if (m.estado === 'FALTA_MARCA') {
-                colorFila = 'bg-yellow-50';
-                statusBadge = `<span class="bg-yellow-100 text-yellow-700 px-2 py-0.5 rounded text-[9px] font-black uppercase">⚠️ Solo Entrada</span>`;
-            } else if (m.estado === 'FALTA') {
-                colorFila = 'bg-orange-50';
-                statusBadge = `<span class="bg-orange-100 text-orange-700 px-2 py-0.5 rounded text-[9px] font-black uppercase">❌ FALTA</span>`;
-            } else if (m.estado === 'JUSTIFICADA') {
-                statusBadge = `<span class="bg-blue-100 text-blue-700 px-2 py-0.5 rounded text-[9px] font-black uppercase">PERMISO / BAJA MED.</span>`;
-            }
-
-            // Selector para que RRHH perdone faltas en caliente
-            let selectorAccion = '';
-            if (m.estado === 'FALTA' || m.estado === 'FALTA_MARCA') {
-                selectorAccion = `
-                    <select onchange="justificarFaltaZK('${empId}', ${idx}, this.value)" class="text-[9px] font-bold border border-slate-300 rounded p-1.5 ml-2 bg-white text-slate-600 outline-none w-[130px] shadow-sm">
-                        <option value="">-- Acción --</option>
-                        <option value="JUSTIFICAR">Permiso Normal</option>
-                        <option value="BAJA_MEDICA">Baja Médica</option>
-                        <option value="VACACION">Día de Vacación</option>
-                        <option value="FERIADO">Día Feriado</option>
-                        <option value="NO_LABORADO">Día No Laborado</option>
-                        <option value="IGNORAR">Día Libre / Franco</option>
-                    </select>
-                `;
-            }
-
-            html += `
-            <tr class="${colorFila} border-b border-slate-100 transition-colors">
-                <td class="p-3 font-bold text-slate-500">${m.fecha}</td>
-                <td class="p-3 font-black text-slate-800">${data.nombre}</td>
-                <td class="p-3 text-center font-bold text-slate-700">${m.entrada || '-'}</td>
-                <td class="p-3 text-center font-bold text-slate-700">${m.salida || '-'}</td>
-                <td class="p-3 text-center font-black ${m.atrasoMin > 0 ? 'text-red-500 bg-red-50/50' : 'text-slate-300'}">${m.atrasoMin > 0 ? m.atrasoMin : '-'}</td>
-                <td class="p-3 text-left">${statusBadge} ${m.obs ? `<span class="text-[9px] font-bold text-slate-400 ml-2">${m.obs}</span>` : ''} ${selectorAccion}</td>
-            </tr>`;
-        });
-    };
-
-    if (filtro === 'ALL') {
-        Object.keys(tempAsistenciaZK).forEach(id => renderFila(id, tempAsistenciaZK[id]));
-    } else {
-        if(tempAsistenciaZK[filtro]) renderFila(filtro, tempAsistenciaZK[filtro]);
-    }
-
-    document.getElementById('zk-lbl-atrasos').innerText = `${totAtrasos} min`;
-    document.getElementById('zk-lbl-faltas').innerText = totFaltas;
-    tbody.innerHTML = html;
-}
-
-function justificarFaltaZK(empId, idxMarca, accion) {
-    if(!accion) return;
-    const marca = tempAsistenciaZK[empId].marcas[idxMarca];
-    
-    if (accion === 'IGNORAR') {
-        marca.estado = 'OK';
-        marca.obs = 'Día libre / Franco';
-    } else {
-        marca.estado = 'JUSTIFICADA';
-        if(accion === 'JUSTIFICAR') marca.obs = 'Permiso Normal';
-        else if(accion === 'BAJA_MEDICA') marca.obs = 'Baja Médica';
-        else if(accion === 'VACACION') marca.obs = 'Día de Vacación';
-        else if(accion === 'FERIADO') marca.obs = 'Día Feriado';
-        else if(accion === 'NO_LABORADO') marca.obs = 'No Laborado Gral.';
-    }
-    renderTablaAuditoriaZk();
-}
-
-function aplicarJustificacionGlobal() {
-    const fecha = document.getElementById('zk-global-date').value;
-    const accion = document.getElementById('zk-global-action').value;
-    
-    if(!fecha) return alert("Por favor, seleccione una fecha del calendario primero.");
-    if(Object.keys(tempAsistenciaZK).length === 0) return alert("Primero debes subir un archivo ZKTeco.");
-    
-    if(!confirm(`¿Estás seguro de marcar el día ${fecha} como "${accion}" para absolutamente todos los trabajadores en la lista?`)) return;
-
-    let aplicados = 0;
-    for (const empId of Object.keys(tempAsistenciaZK)) {
-        const marcas = tempAsistenciaZK[empId].marcas;
-        const index = marcas.findIndex(m => m.fecha === fecha);
-        
-        if (index > -1) {
-            marcas[index].estado = 'JUSTIFICADA';
-            marcas[index].obs = accion === 'FERIADO' ? 'Día Feriado' : 'No Laborado Gral.';
-            aplicados++;
-        }
-    }
-
-    if (aplicados > 0) {
-        renderTablaAuditoriaZk();
-        showToast(`Éxito: Se justificó el día para ${aplicados} empleados.`);
-    } else {
-        alert("La fecha seleccionada no existe en los registros actuales leídos del archivo ZK.");
-    }
-}
-
-function guardarAuditoriaAsistencia() {
-    if(Object.keys(tempAsistenciaZK).length === 0) return alert("No hay datos que guardar.");
-    if(!confirm("¿Está seguro de procesar y consolidar esta información para el cálculo de sueldos?")) return;
-
-    // Resumimos mes y año (Ej: 07/2026)
-    const lblRango = document.getElementById('zk-lbl-rango').innerText; // Ej "2026-07-01 al 2026-07-31"
-    const parts = lblRango.split(' al ')[0].split('-');
-    const mesAnio = `${parts[1]}/${parts[0]}`; // "07/2026"
-
-    let resumenMes = [];
-
-    // Calcular totales finales por empleado
-    for (const [empId, data] of Object.entries(tempAsistenciaZK)) {
-        let totalAtrasosMin = 0;
-        let faltasInjustificadas = 0;
-        let faltasJustificadas = 0;
-
-        data.marcas.forEach(m => {
-            totalAtrasosMin += m.atrasoMin;
-            if(m.estado === 'FALTA' || m.estado === 'FALTA_MARCA') faltasInjustificadas++;
-            if(m.estado === 'JUSTIFICADA') faltasJustificadas++;
-        });
-
-        resumenMes.push({
-            idEmp: empId,
-            mes: mesAnio,
-            minAtraso: totalAtrasosMin,
-            faltasInjus: faltasInjustificadas,
-            faltasJus: faltasJustificadas
-        });
-    }
-
-    // Guardar en la base de datos reemplazando si ya existía el mismo mes
-    resumenMes.forEach(resNuevo => {
-        const idx = dbAsistenciaAuditada.findIndex(x => x.idEmp === resNuevo.idEmp && x.mes === resNuevo.mes);
-        if(idx > -1) dbAsistenciaAuditada[idx] = resNuevo;
-        else dbAsistenciaAuditada.push(resNuevo);
-    });
-
-    save();
-    showToast(`Asistencia de ${mesAnio} guardada. Ve a Planilla para ver los cálculos.`);
-}
-
-// =========================================================
-// MÓDULO RRHH: PLANILLA DE SUELDOS Y DESCUENTOS
-// =========================================================
-
-function renderPlanillaGeneral() {
-    const tbody = document.getElementById('rrhh-planilla-body');
-    const filtroMes = document.getElementById('planilla-filtro-mes').value;
-    
-    if (!tbody) return;
-
-    if (!filtroMes) {
-        tbody.innerHTML = `<tr><td colspan="7" class="p-8 text-center text-slate-400 font-bold italic">Seleccione un mes para generar la planilla.</td></tr>`;
-        return;
-    }
-
-    const [anioFiltro, mesFiltro] = filtroMes.split('-');
-    const mesAnio = `${mesFiltro}/${anioFiltro}`; // Formato: 07/2026
-
-    // Empleados activos
-    const empleados = dbDirectorioRRHH.filter(e => e.estado !== 'BAJA');
-    
-    if (empleados.length === 0) {
-        tbody.innerHTML = `<tr><td colspan="7" class="p-8 text-center text-slate-400 font-bold italic">No hay empleados registrados en el Directorio RRHH.</td></tr>`;
-        return;
-    }
-
-    let htmlPlanilla = '';
-    
-    // Configuración de penalizaciones (Ejemplo: 1 Bs por minuto de atraso, 100 Bs por falta injustificada)
-    const COSTO_MINUTO_ATRASO = 1;
-    const COSTO_FALTA = 100;
-
-    empleados.forEach(emp => {
-        // 1. Haber Básico
-        let haberBasico = parseFloat(emp.salario) || 0;
-        
-        // 2. Cálculo de Bonos por Producción (Buscamos en los cortes del mes hechos por este operador)
-        let totalBono = 0;
-        if (emp.bono > 0) {
-            let m3Cortados = 0;
-            dbReportesCorte.forEach(r => {
-                if (r.operador === emp.nombre) {
-                    const partesFecha = r.fecha.split('/'); // DD/MM/YYYY
-                    if (partesFecha.length === 3 && partesFecha[1] === mesFiltro && partesFecha[2] === anioFiltro) {
-                        m3Cortados += (Number(r.volUtil) || 0);
-                    }
-                }
-            });
-            totalBono = m3Cortados * emp.bono;
-        }
-
-        // 3. Cálculo de Descuentos por Atrasos y Faltas (Según ZKTeco)
-        let descuentoFaltas = 0;
-        let detalleFaltas = "OK";
-        let colorFaltas = "text-slate-300";
-        
-        const asistenciaMes = dbAsistenciaAuditada.find(a => String(a.idEmp) === String(emp.id) && a.mes === mesAnio);
-        if (asistenciaMes) {
-            const penalizacionAtraso = asistenciaMes.minAtraso * COSTO_MINUTO_ATRASO;
-            const penalizacionFalta = asistenciaMes.faltasInjus * COSTO_FALTA;
-            descuentoFaltas = penalizacionAtraso + penalizacionFalta;
-            
-            if (descuentoFaltas > 0) {
-                detalleFaltas = `- Bs ${descuentoFaltas.toFixed(2)}<br><span class="text-[8px] text-slate-400 uppercase tracking-widest">${asistenciaMes.minAtraso}m Atraso | ${asistenciaMes.faltasInjus} Faltas</span>`;
-                colorFaltas = "text-red-500 font-bold";
-            }
-        }
-
-        // 4. Búsqueda de Anticipos en la Caja General
-        let descuentoAnticipos = 0;
-        dbMovimientosCaja.forEach(m => {
-            if (m.tipo === 'EGRESO') {
-                // Verificamos si la fecha del movimiento coincide con el mes de la planilla
-                let coincideMes = false;
-                if(m.fecha.includes('-')) {
-                    const p = m.fecha.split('-');
-                    coincideMes = (p[1] === mesFiltro && p[0] === anioFiltro);
-                } else if(m.fecha.includes('/')) {
-                    const p = m.fecha.split('/');
-                    coincideMes = (p[1] === mesFiltro && p[2] === anioFiltro);
-                }
-                
-                // Si coincide el mes y el nombre del empleado está en la descripción
-                if (coincideMes && m.desc.toUpperCase().includes(emp.nombre.toUpperCase()) && m.categoria && m.categoria.includes("Anticipos")) {
-                    descuentoAnticipos += parseFloat(m.monto);
-                }
-            }
-        });
-
-        // 5. Total Líquido Pagable
-        const liquidoPagable = haberBasico + totalBono - descuentoFaltas - descuentoAnticipos;
-
-        htmlPlanilla += `
-        <tr class="hover:bg-green-50/30 transition-colors border-b border-slate-100">
-            <td class="p-4 font-black text-slate-800 text-xs">
-                ${emp.nombre}
-                <span class="block text-[9px] text-slate-400 uppercase tracking-widest mt-1">${emp.area}</span>
-            </td>
-            <td class="p-4 text-right font-black text-blue-600">Bs ${haberBasico.toFixed(2)}</td>
-            <td class="p-4 text-right font-black text-orange-600">${totalBono > 0 ? '+ Bs ' + totalBono.toFixed(2) : '-'}</td>
-            <td class="p-4 text-center ${colorFaltas}">${detalleFaltas}</td>
-            <td class="p-4 text-center font-bold ${descuentoAnticipos > 0 ? 'text-red-500' : 'text-slate-300'}">${descuentoAnticipos > 0 ? '- Bs ' + descuentoAnticipos.toFixed(2) : '-'}</td>
-            <td class="p-4 text-right font-black text-green-700 text-lg bg-green-50/30">Bs ${liquidoPagable.toFixed(2)}</td>
-            <td class="p-4 text-center">
-                <button onclick="imprimirBoletaSueldo('${emp.id}', '${mesAnio}', ${haberBasico}, ${totalBono}, ${descuentoFaltas}, ${descuentoAnticipos}, ${liquidoPagable})" class="bg-slate-800 hover:bg-slate-700 text-white p-2 rounded-lg shadow-sm transition-colors text-[9px] font-black uppercase tracking-widest flex items-center gap-1 mx-auto"><i data-lucide="printer" class="w-3 h-3"></i> Boleta</button>
-            </td>
-        </tr>`;
-    });
-
-    tbody.innerHTML = htmlPlanilla;
-    if(window.lucide) lucide.createIcons();
-}
-
-function exportarPlanillaBancoCSV() {
-    const filtroMes = document.getElementById('planilla-filtro-mes').value;
-    if (!filtroMes) return alert("Seleccione un mes para exportar.");
-    
-    // Simulación simple del formato TXT que piden los bancos para abono masivo en Bolivia
-    let csv = "CUENTA_DESTINO,MONTO,NOMBRE_EMPLEADO,GLOSA\n";
-    
-    const [anioFiltro, mesFiltro] = filtroMes.split('-');
-    const mesAnio = `${mesFiltro}/${anioFiltro}`;
-    
-    const filas = document.querySelectorAll('#rrhh-planilla-body tr');
-    if (filas.length === 0 || (filas.length === 1 && filas[0].innerText.includes("No hay"))) {
-        return alert("No hay datos en la planilla para exportar.");
-    }
-    
-    filas.forEach(tr => {
-        const tds = tr.querySelectorAll('td');
-        if (tds.length === 7) {
-            const nombre = tds[0].innerText.split('\\n')[0].trim();
-            const liquido = tds[5].innerText.replace('Bs', '').trim();
-            
-            // Buscar cuenta del banco
-            const emp = dbDirectorioRRHH.find(e => e.nombre.toUpperCase() === nombre.toUpperCase());
-            const cuenta = emp && emp.banco ? emp.banco : 'PAGO_EN_EFECTIVO';
-            
-            if (parseFloat(liquido) > 0) {
-                csv += `${cuenta},${liquido},${nombre},PAGO SUELDO ${mesAnio}\n`;
-            }
-        }
-    });
-
-    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
-    const link = document.createElement("a");
-    link.href = URL.createObjectURL(blob);
-    link.download = `Pago_Banco_Planilla_${mesFiltro}_${anioFiltro}.csv`;
-    link.style.visibility = 'hidden';
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-}
-
-function imprimirBoletaSueldo(idEmp, mes, basico, bono, faltas, anticipos, liquido) {
-    const emp = dbDirectorioRRHH.find(e => String(e.id) === String(idEmp));
-    if(!emp) return;
-
-    const html = `
-    <!DOCTYPE html>
-    <html><head><title>Boleta de Pago</title>
-    <style>
-        body { font-family: 'Courier New', Courier, monospace; font-size: 12px; color: black; background: white; margin: 0; padding: 20px; }
-        .boleta { width: 100%; max-width: 600px; margin: 0 auto; border: 2px dashed #000; padding: 20px; }
-        h1 { margin: 0; font-size: 24px; text-transform: uppercase; font-weight: 900; text-align: center; border-bottom: 2px solid #000; padding-bottom: 10px; }
-        .detalle { display: flex; justify-content: space-between; margin-top: 15px; font-weight: bold; border-bottom: 1px solid #000; padding-bottom: 10px; }
-        table { width: 100%; border-collapse: collapse; margin-top: 15px; font-size: 13px; }
-        th, td { padding: 8px 0; border-bottom: 1px dashed #666; }
-        .text-right { text-align: right; }
-        .total { font-size: 18px; font-weight: 900; margin-top: 15px; text-align: right; }
-        .firmas { display: flex; justify-content: space-around; margin-top: 60px; text-align: center; }
-        .firma-linea { border-top: 1px solid #000; width: 200px; padding-top: 5px; font-weight: bold; }
-        @media print { .no-print { display: none !important; } }
-    </style>
-    </head><body>
-        <div class="boleta">
-            <h1>PLASTENSA - BOLETA DE PAGO</h1>
-            <div class="detalle">
-                <div><span>EMPLEADO: </span><span>${emp.nombre}</span><br><span>ÁREA: </span><span>${emp.area}</span></div>
-                <div style="text-align: right;"><span>MES/AÑO: </span><span>${mes}</span><br><span>ID ZK: </span><span>${emp.idZk}</span></div>
-            </div>
-            <table>
-                <tr><td>Haber Básico Acordado</td><td class="text-right">Bs ${basico.toFixed(2)}</td></tr>
-                <tr><td>(+) Bono por Producción M³</td><td class="text-right">Bs ${bono.toFixed(2)}</td></tr>
-                <tr><td style="color: #666;">(-) Penalización Atrasos / Faltas</td><td class="text-right" style="color: #666;">- Bs ${faltas.toFixed(2)}</td></tr>
-                <tr><td style="color: #666;">(-) Anticipos Recibidos en el Mes</td><td class="text-right" style="color: #666;">- Bs ${anticipos.toFixed(2)}</td></tr>
-            </table>
-            <div class="total">LÍQUIDO A RECIBIR: Bs ${liquido.toFixed(2)}</div>
-            
-            <p style="margin-top: 20px; font-size: 10px; text-align: justify; color: #444;">Certifico que he recibido de la empresa PLASTENSA la cantidad arriba indicada como pago total por mis servicios correspondientes al periodo especificado, no teniendo nada más que reclamar por ningún concepto.</p>
-            
-            <div class="firmas">
-                <div class="firma-linea">ENTREGUÉ CONFORME<br><span style="font-size: 9px; font-weight: normal;">Administración Plastensa</span></div>
-                <div class="firma-linea">RECIBÍ CONFORME<br><span style="font-size: 9px; font-weight: normal;">C.I.: ........................</span></div>
-            </div>
-        </div>
-        <div class="no-print" style="margin-top:20px; text-align:center;">
-            <button onclick="window.print()" style="padding:10px 20px; font-weight:bold; cursor:pointer;">IMPRIMIR BOLETA</button>
-        </div>
-    </body></html>
-    `;
-
-    const win = window.open('','','width=800,height=800');
-    win.document.write(html);
-    win.document.close();
-}
-
-// Inyectar al ciclo de renderizado
-const rrhhRenderAll = renderAll;
-renderAll = function() {
-    rrhhRenderAll();
-    if(typeof renderDirectorioRRHH === 'function') renderDirectorioRRHH();
-    if(typeof renderPlanillaGeneral === 'function') renderPlanillaGeneral();
-};
 
 renderAll();
     </script>
