@@ -404,6 +404,11 @@
                 </button>
 
                 <p id="label-admin" class="px-4 py-2 mt-4 text-[10px] font-black text-slate-500 uppercase tracking-widest hidden">Administración</p>
+
+		<button id="nav-directorio" onclick="showTab('directorio')" class="nav-btn w-full flex items-center justify-between p-4 rounded-xl transition-all text-slate-400 hover:bg-slate-800 hover:text-slate-200 hidden" data-tab="directorio">
+                    <div class="flex items-center gap-4"><i data-lucide="users" class="w-5 h-5"></i><span class="font-bold text-xs uppercase tracking-wider">Directorio Personal</span></div>
+                </button>
+
                 <button id="nav-dashboard-gerencial" onclick="showTab('dashboard-gerencial')" class="nav-btn w-full flex items-center justify-between p-4 rounded-xl transition-all text-slate-400 hover:bg-slate-800 hover:text-slate-200 hidden" data-tab="dashboard-gerencial">
                     <div class="flex items-center gap-4"><i data-lucide="pie-chart" class="w-5 h-5"></i><span class="font-bold text-xs uppercase tracking-wider">Dashboard Ventas</span></div>
                 </button>
@@ -2910,15 +2915,20 @@
                     </div>
 
                     <div class="bg-white rounded-[32px] border border-slate-200 shadow-sm overflow-hidden">
-                        <div class="p-4 bg-slate-50 border-b border-slate-100 flex justify-between items-center">
-                            <select id="zk-filtro-empleado" onchange="renderTablaAuditoriaZk()" class="bg-white border border-slate-200 p-2 rounded-lg font-bold text-xs outline-none w-64"></select>
-                            <div class="text-[9px] font-black text-slate-500 uppercase flex gap-4">
-                                <span>🟢 OK</span>
-                                <span>🔴 Atraso</span>
-                                <span>⚠️ Conflicto (Solo 1 marca)</span>
-                                <span>❌ Falta</span>
-                            </div>
-                        </div>
+                        <div class="p-4 bg-slate-50 border-b border-slate-100 flex flex-col md:flex-row justify-between items-center gap-4">
+    <select id="zk-filtro-empleado" onchange="renderTablaAuditoriaZk()" class="bg-white border border-slate-200 p-2 rounded-lg font-bold text-xs outline-none w-full md:w-64"></select>
+    
+    <!-- NUEVO: CONTROL GLOBAL DE FERIADOS -->
+    <div class="flex gap-2 items-center bg-white p-1.5 rounded-lg border border-slate-200 shadow-sm w-full md:w-auto">
+        <span class="text-[9px] font-black uppercase text-slate-400 ml-1">Masivo:</span>
+        <input type="date" id="zk-global-date" class="bg-slate-50 border border-slate-100 p-1.5 rounded font-bold text-xs outline-none">
+        <select id="zk-global-action" class="bg-slate-50 border border-slate-100 p-1.5 rounded font-bold text-xs outline-none">
+            <option value="FERIADO">Día Feriado</option>
+            <option value="NO_LABORADO">Día No Laborado Gral.</option>
+        </select>
+        <button onclick="aplicarJustificacionGlobal()" class="bg-blue-600 text-white px-3 py-1.5 rounded font-black text-[10px] uppercase hover:bg-blue-700 transition-colors">Aplicar a Todos</button>
+    </div>
+</div>
                         <div class="overflow-x-auto max-h-[600px] overflow-y-auto">
                             <table class="w-full text-left text-xs whitespace-nowrap">
                                 <thead class="bg-slate-900 text-slate-300 sticky top-0 z-10 text-[9px] font-black uppercase tracking-widest border-b-2 border-teal-500">
@@ -12760,10 +12770,14 @@ function renderTablaAuditoriaZk() {
             let selectorAccion = '';
             if (m.estado === 'FALTA' || m.estado === 'FALTA_MARCA') {
                 selectorAccion = `
-                    <select onchange="justificarFaltaZK('${empId}', ${idx}, this.value)" class="text-[9px] font-bold border border-slate-300 rounded p-1 ml-2 bg-white text-slate-600 outline-none">
+                    <select onchange="justificarFaltaZK('${empId}', ${idx}, this.value)" class="text-[9px] font-bold border border-slate-300 rounded p-1.5 ml-2 bg-white text-slate-600 outline-none w-[130px] shadow-sm">
                         <option value="">-- Acción --</option>
-                        <option value="JUSTIFICAR">Justificar (No descontar doble)</option>
-                        <option value="IGNORAR">Ignorar (Fue su día libre)</option>
+                        <option value="JUSTIFICAR">Permiso Normal</option>
+                        <option value="BAJA_MEDICA">Baja Médica</option>
+                        <option value="VACACION">Día de Vacación</option>
+                        <option value="FERIADO">Día Feriado</option>
+                        <option value="NO_LABORADO">Día No Laborado</option>
+                        <option value="IGNORAR">Día Libre / Franco</option>
                     </select>
                 `;
             }
@@ -12793,14 +12807,49 @@ function renderTablaAuditoriaZk() {
 
 function justificarFaltaZK(empId, idxMarca, accion) {
     if(!accion) return;
-    if(accion === 'JUSTIFICAR') {
-        tempAsistenciaZK[empId].marcas[idxMarca].estado = 'JUSTIFICADA';
-        tempAsistenciaZK[empId].marcas[idxMarca].obs = 'Justificada por Admin';
-    } else if (accion === 'IGNORAR') {
-        tempAsistenciaZK[empId].marcas[idxMarca].estado = 'OK';
-        tempAsistenciaZK[empId].marcas[idxMarca].obs = 'Día libre / Compensación';
+    const marca = tempAsistenciaZK[empId].marcas[idxMarca];
+    
+    if (accion === 'IGNORAR') {
+        marca.estado = 'OK';
+        marca.obs = 'Día libre / Franco';
+    } else {
+        marca.estado = 'JUSTIFICADA';
+        if(accion === 'JUSTIFICAR') marca.obs = 'Permiso Normal';
+        else if(accion === 'BAJA_MEDICA') marca.obs = 'Baja Médica';
+        else if(accion === 'VACACION') marca.obs = 'Día de Vacación';
+        else if(accion === 'FERIADO') marca.obs = 'Día Feriado';
+        else if(accion === 'NO_LABORADO') marca.obs = 'No Laborado Gral.';
     }
     renderTablaAuditoriaZk();
+}
+
+function aplicarJustificacionGlobal() {
+    const fecha = document.getElementById('zk-global-date').value;
+    const accion = document.getElementById('zk-global-action').value;
+    
+    if(!fecha) return alert("Por favor, seleccione una fecha del calendario primero.");
+    if(Object.keys(tempAsistenciaZK).length === 0) return alert("Primero debes subir un archivo ZKTeco.");
+    
+    if(!confirm(`¿Estás seguro de marcar el día ${fecha} como "${accion}" para absolutamente todos los trabajadores en la lista?`)) return;
+
+    let aplicados = 0;
+    for (const empId of Object.keys(tempAsistenciaZK)) {
+        const marcas = tempAsistenciaZK[empId].marcas;
+        const index = marcas.findIndex(m => m.fecha === fecha);
+        
+        if (index > -1) {
+            marcas[index].estado = 'JUSTIFICADA';
+            marcas[index].obs = accion === 'FERIADO' ? 'Día Feriado' : 'No Laborado Gral.';
+            aplicados++;
+        }
+    }
+
+    if (aplicados > 0) {
+        renderTablaAuditoriaZk();
+        showToast(`Éxito: Se justificó el día para ${aplicados} empleados.`);
+    } else {
+        alert("La fecha seleccionada no existe en los registros actuales leídos del archivo ZK.");
+    }
 }
 
 function guardarAuditoriaAsistencia() {
