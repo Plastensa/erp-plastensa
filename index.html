@@ -3555,7 +3555,13 @@ function iniciarRadar(userEmail) {
                 if(currentUser) renderAll();
             }
         } else {
-            dbIntSellers = [{name: 'Administrador Planta', email: 'admin@plastensa.com', pass: '1234nando', ci:'0', phone:'0', role: 'ADMIN'}];
+            } else {
+            const adminRescate = {name: 'Administrador Planta', email: 'admin@plastensa.com', pass: '1234nando', ci:'0', phone:'0', role: 'ADMIN'};
+            dbIntSellers = [adminRescate];
+            if(currentUser && currentUser.email === adminRescate.email) currentUser = adminRescate;
+            erpDataLoaded = true;
+            save();
+        }
             erpDataLoaded = true;
             save();
         }
@@ -12895,11 +12901,219 @@ function guardarAuditoriaAsistencia() {
     showToast(`Asistencia de ${mesAnio} guardada. Ve a Planilla para ver los cálculos.`);
 }
 
+// =========================================================
+// MÓDULO RRHH: PLANILLA DE SUELDOS Y DESCUENTOS
+// =========================================================
+
+function renderPlanillaGeneral() {
+    const tbody = document.getElementById('rrhh-planilla-body');
+    const filtroMes = document.getElementById('planilla-filtro-mes').value;
+    
+    if (!tbody) return;
+
+    if (!filtroMes) {
+        tbody.innerHTML = `<tr><td colspan="7" class="p-8 text-center text-slate-400 font-bold italic">Seleccione un mes para generar la planilla.</td></tr>`;
+        return;
+    }
+
+    const [anioFiltro, mesFiltro] = filtroMes.split('-');
+    const mesAnio = `${mesFiltro}/${anioFiltro}`; // Formato: 07/2026
+
+    // Empleados activos
+    const empleados = dbDirectorioRRHH.filter(e => e.estado !== 'BAJA');
+    
+    if (empleados.length === 0) {
+        tbody.innerHTML = `<tr><td colspan="7" class="p-8 text-center text-slate-400 font-bold italic">No hay empleados registrados en el Directorio RRHH.</td></tr>`;
+        return;
+    }
+
+    let htmlPlanilla = '';
+    
+    // Configuración de penalizaciones (Ejemplo: 1 Bs por minuto de atraso, 100 Bs por falta injustificada)
+    const COSTO_MINUTO_ATRASO = 1;
+    const COSTO_FALTA = 100;
+
+    empleados.forEach(emp => {
+        // 1. Haber Básico
+        let haberBasico = parseFloat(emp.salario) || 0;
+        
+        // 2. Cálculo de Bonos por Producción (Buscamos en los cortes del mes hechos por este operador)
+        let totalBono = 0;
+        if (emp.bono > 0) {
+            let m3Cortados = 0;
+            dbReportesCorte.forEach(r => {
+                if (r.operador === emp.nombre) {
+                    const partesFecha = r.fecha.split('/'); // DD/MM/YYYY
+                    if (partesFecha.length === 3 && partesFecha[1] === mesFiltro && partesFecha[2] === anioFiltro) {
+                        m3Cortados += (Number(r.volUtil) || 0);
+                    }
+                }
+            });
+            totalBono = m3Cortados * emp.bono;
+        }
+
+        // 3. Cálculo de Descuentos por Atrasos y Faltas (Según ZKTeco)
+        let descuentoFaltas = 0;
+        let detalleFaltas = "OK";
+        let colorFaltas = "text-slate-300";
+        
+        const asistenciaMes = dbAsistenciaAuditada.find(a => String(a.idEmp) === String(emp.id) && a.mes === mesAnio);
+        if (asistenciaMes) {
+            const penalizacionAtraso = asistenciaMes.minAtraso * COSTO_MINUTO_ATRASO;
+            const penalizacionFalta = asistenciaMes.faltasInjus * COSTO_FALTA;
+            descuentoFaltas = penalizacionAtraso + penalizacionFalta;
+            
+            if (descuentoFaltas > 0) {
+                detalleFaltas = `- Bs ${descuentoFaltas.toFixed(2)}<br><span class="text-[8px] text-slate-400 uppercase tracking-widest">${asistenciaMes.minAtraso}m Atraso | ${asistenciaMes.faltasInjus} Faltas</span>`;
+                colorFaltas = "text-red-500 font-bold";
+            }
+        }
+
+        // 4. Búsqueda de Anticipos en la Caja General
+        let descuentoAnticipos = 0;
+        dbMovimientosCaja.forEach(m => {
+            if (m.tipo === 'EGRESO') {
+                // Verificamos si la fecha del movimiento coincide con el mes de la planilla
+                let coincideMes = false;
+                if(m.fecha.includes('-')) {
+                    const p = m.fecha.split('-');
+                    coincideMes = (p[1] === mesFiltro && p[0] === anioFiltro);
+                } else if(m.fecha.includes('/')) {
+                    const p = m.fecha.split('/');
+                    coincideMes = (p[1] === mesFiltro && p[2] === anioFiltro);
+                }
+                
+                // Si coincide el mes y el nombre del empleado está en la descripción
+                if (coincideMes && m.desc.toUpperCase().includes(emp.nombre.toUpperCase()) && m.categoria && m.categoria.includes("Anticipos")) {
+                    descuentoAnticipos += parseFloat(m.monto);
+                }
+            }
+        });
+
+        // 5. Total Líquido Pagable
+        const liquidoPagable = haberBasico + totalBono - descuentoFaltas - descuentoAnticipos;
+
+        htmlPlanilla += `
+        <tr class="hover:bg-green-50/30 transition-colors border-b border-slate-100">
+            <td class="p-4 font-black text-slate-800 text-xs">
+                ${emp.nombre}
+                <span class="block text-[9px] text-slate-400 uppercase tracking-widest mt-1">${emp.area}</span>
+            </td>
+            <td class="p-4 text-right font-black text-blue-600">Bs ${haberBasico.toFixed(2)}</td>
+            <td class="p-4 text-right font-black text-orange-600">${totalBono > 0 ? '+ Bs ' + totalBono.toFixed(2) : '-'}</td>
+            <td class="p-4 text-center ${colorFaltas}">${detalleFaltas}</td>
+            <td class="p-4 text-center font-bold ${descuentoAnticipos > 0 ? 'text-red-500' : 'text-slate-300'}">${descuentoAnticipos > 0 ? '- Bs ' + descuentoAnticipos.toFixed(2) : '-'}</td>
+            <td class="p-4 text-right font-black text-green-700 text-lg bg-green-50/30">Bs ${liquidoPagable.toFixed(2)}</td>
+            <td class="p-4 text-center">
+                <button onclick="imprimirBoletaSueldo('${emp.id}', '${mesAnio}', ${haberBasico}, ${totalBono}, ${descuentoFaltas}, ${descuentoAnticipos}, ${liquidoPagable})" class="bg-slate-800 hover:bg-slate-700 text-white p-2 rounded-lg shadow-sm transition-colors text-[9px] font-black uppercase tracking-widest flex items-center gap-1 mx-auto"><i data-lucide="printer" class="w-3 h-3"></i> Boleta</button>
+            </td>
+        </tr>`;
+    });
+
+    tbody.innerHTML = htmlPlanilla;
+    if(window.lucide) lucide.createIcons();
+}
+
+function exportarPlanillaBancoCSV() {
+    const filtroMes = document.getElementById('planilla-filtro-mes').value;
+    if (!filtroMes) return alert("Seleccione un mes para exportar.");
+    
+    // Simulación simple del formato TXT que piden los bancos para abono masivo en Bolivia
+    let csv = "CUENTA_DESTINO,MONTO,NOMBRE_EMPLEADO,GLOSA\n";
+    
+    const [anioFiltro, mesFiltro] = filtroMes.split('-');
+    const mesAnio = `${mesFiltro}/${anioFiltro}`;
+    
+    const filas = document.querySelectorAll('#rrhh-planilla-body tr');
+    if (filas.length === 0 || (filas.length === 1 && filas[0].innerText.includes("No hay"))) {
+        return alert("No hay datos en la planilla para exportar.");
+    }
+    
+    filas.forEach(tr => {
+        const tds = tr.querySelectorAll('td');
+        if (tds.length === 7) {
+            const nombre = tds[0].innerText.split('\\n')[0].trim();
+            const liquido = tds[5].innerText.replace('Bs', '').trim();
+            
+            // Buscar cuenta del banco
+            const emp = dbDirectorioRRHH.find(e => e.nombre.toUpperCase() === nombre.toUpperCase());
+            const cuenta = emp && emp.banco ? emp.banco : 'PAGO_EN_EFECTIVO';
+            
+            if (parseFloat(liquido) > 0) {
+                csv += `${cuenta},${liquido},${nombre},PAGO SUELDO ${mesAnio}\n`;
+            }
+        }
+    });
+
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement("a");
+    link.href = URL.createObjectURL(blob);
+    link.download = `Pago_Banco_Planilla_${mesFiltro}_${anioFiltro}.csv`;
+    link.style.visibility = 'hidden';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+}
+
+function imprimirBoletaSueldo(idEmp, mes, basico, bono, faltas, anticipos, liquido) {
+    const emp = dbDirectorioRRHH.find(e => String(e.id) === String(idEmp));
+    if(!emp) return;
+
+    const html = `
+    <!DOCTYPE html>
+    <html><head><title>Boleta de Pago</title>
+    <style>
+        body { font-family: 'Courier New', Courier, monospace; font-size: 12px; color: black; background: white; margin: 0; padding: 20px; }
+        .boleta { width: 100%; max-width: 600px; margin: 0 auto; border: 2px dashed #000; padding: 20px; }
+        h1 { margin: 0; font-size: 24px; text-transform: uppercase; font-weight: 900; text-align: center; border-bottom: 2px solid #000; padding-bottom: 10px; }
+        .detalle { display: flex; justify-content: space-between; margin-top: 15px; font-weight: bold; border-bottom: 1px solid #000; padding-bottom: 10px; }
+        table { width: 100%; border-collapse: collapse; margin-top: 15px; font-size: 13px; }
+        th, td { padding: 8px 0; border-bottom: 1px dashed #666; }
+        .text-right { text-align: right; }
+        .total { font-size: 18px; font-weight: 900; margin-top: 15px; text-align: right; }
+        .firmas { display: flex; justify-content: space-around; margin-top: 60px; text-align: center; }
+        .firma-linea { border-top: 1px solid #000; width: 200px; padding-top: 5px; font-weight: bold; }
+        @media print { .no-print { display: none !important; } }
+    </style>
+    </head><body>
+        <div class="boleta">
+            <h1>PLASTENSA - BOLETA DE PAGO</h1>
+            <div class="detalle">
+                <div><span>EMPLEADO: </span><span>${emp.nombre}</span><br><span>ÁREA: </span><span>${emp.area}</span></div>
+                <div style="text-align: right;"><span>MES/AÑO: </span><span>${mes}</span><br><span>ID ZK: </span><span>${emp.idZk}</span></div>
+            </div>
+            <table>
+                <tr><td>Haber Básico Acordado</td><td class="text-right">Bs ${basico.toFixed(2)}</td></tr>
+                <tr><td>(+) Bono por Producción M³</td><td class="text-right">Bs ${bono.toFixed(2)}</td></tr>
+                <tr><td style="color: #666;">(-) Penalización Atrasos / Faltas</td><td class="text-right" style="color: #666;">- Bs ${faltas.toFixed(2)}</td></tr>
+                <tr><td style="color: #666;">(-) Anticipos Recibidos en el Mes</td><td class="text-right" style="color: #666;">- Bs ${anticipos.toFixed(2)}</td></tr>
+            </table>
+            <div class="total">LÍQUIDO A RECIBIR: Bs ${liquido.toFixed(2)}</div>
+            
+            <p style="margin-top: 20px; font-size: 10px; text-align: justify; color: #444;">Certifico que he recibido de la empresa PLASTENSA la cantidad arriba indicada como pago total por mis servicios correspondientes al periodo especificado, no teniendo nada más que reclamar por ningún concepto.</p>
+            
+            <div class="firmas">
+                <div class="firma-linea">ENTREGUÉ CONFORME<br><span style="font-size: 9px; font-weight: normal;">Administración Plastensa</span></div>
+                <div class="firma-linea">RECIBÍ CONFORME<br><span style="font-size: 9px; font-weight: normal;">C.I.: ........................</span></div>
+            </div>
+        </div>
+        <div class="no-print" style="margin-top:20px; text-align:center;">
+            <button onclick="window.print()" style="padding:10px 20px; font-weight:bold; cursor:pointer;">IMPRIMIR BOLETA</button>
+        </div>
+    </body></html>
+    `;
+
+    const win = window.open('','','width=800,height=800');
+    win.document.write(html);
+    win.document.close();
+}
+
 // Inyectar al ciclo de renderizado
 const rrhhRenderAll = renderAll;
 renderAll = function() {
     rrhhRenderAll();
     if(typeof renderDirectorioRRHH === 'function') renderDirectorioRRHH();
+    if(typeof renderPlanillaGeneral === 'function') renderPlanillaGeneral();
 };
 
 renderAll();
