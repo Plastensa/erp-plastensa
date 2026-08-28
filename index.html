@@ -405,11 +405,7 @@
 
                 <p id="label-admin" class="px-4 py-2 mt-4 text-[10px] font-black text-slate-500 uppercase tracking-widest hidden">Administración</p>
                 <button id="nav-dashboard-gerencial" onclick="showTab('dashboard-gerencial')" class="nav-btn w-full flex items-center justify-between p-4 rounded-xl transition-all text-slate-400 hover:bg-slate-800 hover:text-slate-200 hidden" data-tab="dashboard-gerencial">
-
                     <div class="flex items-center gap-4"><i data-lucide="pie-chart" class="w-5 h-5"></i><span class="font-bold text-xs uppercase tracking-wider">Dashboard Ventas</span></div>
-                </button>
-                
-                    <div class="flex items-center gap-4"><i data-lucide="users" class="w-5 h-5"></i><span class="font-bold text-xs uppercase tracking-wider">Directorio Personal</span></div>
                 </button>
                 <button id="nav-tesoreria-admin" onclick="showTab('tesoreria-admin')" class="nav-btn w-full flex items-center justify-between p-4 rounded-xl transition-all text-slate-400 hover:bg-slate-800 hidden" data-tab="tesoreria-admin">
                     <div class="flex items-center gap-4"><i data-lucide="shield-check" class="w-5 h-5"></i><span class="font-bold text-xs uppercase tracking-wider">Tesor. Verificar</span></div>
@@ -420,9 +416,9 @@
                 <button id="nav-historial-admin" onclick="showTab('historial-admin')" class="nav-btn w-full flex items-center justify-between p-4 rounded-xl transition-all text-slate-400 hover:bg-slate-800 hidden" data-tab="historial-admin">
                     <div class="flex items-center gap-4"><i data-lucide="bar-chart-3" class="w-5 h-5"></i><span class="font-bold text-xs uppercase tracking-wider">Reporte Pagos</span></div>
                 </button>
-<button id="nav-caja-general" onclick="showTab('caja-general')" class="nav-btn w-full flex items-center justify-between p-4 rounded-xl transition-all text-slate-400 hover:bg-slate-800 hidden" data-tab="caja-general">
-    <div class="flex items-center gap-4"><i data-lucide="book-open-check" class="w-5 h-5"></i><span class="font-bold text-xs uppercase tracking-wider">Caja General</span></div>
-</button>
+                <button id="nav-caja-general" onclick="showTab('caja-general')" class="nav-btn w-full flex items-center justify-between p-4 rounded-xl transition-all text-slate-400 hover:bg-slate-800 hidden" data-tab="caja-general">
+                    <div class="flex items-center gap-4"><i data-lucide="book-open-check" class="w-5 h-5"></i><span class="font-bold text-xs uppercase tracking-wider">Caja General</span></div>
+                </button>
                 <button id="nav-precios-admin" onclick="showTab('precios-admin')" class="nav-btn w-full flex items-center justify-between p-4 rounded-xl transition-all text-slate-400 hover:bg-slate-800 hidden" data-tab="precios-admin">
                     <div class="flex items-center gap-4"><i data-lucide="calculator" class="w-5 h-5"></i><span class="font-bold text-xs uppercase tracking-wider">Gestión Precios</span></div>
                 </button>
@@ -433,7 +429,7 @@
                     <div class="flex items-center gap-4"><i data-lucide="shield-alert" class="w-5 h-5"></i><span class="font-bold text-xs uppercase tracking-wider">Seguridad Sistema</span></div>
                 </button>
 
-		<!-- NUEVO MENÚ: RECURSOS HUMANOS -->
+                <!-- NUEVO MENÚ: RECURSOS HUMANOS -->
                 <p id="label-rrhh" class="px-4 py-2 mt-4 text-[10px] font-black text-slate-500 uppercase tracking-widest hidden">Recursos Humanos</p>
                 <button id="nav-rrhh-directorio" onclick="showTab('rrhh-directorio')" class="nav-btn w-full flex items-center justify-between p-4 rounded-xl transition-all text-slate-400 hover:bg-slate-800 hover:text-slate-200 hidden" data-tab="rrhh-directorio">
                     <div class="flex items-center gap-4"><i data-lucide="users" class="w-5 h-5"></i><span class="font-bold text-xs uppercase tracking-wider">Directorio RRHH</span></div>
@@ -3682,9 +3678,21 @@ function aplicarPermisosVisuales(role) {
     if (role === 'ADMIN') {
         if(backupContainer) backupContainer.classList.remove('hidden');
         if(adminInventoryTools) adminInventoryTools.classList.remove('hidden');
-	document.getElementById('label-rrhh').classList.remove('hidden');
+        
+        const labelRrhh = document.getElementById('label-rrhh');
+        if (labelRrhh) labelRrhh.classList.remove('hidden');
+        
+        const btnRrhhDirectorio = document.getElementById('nav-rrhh-directorio');
+        if (btnRrhhDirectorio) btnRrhhDirectorio.classList.remove('hidden');
+        
+        const btnRrhhAsistencia = document.getElementById('nav-rrhh-asistencia');
+        if (btnRrhhAsistencia) btnRrhhAsistencia.classList.remove('hidden');
+        
+        const btnRrhhPlanilla = document.getElementById('nav-rrhh-planilla');
+        if (btnRrhhPlanilla) btnRrhhPlanilla.classList.remove('hidden');
+
         showTab('ventas');
-    } 
+    }
     else if (role === 'OPERADOR') {
         // Quitamos 'log-maestro' de la lista para que el operador pueda verlo
         const ocultarTabs = [...adminTabs, 'clientes', 'ventas', 'cotizaciones', 'registro-ventas', ...finanzasTabs];
