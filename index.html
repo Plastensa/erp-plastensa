@@ -1124,9 +1124,12 @@
                 <thead class="bg-slate-100 border-b border-slate-200 text-[10px] font-black uppercase text-slate-500 tracking-widest sticky top-0 z-10 shadow-sm">
                     <tr>
                         <th class="p-4 align-top">
-                            Fecha Prod.<br>
-                            <input type="text" id="traz-filter-fecha" onkeyup="filtrarTablaTrazabilidad()" placeholder="Ej: 1/8..." class="mt-2 w-full bg-white border border-slate-300 rounded-lg px-2 py-1.5 text-slate-700 font-bold outline-none focus:border-indigo-500 text-[9px] shadow-inner">
-                        </th>
+    Fecha Prod.<br>
+    <div class="flex gap-1 mt-2">
+        <input type="date" id="traz-filter-desde" onchange="filtrarTablaTrazabilidad()" class="w-full bg-white border border-slate-300 rounded-lg px-1 py-1.5 text-slate-700 font-bold outline-none focus:border-indigo-500 text-[9px] shadow-inner">
+        <input type="date" id="traz-filter-hasta" onchange="filtrarTablaTrazabilidad()" class="w-full bg-white border border-slate-300 rounded-lg px-1 py-1.5 text-slate-700 font-bold outline-none focus:border-indigo-500 text-[9px] shadow-inner">
+    </div>
+</th>
                         <th class="p-4 align-top pt-6">Código / Carnet</th>
                         <th class="p-4 align-top pt-6">Tipo / Densidad</th>
                         <th class="p-4 text-center align-top pt-6">Peso</th>
@@ -7665,6 +7668,25 @@ function enviarSeleccionadosACorte() {
     }
 }
 
+function devolverBloqueAPlanta(id) {
+    if(!confirm("¿Estás seguro de devolver este bloque al Inventario de Planta?")) return;
+    
+    const bloque = dbBloques.find(b => b.id === id);
+    if(bloque) {
+        bloque.ubicacion = 'PLANTA';
+        db.collection("bloques_inventario").doc(String(bloque.id)).set(bloque)
+        .then(() => {
+            showToast("Bloque devuelto a Planta.");
+            renderSalaCorte();
+            if(typeof renderInventarioBloques === 'function') renderInventarioBloques();
+        })
+        .catch(err => {
+            console.error("Error al devolver bloque:", err);
+            alert("Error de conexión al devolver el bloque.");
+        });
+    }
+}
+
 function exportarInventarioBloquesCSV() {
     const search = document.getElementById('buscar-bloque').value.toLowerCase();
     const filtroDensidad = document.getElementById('filtro-densidad').value;
@@ -7828,7 +7850,10 @@ function renderSalaCorte() {
                 <td class="p-3 font-black text-slate-800 text-xs">${b.codigo}</td>
                 <td class="p-3 font-bold text-slate-600 text-xs">${b.tipo} | <span class="text-indigo-600">${b.densFinal}</span></td>
                 <td class="p-3 text-right font-black text-blue-600 text-xs">${Number(b.volNeto).toFixed(2)} M³</td>
-                <td class="p-3 text-center"><span class="bg-blue-100 text-blue-700 px-2 py-1 rounded text-[9px] font-black uppercase shadow-sm">EN ESPERA</span></td>
+                <td class="p-3 text-center flex justify-center gap-1">
+    <span class="bg-blue-100 text-blue-700 px-2 py-1 rounded text-[9px] font-black uppercase shadow-sm mt-0.5">EN ESPERA</span>
+    <button onclick="devolverBloqueAPlanta(${b.id})" title="Devolver a Planta" class="text-orange-500 hover:text-orange-700 bg-orange-50 p-1 rounded-lg border border-orange-200 transition-colors shadow-sm"><i data-lucide="corner-up-left" class="w-3 h-3"></i></button>
+</td>
             </tr>
         `).join('');
     }
@@ -12038,17 +12063,22 @@ function filtrarTablaTrazabilidad() {
     const tbody = document.getElementById('trazabilidad-bloques-body');
     const contador = document.getElementById('trazabilidad-contador');
     
-    // Obtenemos los valores de los filtros estilo Google Sheets de los encabezados
-    const filtroFecha = document.getElementById('traz-filter-fecha').value.trim().toLowerCase();
+    // Obtenemos los valores de los filtros
+    const dateDesdeStr = document.getElementById('traz-filter-desde').value; 
+    const dateHastaStr = document.getElementById('traz-filter-hasta').value; 
     const filtroEstado = document.getElementById('traz-filter-estado').value;
 
-    // Filtramos lo que tenemos en memoria (Cero costo de servidor)
+    let timeDesde = dateDesdeStr ? new Date(dateDesdeStr + "T00:00:00").getTime() : 0;
+    let timeHasta = dateHastaStr ? new Date(dateHastaStr + "T23:59:59").getTime() : Infinity;
+
+    // Filtramos lo que tenemos en memoria
     const filtrados = window.trazabilidadResultados.filter(b => {
         let pasaFecha = true;
         let pasaEstado = true;
 
-        if (filtroFecha) {
-            pasaFecha = b.fecha && b.fecha.toLowerCase().includes(filtroFecha);
+        if (dateDesdeStr || dateHastaStr) {
+            let bTime = getFilterableDate(b.fecha);
+            if (bTime < timeDesde || bTime > timeHasta) pasaFecha = false;
         }
         
         if (filtroEstado !== 'ALL') {
