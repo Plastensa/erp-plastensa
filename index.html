@@ -3433,6 +3433,8 @@ function handleInventarioReescribir(e) {
 }
 
 function showTab(id) {
+    pestanaActiva = id; // <--- LÍNEA NUEVA AÑADIDA
+    
     if (window.innerWidth < 768) {
         const sidebar = document.getElementById('sidebar');
         const overlay = document.getElementById('mobile-overlay');
@@ -5581,38 +5583,44 @@ function renderSalidasEPS() {
         // RENDERIZADO VISUAL GLOBAL
         // ==========================================
         
-    function renderAll() {
+    let pestanaActiva = 'ventas'; // Memoria de navegación inicial
+
+function renderAll() {
     try {
-        renderDirectory(); 
-        renderCatalogList(); 
-        renderQuotes(); 
-        renderTesoreriaAdmin(); 
-        renderHistorialAdmin(); 
-        renderTesoreria(); 
-        renderMasterLog(); 
-        renderSalidasEPS(); 
-        renderProduction(); 
-        renderInventory(); 
-        renderDespacho();
-	renderTransporte(); // <--- AÑADE ESTO AQUÍ
-	renderTransporteDetail(); // <--- AÑADE ESTO
-        renderRegistroVentas();
-        renderMateriaPrima();
-        renderExpansion();
-	renderSilos(); // <--- ESTA ES LA LÍNEA QUE DEBES AÑADIR
-	renderInventarioBloques();
-	renderVolumenMaquina();
-	renderHistorialSilos();
-        renderPreciosBase();
-        renderSalaCorte();
-	renderCajaGeneral();
-        
-        const dateInput = document.getElementById('plan-date-input');
-        if(dateInput && dateInput.value) renderPlanDiario();
-        
-        lucide.createIcons();
+        // El nuevo renderAll INTELIGENTE: solo dibuja lo que el usuario está viendo
+        if(pestanaActiva === 'clientes') { renderClientes(); }
+        else if(pestanaActiva === 'catalogo') { renderCatalogList(); }
+        else if(pestanaActiva === 'ventas') { renderCart(); }
+        else if(pestanaActiva === 'cotizaciones') { renderQuotes(); }
+        else if(pestanaActiva === 'registro-ventas') { renderRegistroVentas(); }
+        else if(pestanaActiva === 'log-maestro') { renderMasterLog(); }
+        else if(pestanaActiva === 'tesoreria') { renderTesoreria(); }
+        else if(pestanaActiva === 'directorio') { renderDirectory(); if(typeof renderExtSellers === 'function') renderExtSellers(); }
+        else if(pestanaActiva === 'dashboard-gerencial') { if(typeof renderDashboard === 'function') renderDashboard(); }
+        else if(pestanaActiva === 'tesoreria-admin') { renderTesoreriaAdmin(); }
+        else if(pestanaActiva === 'salidas-eps') { renderSalidasEPS(); }
+        else if(pestanaActiva === 'historial-admin') { renderHistorialAdmin(); }
+        else if(pestanaActiva === 'caja-general') { renderCajaGeneral(); }
+        else if(pestanaActiva === 'precios-admin') { renderPreciosBase(); }
+        else if(pestanaActiva === 'transporte') { renderTransporte(); renderTransporteDetail(); if(typeof renderLiquidaciones === 'function') renderLiquidaciones(); }
+        else if(pestanaActiva === 'rrhh-directorio') { if(typeof renderDirectorioRRHH === 'function') renderDirectorioRRHH(); }
+        else if(pestanaActiva === 'rrhh-asistencia') { if(typeof renderTablaAuditoriaZk === 'function') renderTablaAuditoriaZk(); }
+        else if(pestanaActiva === 'rrhh-planilla') { if(typeof renderPlanillaGeneral === 'function') renderPlanillaGeneral(); }
+        else if(pestanaActiva === 'materia-prima') { renderMateriaPrima(); }
+        else if(pestanaActiva === 'expansion') { renderExpansion(); }
+        else if(pestanaActiva === 'bloquera') { renderVolumenMaquina(); }
+        else if(pestanaActiva === 'inventario-bloques') { renderInventarioBloques(); renderHistorialSilos(); }
+        else if(pestanaActiva === 'corte') { renderSalaCorte(); }
+        else if(pestanaActiva === 'reporte-corte') { renderReporteCorte(); }
+        else if(pestanaActiva === 'produccion') { renderProduction(); }
+        else if(pestanaActiva === 'plan-diario') { renderPlanDiario(); }
+        else if(pestanaActiva === 'despacho') { renderDespacho(); }
+        else if(pestanaActiva === 'reporte-entregas') { if(typeof renderDetalleEntregas === 'function') renderDetalleEntregas(); }
+        else if(pestanaActiva === 'inventario') { if(typeof renderStockFisico === 'function') renderStockFisico(); }
+
+        if(window.lucide) lucide.createIcons();
     } catch (error) {
-        console.log("Error en renderizado: ", error);
+        console.log("Error en renderizado inteligente: ", error);
     }
 }
 
