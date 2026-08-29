@@ -2739,6 +2739,12 @@
     <span>ROBOT: AUDITAR CORTES Y RECUPERAR INVENTARIO</span>
 </button>
 
+<!-- BOTÓN TEMPORAL ROBOT RESCATISTA DE BLOQUES -->
+<button onclick="robotRescatarLimbo()" class="col-span-1 md:col-span-2 w-full bg-orange-600 text-white px-8 py-6 rounded-xl font-black hover:bg-orange-700 transition-colors flex flex-col items-center justify-center gap-3 shadow-lg border-2 border-orange-400 border-dashed mt-4">
+    <i data-lucide="life-buoy" class="w-8 h-8 animate-pulse"></i> 
+    <span>ROBOT: RESCATAR BLOQUES DEL LIMBO</span>
+</button>
+
 <button onclick="robotRecuperarLiquidaciones()" class="col-span-1 md:col-span-2 w-full bg-yellow-600 text-white px-8 py-6 rounded-xl font-black hover:bg-yellow-700 transition-colors flex flex-col items-center justify-center gap-3 shadow-lg border-2 border-yellow-400 border-dashed mt-4">
                                 <i data-lucide="life-buoy" class="w-8 h-8 animate-pulse"></i> 
                                 <span>ROBOT: RECUPERAR LIQUIDACIONES DE TRANSPORTE PERDIDAS</span>
@@ -13131,6 +13137,56 @@ async function robotMigradorDefinitivo() {
     } catch (error) {
         console.error(error);
         alert("❌ Ocurrió un error. Revisa tu conexión a internet e intenta de nuevo.");
+    }
+}
+
+async function robotRescatarLimbo() {
+    if(!confirm("🤖 ROBOT RESCATISTA DE BLOQUES\n\nEste robot buscará en toda la base de datos aquellos bloques que están marcados como 'PROCESADOS', pero cuya tanda de corte fue eliminada.\n\n¿Deseas iniciar el rescate?")) return;
+
+    showToast("Buscando bloques en el limbo... por favor espera.");
+
+    try {
+        // 1. Traer todos los bloques que el sistema cree que ya se cortaron
+        const snapshotBloques = await db.collection("bloques_inventario").where("ubicacion", "==", "PROCESADO").get();
+        
+        // 2. Traer todas las tandas (reportes de corte) que realmente existen
+        const snapshotReportes = await db.collection("cortes_reportes").get();
+
+        // Creamos un diccionario rápido con las tandas válidas
+        let tandasValidas = new Set();
+        snapshotReportes.forEach(doc => tandasValidas.add(String(doc.id)));
+
+        let bloquesRescatados = 0;
+        const batch = db.batch();
+
+        snapshotBloques.forEach(doc => {
+            const b = doc.data();
+            
+            // Si el bloque dice pertenecer a una tanda, pero esa tanda NO EXISTE... ¡Es un huérfano!
+            if (b.tandaProceso && !tandasValidas.has(String(b.tandaProceso))) {
+                const ref = db.collection("bloques_inventario").doc(doc.id);
+                batch.update(ref, {
+                    ubicacion: 'CORTADO', // Lo devolvemos a la máquina de corte
+                    tandaProceso: null,
+                    estado: 'RESCATADO',
+                    colorEstado: 'text-orange-500 font-black',
+                    fechaModificado: new Date().toLocaleString()
+                });
+                bloquesRescatados++;
+            }
+        });
+
+        if (bloquesRescatados > 0) {
+            await batch.commit();
+            alert(`✅ RESCATE COMPLETADO\n\nSe encontraron y rescataron ${bloquesRescatados} bloques que estaban en el limbo.\n\nEl sistema se actualizará y los bloques aparecerán en la pestaña "Sala de Corte".`);
+            window.location.reload();
+        } else {
+            alert("✅ BÚSQUEDA COMPLETADA\n\nNo se encontraron bloques huérfanos. Todos los bloques procesados tienen una tanda válida.");
+        }
+
+    } catch (error) {
+        console.error("Error en el rescate:", error);
+        alert("❌ Ocurrió un error al buscar en la nube. Revisa tu conexión a internet.");
     }
 }
 
