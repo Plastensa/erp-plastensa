@@ -3078,54 +3078,60 @@
         }
 
 // 3. FUNCIÓN DE GUARDADO EN LA NUBE (VERSION PARTICIONADA ANTI-COLAPSO)
+// NUEVO: Memoria caché para no subir datos repetidos a Google y saturar la RAM
+let ultimaVezGuardado = {
+    centrales: "", productos: "", clientes: "", caja: "", rrhh: ""
+};
+
 function save() {
     if (!erpDataLoaded) {
-        console.error("🛑 BLOQUEO DE SEGURIDAD: Guardado rechazado. Los datos no han terminado de cargar del servidor.");
+        console.error("🛑 BLOQUEO DE SEGURIDAD: Guardado rechazado. Los datos no han cargado.");
         return;
     }
-
     if (products.length === 0 && dbIntSellers.length <= 1) {
-        console.error("🛑 BLOQUEO DE SEGURIDAD: Se detectó un intento de sobreescribir la nube con listas vacías.");
+        console.error("🛑 BLOQUEO DE SEGURIDAD: Listas vacías detectadas.");
         return;
     }
 
-    // 1. Guardar configuraciones y personal en el cajón CENTRAL (Liviano)
-    db.collection("plastensa_erp").doc("datos_centrales").set({
-        dbExtSellers: JSON.stringify(dbExtSellers),
-        dbIntSellers: JSON.stringify(dbIntSellers),
-        dbPendingVerifications: JSON.stringify(dbPendingVerifications),
-        dbMpTipos: JSON.stringify(dbMpTipos),
-        dbPreciosBase: JSON.stringify(dbPreciosBase),
-        dbBancoRetazos: JSON.stringify(dbBancoRetazos),
-        dbTolva: dbTolva,
-        pizarraMateriaPrima: JSON.stringify(pizarraMateriaPrima),
-        dbCotizacionesPerdidas: JSON.stringify(dbCotizacionesPerdidas)
-    }).catch(error => console.error("Error guardando centrales: ", error));
+    // Empaquetamos los datos temporalmente
+    const paqueteCentrales = JSON.stringify({ dbExtSellers, dbIntSellers, dbPendingVerifications, dbMpTipos, dbPreciosBase, dbBancoRetazos, dbTolva, pizarraMateriaPrima, dbCotizacionesPerdidas });
+    const paqueteProductos = JSON.stringify(products);
+    const paqueteClientes = JSON.stringify(dbClients);
+    const paqueteCaja = JSON.stringify(dbMovimientosCaja);
+    const paqueteRRHH = JSON.stringify({ dbDirectorioRRHH, dbAsistenciaAuditada, dbBoletasEmitidas });
 
-    // 2. Guardar Catálogo de Productos (Cajón SEPARADO)
-    db.collection("plastensa_erp").doc("datos_productos").set({
-        products: JSON.stringify(products)
-    }, { merge: true }).catch(error => console.error("Error guardando productos: ", error));
+    // 1. Solo guardamos Centrales si hubo un cambio real
+    if (paqueteCentrales !== ultimaVezGuardado.centrales) {
+        db.collection("plastensa_erp").doc("datos_centrales").set({
+            dbExtSellers: JSON.stringify(dbExtSellers), dbIntSellers: JSON.stringify(dbIntSellers), dbPendingVerifications: JSON.stringify(dbPendingVerifications), dbMpTipos: JSON.stringify(dbMpTipos), dbPreciosBase: JSON.stringify(dbPreciosBase), dbBancoRetazos: JSON.stringify(dbBancoRetazos), dbTolva: dbTolva, pizarraMateriaPrima: JSON.stringify(pizarraMateriaPrima), dbCotizacionesPerdidas: JSON.stringify(dbCotizacionesPerdidas)
+        }).catch(e => console.error(e));
+        ultimaVezGuardado.centrales = paqueteCentrales;
+    }
 
-    // 3. Guardar Clientes (Cajón SEPARADO)
-    db.collection("plastensa_erp").doc("datos_clientes").set({
-        dbClients: JSON.stringify(dbClients)
-    }, { merge: true }).catch(error => console.error("Error guardando clientes: ", error));
+    // 2. Solo guardamos Productos si hubo un cambio
+    if (paqueteProductos !== ultimaVezGuardado.productos) {
+        db.collection("plastensa_erp").doc("datos_productos").set({ products: paqueteProductos }, { merge: true }).catch(e => console.error(e));
+        ultimaVezGuardado.productos = paqueteProductos;
+        localStorage.setItem('plast_products', paqueteProductos);
+    }
 
-    // 4. Guardar Caja General (Cajón SEPARADO)
-    db.collection("plastensa_erp").doc("datos_caja").set({
-        dbMovimientosCaja: JSON.stringify(dbMovimientosCaja)
-    }, { merge: true }).catch(error => console.error("Error guardando caja: ", error));
+    // 3. Solo guardamos Clientes si hubo un cambio
+    if (paqueteClientes !== ultimaVezGuardado.clientes) {
+        db.collection("plastensa_erp").doc("datos_clientes").set({ dbClients: paqueteClientes }, { merge: true }).catch(e => console.error(e));
+        ultimaVezGuardado.clientes = paqueteClientes;
+    }
 
-    // 5. Guardar Módulo RRHH (Cajón SEPARADO)
-    db.collection("plastensa_erp").doc("datos_rrhh").set({
-        dbDirectorioRRHH: JSON.stringify(dbDirectorioRRHH),
-        dbAsistenciaAuditada: JSON.stringify(dbAsistenciaAuditada),
-        dbBoletasEmitidas: JSON.stringify(dbBoletasEmitidas)
-    }, { merge: true }).catch(error => console.error("Error guardando RRHH: ", error));
+    // 4. Solo guardamos Caja si hubo un cambio
+    if (paqueteCaja !== ultimaVezGuardado.caja) {
+        db.collection("plastensa_erp").doc("datos_caja").set({ dbMovimientosCaja: paqueteCaja }, { merge: true }).catch(e => console.error(e));
+        ultimaVezGuardado.caja = paqueteCaja;
+    }
 
-    localStorage.setItem('plast_products', JSON.stringify(products));
-    console.log("✅ Guardado particionado en 4 cajones exitoso.");
+    // 5. Solo guardamos RRHH si hubo un cambio
+    if (paqueteRRHH !== ultimaVezGuardado.rrhh) {
+        db.collection("plastensa_erp").doc("datos_rrhh").set({ dbDirectorioRRHH: JSON.stringify(dbDirectorioRRHH), dbAsistenciaAuditada: JSON.stringify(dbAsistenciaAuditada), dbBoletasEmitidas: JSON.stringify(dbBoletasEmitidas) }, { merge: true }).catch(e => console.error(e));
+        ultimaVezGuardado.rrhh = paqueteRRHH;
+    }
 }
 
 function exportarExcelMaestro() {
@@ -3604,21 +3610,19 @@ function iniciarRadar(userEmail) {
 
     // ==================================================
 
-    // RADARES INDIVIDUALES: COTIZACIONES Y PEDIDOS
+// RADARES INDIVIDUALES: COTIZACIONES Y PEDIDOS
     db.collection("cotizaciones").onSnapshot((snapshot) => {
         let tempQ = [];
         snapshot.forEach(doc => tempQ.push(doc.data()));
         quotes = tempQ.sort((a,b) => String(b.id).localeCompare(String(a.id)));
-        if(currentUser) { renderQuotes(); }
+        if(currentUser) renderAll();
     });
 
     db.collection("pedidos").onSnapshot((snapshot) => {
         let tempO = [];
         snapshot.forEach(doc => tempO.push(doc.data()));
         orders = tempO.sort(ordenarPedidosRecientesPrimero);
-        if(currentUser) { 
-            renderTesoreria(); renderRegistroVentas(); renderProduction(); renderInventory(); renderHistorialAdmin();
-        }
+        if(currentUser) renderAll();
     });
 
     // RADARES INDIVIDUALES: PRODUCCIÓN FASE 1 (MATERIA PRIMA Y SILOS)
@@ -3632,7 +3636,9 @@ function iniciarRadar(userEmail) {
                 return parseInt(a.id) - parseInt(b.id);
             });
         }
-        if(currentUser) renderSilos();
+        if(currentUser) {
+            if(pestanaActiva === 'expansion') renderSilos();
+        }
     });
 
     // RADARES INDIVIDUALES: PRODUCCIÓN FASE 2 (BLOQUERA, CORTES Y DESPACHOS)
@@ -3640,21 +3646,21 @@ function iniciarRadar(userEmail) {
         let tempB = [];
         snapshot.forEach(doc => tempB.push(doc.data()));
         dbBloques = tempB; 
-        if(currentUser) { renderInventarioBloques(); renderVolumenMaquina(); renderSalaCorte(); }
+        if(currentUser) renderAll();
     });
 
     db.collection("cortes_programados").onSnapshot((snapshot) => {
         let tempS = [];
         snapshot.forEach(doc => tempS.push(doc.data()));
         dbSchedules = tempS;
-        if(currentUser) { renderPlanDiario(); renderProduction(); renderSalaCorte(); }
+        if(currentUser) renderAll();
     });
 
     db.collection("despachos_tickets").orderBy("idTicket", "desc").limit(1000).onSnapshot((snapshot) => {
         let tempD = [];
         snapshot.forEach(doc => tempD.push(doc.data()));
         dbDespachos = tempD.sort((a,b) => String(b.idTicket).localeCompare(String(a.idTicket)));
-        if(currentUser) { renderDespacho(); renderTransporte(); renderTransporteDetail(); }
+        if(currentUser) renderAll();
     });
 
     // NUEVO RADAR: LIQUIDACIONES INDEPENDIENTES
@@ -3662,10 +3668,7 @@ function iniciarRadar(userEmail) {
         let tempL = [];
         snapshot.forEach(doc => tempL.push(doc.data()));
         dbLiquidaciones = tempL;
-        if(currentUser) {
-            if(typeof renderLiquidaciones === 'function') renderLiquidaciones();
-            if(typeof renderTransporteDetail === 'function') renderTransporteDetail();
-        }
+        if(currentUser) renderAll();
     });
 }
 
