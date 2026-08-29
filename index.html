@@ -2711,6 +2711,12 @@
                                 </button>
                             </div>
 
+                            <!-- BOTÓN TEMPORAL MIGRACIÓN -->
+                            <button onclick="robotMigradorDefinitivo()" class="w-full bg-indigo-600 text-white px-8 py-6 rounded-xl font-black hover:bg-indigo-700 transition-colors flex flex-col items-center justify-center gap-3 shadow-lg border border-indigo-400 border-dashed mb-4">
+                                <i data-lucide="database-zap" class="w-8 h-8 animate-pulse"></i> 
+                                <span id="lbl-robot-migrador">ROBOT: MIGRAR A GAVETEROS INDIVIDUALES</span>
+                            </button>
+
                             <button onclick="resetDeFabrica()" class="w-full bg-red-900 text-white px-8 py-6 rounded-xl font-black hover:bg-red-950 transition-colors flex flex-col items-center justify-center gap-3 shadow-lg border border-red-500">
                                 <i data-lucide="alert-triangle" class="w-8 h-8"></i> 
                                 <span>RESET DE FÁBRICA</span>
@@ -13104,6 +13110,43 @@ function imprimirBoletaSueldo(idEmp, mes, basico, bono, faltas, anticipos, liqui
     const win = window.open('','','width=800,height=800');
     win.document.write(html);
     win.document.close();
+}
+
+// ==========================================
+// ROBOT MIGRADOR DEFINITIVO A COLECCIONES
+// ==========================================
+async function robotMigradorDefinitivo() {
+    if(!confirm("¿Iniciar migración a gaveteros individuales?\n\nNO CIERRES la ventana ni apagues el internet hasta ver el mensaje de éxito.")) return;
+    
+    try {
+        const btn = document.getElementById('lbl-robot-migrador');
+        
+        if(btn) btn.innerText = "COPIANDO CLIENTES... ESPERE";
+        for(let c of dbClients) {
+            if(c.id) await db.collection("clientes").doc(String(c.id)).set(c);
+        }
+        
+        if(btn) btn.innerText = "COPIANDO PRODUCTOS... ESPERE";
+        for(let p of products) {
+            if(p.id) await db.collection("productos").doc(String(p.id)).set(p);
+        }
+        
+        if(btn) btn.innerText = "COPIANDO CAJA GENERAL... ESPERE";
+        for(let m of dbMovimientosCaja) {
+            if(m.id) await db.collection("caja_general").doc(String(m.id)).set(m);
+        }
+        
+        if(btn) btn.innerText = "COPIANDO RRHH... ESPERE";
+        for(let e of dbDirectorioRRHH) {
+            if(e.id) await db.collection("rrhh_directorio").doc(String(e.id)).set(e);
+        }
+
+        if(btn) btn.innerText = "¡MIGRACIÓN LISTA!";
+        alert("✅ ¡Migración de datos exitosa!\n\nLos datos ya están clonados en sus propios gaveteros en Firebase.");
+    } catch (error) {
+        console.error(error);
+        alert("❌ Ocurrió un error. Revisa tu conexión a internet e intenta de nuevo.");
+    }
 }
 
 renderAll();
