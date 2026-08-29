@@ -3133,22 +3133,6 @@
                 localStorage.setItem('plast_products', paqueteProductos);
             }
 
-            // 3. Solo guardamos Clientes si hubo un cambio
-            if (paqueteClientes !== ultimaVezGuardado.clientes) {
-                db.collection("plastensa_erp").doc("datos_clientes").set({
-                    dbClients: paqueteClientes
-                }, { merge: true }).catch(error => console.error("Error guardando clientes: ", error));
-                ultimaVezGuardado.clientes = paqueteClientes;
-            }
-
-            // 4. Solo guardamos Caja General si hubo un cambio
-            if (paqueteCaja !== ultimaVezGuardado.caja) {
-                db.collection("plastensa_erp").doc("datos_caja").set({
-                    dbMovimientosCaja: paqueteCaja
-                }, { merge: true }).catch(error => console.error("Error guardando caja: ", error));
-                ultimaVezGuardado.caja = paqueteCaja;
-            }
-
             // 5. Solo guardamos Módulo RRHH si hubo un cambio
             if (paqueteRRHH !== ultimaVezGuardado.rrhh) {
                 db.collection("plastensa_erp").doc("datos_rrhh").set({
@@ -3608,18 +3592,18 @@ function iniciarRadar(userEmail) {
         }
     });
 
-    db.collection("plastensa_erp").doc("datos_clientes").onSnapshot((doc) => {
-        if (doc.exists) { 
-            dbClients = JSON.parse(doc.data().dbClients); 
-            if(currentUser) renderClientes(); 
-        }
+    db.collection("clientes").onSnapshot((snapshot) => {
+        let temp = [];
+        snapshot.forEach(doc => temp.push(doc.data()));
+        dbClients = temp;
+        if(currentUser) renderClientes();
     });
 
-    db.collection("plastensa_erp").doc("datos_caja").onSnapshot((doc) => {
-        if (doc.exists) { 
-            dbMovimientosCaja = JSON.parse(doc.data().dbMovimientosCaja); 
-            if(currentUser) renderCajaGeneral(); 
-        }
+    db.collection("caja_general").orderBy("id", "desc").limit(300).onSnapshot((snapshot) => {
+        let temp = [];
+        snapshot.forEach(doc => temp.push(doc.data()));
+        dbMovimientosCaja = temp;
+        if(currentUser) renderCajaGeneral();
     });
 
     // RADAR MÓDULO RRHH
@@ -3877,8 +3861,8 @@ function logout() {
 
         function deleteClient(id) { 
             if(!confirm("⚠️ ¿Estás seguro de eliminar este cliente?\nSu historial de compras seguirá existiendo, pero se borrará del directorio.")) return;
-            dbClients = dbClients.filter(c => c.id !== id); 
-            save(); renderClientes(); showToast("Cliente eliminado.");
+            db.collection("clientes").doc(String(id)).delete();
+            showToast("Cliente eliminado.");
         }
 
         function renderClientes() {
@@ -3940,8 +3924,10 @@ function logout() {
                 c.nit = document.getElementById('edit-cli-nit').value.trim();
                 c.phone = document.getElementById('edit-cli-phone').value.trim();
                 c.propietario = document.getElementById('edit-cli-vendedor').value;
-		c.tipoPrecio = document.getElementById('edit-cli-tipo-precio').value;
-                save(); renderClientes();
+                c.tipoPrecio = document.getElementById('edit-cli-tipo-precio').value;
+                
+                db.collection("clientes").doc(String(c.id)).set(c); // Directo a la nube
+                
                 document.getElementById('edit-client-modal').classList.add('hidden');
                 showToast("Datos de cliente actualizados.");
             }
@@ -3976,23 +3962,17 @@ function logout() {
             const propietario = document.getElementById('new-cli-vendedor').value;
             const tipoPrecio = document.getElementById('new-cli-tipo-precio').value;
 
-            // Evitar duplicados
             const exists = dbClients.find(c => c.name.toLowerCase() === name.toLowerCase());
             if(exists) return alert("Ya existe un cliente con ese nombre en la base de datos.");
 
-            dbClients.push({
-                id: Date.now(),
-                name: name,
-                nit: nit,
-                phone: phone,
-                propietario: propietario,
-                tipoPrecio: tipoPrecio
-            });
+            const nuevoCliente = {
+                id: Date.now(), name: name, nit: nit, phone: phone, propietario: propietario, tipoPrecio: tipoPrecio
+            };
 
-            save(); 
-            renderClientes();
+            db.collection("clientes").doc(String(nuevoCliente.id)).set(nuevoCliente); // Directo a la nube
             document.getElementById('new-client-modal').classList.add('hidden');
             showToast("Nuevo cliente registrado con éxito.");
+            e.target.reset();
         }
 
         // ==========================================
@@ -10077,9 +10057,7 @@ function openSaldoInicialCaja() {
 
 function deleteMovimientoCaja(id) {
     if(!confirm("⚠️ ¿Estás seguro de eliminar este movimiento manual? Esta acción no se puede deshacer y alterará el balance actual.")) return;
-    dbMovimientosCaja = dbMovimientosCaja.filter(m => m.id !== id);
-    save();
-    renderAll();
+    db.collection("caja_general").doc(String(id)).delete();
     showToast("Movimiento eliminado exitosamente.");
 }
 
@@ -10325,7 +10303,6 @@ async function submitMovimientoCaja(e) {
     if(!salida && !entrada) return alert("Debe seleccionar una cuenta.");
     if(salida === entrada) return alert("La cuenta de origen y destino no pueden ser iguales.");
 
-    // Traductor de fecha: convierte YYYY-MM-DD a D/M/YYYY
     let rawDate = document.getElementById('caja-mov-fecha').value;
     let formattedDate = rawDate;
     if(rawDate && rawDate.includes('-')) {
@@ -10337,92 +10314,54 @@ async function submitMovimientoCaja(e) {
     const desc = document.getElementById('caja-mov-desc').value;
     const categoria = document.getElementById('caja-mov-categoria') ? document.getElementById('caja-mov-categoria').value : '';
 
-    // --- LÓGICA DE CRUCE DE MONEDAS ---
     const cuentasUSD = ['CAJA DOLARES', 'BISA USDT', 'TOWERBANK'];
     const isSalidaUSD = cuentasUSD.includes(salida);
     const isEntradaUSD = cuentasUSD.includes(entrada);
 
+    const batch = db.batch(); // CAJA FUERTE DE GOOGLE
+
     if (salida && entrada && isSalidaUSD !== isEntradaUSD) {
         const tc = parseFloat(document.getElementById('caja-tc').value) || 6.96;
-        let montoSalida = 0;
-        let montoEntrada = 0;
+        let montoSalida = 0; let montoEntrada = 0;
 
         if (isSalidaUSD && !isEntradaUSD) {
-            // Vendiendo dólares (USD a BS)
-            const confirmacion = confirm(`💱 CRUCE DE MONEDA DETECTADO:\n\nEstás retirando ${monto} USD de [${salida}] a un T.C. de ${tc}.\nSe ingresarán ${(monto * tc).toFixed(2)} Bs a [${entrada}].\n\n(Asegúrate de haber ingresado el monto en Dólares en el formulario).\n\n¿Deseas continuar?`);
-            if(!confirmacion) return;
-            montoSalida = monto;
-            montoEntrada = parseFloat((monto * tc).toFixed(2));
+            if(!confirm(`💱 CRUCE DE MONEDA DETECTADO:\n\nEstás retirando ${monto} USD de [${salida}] a un T.C. de ${tc}.\nSe ingresarán ${(monto * tc).toFixed(2)} Bs a [${entrada}].\n\n¿Deseas continuar?`)) return;
+            montoSalida = monto; montoEntrada = parseFloat((monto * tc).toFixed(2));
         } else if (!isSalidaUSD && isEntradaUSD) {
-            // Comprando dólares (BS a USD)
-            const confirmacion = confirm(`💱 CRUCE DE MONEDA DETECTADO:\n\nEstás retirando ${monto} Bs de [${salida}] a un T.C. de ${tc}.\nSe ingresarán ${(monto / tc).toFixed(2)} USD a [${entrada}].\n\n(Asegúrate de haber ingresado el monto en Bolivianos en el formulario).\n\n¿Deseas continuar?`);
-            if(!confirmacion) return;
-            montoSalida = monto;
-            montoEntrada = parseFloat((monto / tc).toFixed(2));
+            if(!confirm(`💱 CRUCE DE MONEDA DETECTADO:\n\nEstás retirando ${monto} Bs de [${salida}] a un T.C. de ${tc}.\nSe ingresarán ${(monto / tc).toFixed(2)} USD a [${entrada}].\n\n¿Deseas continuar?`)) return;
+            montoSalida = monto; montoEntrada = parseFloat((monto / tc).toFixed(2));
         }
 
-        // Asiento 1: Egreso de la cuenta origen
-        dbMovimientosCaja.push({
-            id: Date.now(),
-            fecha: formattedDate,
-            monto: montoSalida,
-            desc: `[Cambio de Moneda] Retiro hacia ${entrada} - ${desc}`,
-            categoria: categoria,
-            salida: salida,
-            entrada: ''
-        });
-
-        // Asiento 2: Ingreso a la cuenta destino
-        dbMovimientosCaja.push({
-            id: Date.now() + 1,
-            fecha: formattedDate,
-            monto: montoEntrada,
-            desc: `[Cambio de Moneda] Ingreso desde ${salida} - ${desc}`,
-            categoria: categoria,
-            salida: '',
-            entrada: entrada
-        });
+        const m1 = { id: Date.now(), fecha: formattedDate, monto: montoSalida, desc: `[Cambio de Moneda] Retiro hacia ${entrada} - ${desc}`, categoria: categoria, salida: salida, entrada: '' };
+        const m2 = { id: Date.now() + 1, fecha: formattedDate, monto: montoEntrada, desc: `[Cambio de Moneda] Ingreso desde ${salida} - ${desc}`, categoria: categoria, salida: '', entrada: entrada };
+        
+        batch.set(db.collection("caja_general").doc(String(m1.id)), m1);
+        batch.set(db.collection("caja_general").doc(String(m2.id)), m2);
     } else {
-        // Movimiento normal (Misma moneda o simple ingreso/egreso sin traspaso cruzado)
-        dbMovimientosCaja.push({
-            id: Date.now(),
-            fecha: formattedDate,
-            monto: monto,
-            desc: desc,
-            categoria: categoria,
-            salida: salida,
-            entrada: entrada
-        });
+        const mNormal = { id: Date.now(), fecha: formattedDate, monto: monto, desc: desc, categoria: categoria, salida: salida, entrada: entrada };
+        batch.set(db.collection("caja_general").doc(String(mNormal.id)), mNormal);
     }
 
-    // MAGIA DE LA LIQUIDACIÓN: Cierre del círculo
     if (window.liquidacionEnProceso) {
         let liq = dbLiquidaciones.find(l => l.id === window.liquidacionEnProceso);
         if (liq) {
             liq.estado = 'PAGADO';
-            try {
-                const batch = db.batch();
-                batch.set(db.collection("liquidaciones").doc(String(liq.id)), liq);
-                liq.viajesIds.forEach(idTicket => {
-                    let desp = dbDespachos.find(d => d.idTicket === idTicket);
-                    if (desp) {
-                        desp.estadoFlete = 'PAGADO';
-                        batch.set(db.collection("despachos_tickets").doc(String(desp.idTicket).replace(/\//g, '-')), desp);
-                    }
-                });
-                await batch.commit();
-            } catch (error) {
-                alert("⚠️ Se guardó en Caja, pero la red falló al intentar marcar la liquidación como pagada. Por favor revise.");
-            }
+            batch.set(db.collection("liquidaciones").doc(String(liq.id)), liq);
+            liq.viajesIds.forEach(idTicket => {
+                let desp = dbDespachos.find(d => d.idTicket === idTicket);
+                if (desp) {
+                    desp.estadoFlete = 'PAGADO';
+                    batch.set(db.collection("despachos_tickets").doc(String(desp.idTicket).replace(/\//g, '-')), desp);
+                }
+            });
         }
         window.liquidacionEnProceso = null;
     }
 
-    save();
+    await batch.commit(); // Sube todo de golpe
     document.getElementById('modal-caja-movimiento').classList.add('hidden');
     e.target.reset();
-    renderAll();
-    showToast("Movimiento registrado con éxito.");
+    showToast("Movimiento registrado con éxito directamente en la nube.");
 }
 
 function exportarCajaCSV() {
