@@ -6041,12 +6041,6 @@ function renderDashboard() {
     }
 }
 
-// Interceptamos la función renderAll existente para añadir el dashboard
-const crmOriginalRenderAll = renderAll;
-renderAll = function() {
-    crmOriginalRenderAll();
-    renderDashboard();
-};
 
         // Función para que el admin apruebe con un click
         function aprobarCotizacion(id) {
@@ -9086,19 +9080,6 @@ function renderStockFisico() {
     if(window.lucide) lucide.createIcons();
 }
 
-// Interceptamos la función renderAll existente 
-const originalRenderAll = renderAll;
-renderAll = function() {
-    originalRenderAll();
-
-    // 1. Usar la nueva función ultrarrápida
-    renderStockFisico();
-    
-    // 2. Renderizar Reporte
-    renderReporteCorte();
-    if(typeof renderDashboard === 'function') renderDashboard();
-};
-
 // ==========================================
 // MÓDULO DE DESPACHOS Y TICKETS
 // ==========================================
@@ -9971,13 +9952,6 @@ function renderExtSellers() {
     if(window.lucide) lucide.createIcons();
 }
 
-// Inyectar en el ciclo de renderizado principal
-const externalOriginalRenderAll = renderAll;
-renderAll = function() {
-    externalOriginalRenderAll();
-    if(typeof renderExtSellers === 'function') renderExtSellers();
-};
-
 // ==========================================
 // MÓDULO DE EXPORTACIÓN A CSV (EXCEL)
 // ==========================================
@@ -10675,13 +10649,6 @@ function resetDeFabrica() {
     window.location.reload();
 }
 
-// Inyectar el renderizado de clientes al ciclo principal
-const prevRenderAllClientes = renderAll;
-renderAll = function() {
-    prevRenderAllClientes();
-    if(typeof renderClientes === 'function') renderClientes();
-};
-
 // ==========================================
 // CONTROLES DE ZOOM PARA TABLAS ANCHAS
 // ==========================================
@@ -11213,12 +11180,6 @@ function imprimirLiquidacionPDF(id) {
     win.document.close();
 }
 
-// Inyección para que renderice al abrir
-const lRenderAll = renderAll;
-renderAll = function() {
-    lRenderAll();
-    if(typeof renderLiquidaciones === 'function') renderLiquidaciones();
-};
 
 // ===============================================
 // EDICIÓN DE CHOFERES EN DESPACHOS (SOLO ADMIN)
@@ -13144,14 +13105,6 @@ function imprimirBoletaSueldo(idEmp, mes, basico, bono, faltas, anticipos, liqui
     win.document.write(html);
     win.document.close();
 }
-
-// Inyectar al ciclo de renderizado
-const rrhhRenderAll = renderAll;
-renderAll = function() {
-    rrhhRenderAll();
-    if(typeof renderDirectorioRRHH === 'function') renderDirectorioRRHH();
-    if(typeof renderPlanillaGeneral === 'function') renderPlanillaGeneral();
-};
 
 renderAll();
     </script>
