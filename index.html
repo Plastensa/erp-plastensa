@@ -5556,7 +5556,10 @@ function renderSalidasEPS() {
     const sM = document.getElementById('filter-salidas-mes'); const sV = document.getElementById('filter-salidas-vendedor');
     let meses = new Set(); let vends = new Set();
     orders.forEach(o => { const p = o.date.split('/'); if(p.length===3) meses.add(`${p[1].padStart(2,'0')}/${p[2]}`); if(o.vendedorInterno) vends.add(o.vendedorInterno); });
-    const vM = sM ? sM.value : 'ALL'; const vV = sV ? sV.value : 'ALL';
+    
+    // CORRECCIÓN: Si el filtro está en blanco, se asume 'ALL' por defecto para que no esconda los datos
+    const vM = (sM && sM.value) ? sM.value : 'ALL'; 
+    const vV = (sV && sV.value) ? sV.value : 'ALL';
     if(sM) sM.innerHTML = `<option value="ALL">Todos los meses</option>` + Array.from(meses).sort().reverse().map(m => `<option value="${m}" ${vM===m?'selected':''}>${m}</option>`).join('');
     if(sV) sV.innerHTML = `<option value="ALL">Todos los vendedores</option>` + Array.from(vends).sort().map(v => `<option value="${v}" ${vV===v?'selected':''}>${v}</option>`).join('');
 
@@ -5632,9 +5635,9 @@ function renderAll() {
         else if(pestanaActiva === 'rrhh-asistencia') { if(typeof renderTablaAuditoriaZk === 'function') renderTablaAuditoriaZk(); }
         else if(pestanaActiva === 'rrhh-planilla') { if(typeof renderPlanillaGeneral === 'function') renderPlanillaGeneral(); }
         else if(pestanaActiva === 'materia-prima') { renderMateriaPrima(); }
-        else if(pestanaActiva === 'expansion') { renderExpansion(); }
+        else if(pestanaActiva === 'expansion') { renderExpansion(); renderHistorialSilos(); }
         else if(pestanaActiva === 'bloquera') { renderVolumenMaquina(); }
-        else if(pestanaActiva === 'inventario-bloques') { renderInventarioBloques(); renderHistorialSilos(); }
+        else if(pestanaActiva === 'inventario-bloques') { renderInventarioBloques(); }
         else if(pestanaActiva === 'corte') { renderSalaCorte(); }
         else if(pestanaActiva === 'reporte-corte') { renderReporteCorte(); }
         else if(pestanaActiva === 'produccion') { renderProduction(); }
