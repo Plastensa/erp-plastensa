@@ -3599,7 +3599,7 @@ function iniciarRadar(userEmail) {
         if(currentUser) renderClientes();
     });
 
-    db.collection("caja_general").orderBy("id", "desc").limit(300).onSnapshot((snapshot) => {
+    db.collection("caja_general").orderBy("id", "desc").onSnapshot((snapshot) => {
         let temp = [];
         snapshot.forEach(doc => temp.push(doc.data()));
         dbMovimientosCaja = temp;
