@@ -1126,8 +1126,8 @@
                         <th class="p-4 align-top">
     Fecha Prod.<br>
     <div class="flex gap-1 mt-2">
-        <input type="date" id="traz-filter-desde" onchange="filtrarTablaTrazabilidad()" class="w-full bg-white border border-slate-300 rounded-lg px-1 py-1.5 text-slate-700 font-bold outline-none focus:border-indigo-500 text-[9px] shadow-inner">
-        <input type="date" id="traz-filter-hasta" onchange="filtrarTablaTrazabilidad()" class="w-full bg-white border border-slate-300 rounded-lg px-1 py-1.5 text-slate-700 font-bold outline-none focus:border-indigo-500 text-[9px] shadow-inner">
+        <input type="date" id="traz-filter-desde" onchange="buscarTrazabilidadBloques()" class="w-full bg-white border border-slate-300 rounded-lg px-1 py-1.5 text-slate-700 font-bold outline-none focus:border-indigo-500 text-[9px] shadow-inner">
+        <input type="date" id="traz-filter-hasta" onchange="buscarTrazabilidadBloques()" class="w-full bg-white border border-slate-300 rounded-lg px-1 py-1.5 text-slate-700 font-bold outline-none focus:border-indigo-500 text-[9px] shadow-inner">
     </div>
 </th>
                         <th class="p-4 align-top pt-6">Código / Carnet</th>
@@ -8948,13 +8948,14 @@ function anularTandaCorte(id) {
 
     if(!confirm(`⚠️ ATENCIÓN ADMINISTRADOR:\n¿Está seguro de ANULAR (Ctrl+Z) este corte?\n- Los bloques volverán a la Sala de Corte.\n- El inventario generado se restará.\n- Los pedidos afectados volverán a la lista "Por Programar".`)) return;
 
-    // 2. Devolver los bloques físicos a la máquina en Firebase
+    // 2. Devolver los bloques físicos a la máquina DIRECTO en Firebase (Anti-Limbo)
     if(reporte.bloquesIds && reporte.bloquesIds.length > 0) {
-        dbBloques.forEach(b => {
-            if(reporte.bloquesIds.includes(b.id)) {
-                b.ubicacion = 'CORTADO'; b.tandaProceso = null; b.fechaModificado = new Date().toLocaleString();
-                db.collection("bloques_inventario").doc(String(b.id)).set(b);
-            }
+        reporte.bloquesIds.forEach(bloqueId => {
+            db.collection("bloques_inventario").doc(String(bloqueId)).update({
+                ubicacion: 'CORTADO',
+                tandaProceso: null,
+                fechaModificado: new Date().toLocaleString()
+            }).catch(err => console.log("Error restaurando bloque:", err));
         });
     }
 
@@ -12027,15 +12028,28 @@ window.trazabilidadResultados = []; // Memoria global para filtrar sin gastar le
 function buscarTrazabilidadBloques() {
     const tbody = document.getElementById('trazabilidad-bloques-body');
     const codigoInput = document.getElementById('trazabilidad-codigo').value.trim().toUpperCase();
+    
+    // Atrapamos las fechas si el usuario las seleccionó
+    const dateDesdeStr = document.getElementById('traz-filter-desde').value; 
+    const dateHastaStr = document.getElementById('traz-filter-hasta').value; 
 
     tbody.innerHTML = `<tr><td colspan="7" class="p-8 text-center text-indigo-500 font-black uppercase animate-pulse">Rastreando en la base de datos profunda...</td></tr>`;
 
-    let query = db.collection("bloques_inventario").orderBy("id", "desc");
+    let query = db.collection("bloques_inventario");
 
-    // Limitamos para proteger lecturas y no colapsar la memoria (Trae 200 por defecto)
-    const limiteLecturas = codigoInput ? 1000 : 200;
+    // Si hay fechas, buscamos exactamente ese rango en Firebase (sin el límite de 200)
+    if (dateDesdeStr || dateHastaStr) {
+        let timeDesde = dateDesdeStr ? new Date(dateDesdeStr + "T00:00:00").getTime() : 0;
+        let timeHasta = dateHastaStr ? new Date(dateHastaStr + "T23:59:59").getTime() : Infinity;
+        
+        query = query.where("id", ">=", timeDesde).where("id", "<=", timeHasta).orderBy("id", "desc").limit(3000); 
+    } else {
+        // Si no hay fechas, traemos los últimos 200 para ahorrar internet
+        const limiteLecturas = codigoInput ? 1000 : 200;
+        query = query.orderBy("id", "desc").limit(limiteLecturas);
+    }
 
-    query.limit(limiteLecturas).get().then(snapshot => {
+    query.get().then(snapshot => {
         let resultados = [];
         
         snapshot.forEach(doc => {
@@ -12050,7 +12064,7 @@ function buscarTrazabilidadBloques() {
         });
 
         window.trazabilidadResultados = resultados; // Guardamos en la memoria temporal
-        filtrarTablaTrazabilidad(); // Pintamos usando los filtros
+        filtrarTablaTrazabilidad(); // Pintamos usando los filtros locales
         
         showToast("Rastreo completado con éxito.");
     }).catch(err => {
