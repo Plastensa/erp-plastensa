@@ -3078,61 +3078,83 @@
         }
 
 // 3. FUNCIÓN DE GUARDADO EN LA NUBE (VERSION PARTICIONADA ANTI-COLAPSO)
-// NUEVO: Memoria caché para no subir datos repetidos a Google y saturar la RAM
-let ultimaVezGuardado = {
-    centrales: "", productos: "", clientes: "", caja: "", rrhh: ""
-};
+// NUEVO: Memoria caché para no subir datos repetidos a Google y saturar la red
+        let ultimaVezGuardado = {
+            centrales: "", productos: "", clientes: "", caja: "", rrhh: ""
+        };
 
-function save() {
-    if (!erpDataLoaded) {
-        console.error("🛑 BLOQUEO DE SEGURIDAD: Guardado rechazado. Los datos no han cargado.");
-        return;
-    }
-    if (products.length === 0 && dbIntSellers.length <= 1) {
-        console.error("🛑 BLOQUEO DE SEGURIDAD: Listas vacías detectadas.");
-        return;
-    }
+        // 3. FUNCIÓN DE GUARDADO EN LA NUBE (INTELIGENTE Y ANTI-COLAPSO)
+        function save() {
+            if (!erpDataLoaded) {
+                console.error("🛑 BLOQUEO DE SEGURIDAD: Guardado rechazado. Los datos no han terminado de cargar del servidor.");
+                return;
+            }
 
-    // Empaquetamos los datos temporalmente
-    const paqueteCentrales = JSON.stringify({ dbExtSellers, dbIntSellers, dbPendingVerifications, dbMpTipos, dbPreciosBase, dbBancoRetazos, dbTolva, pizarraMateriaPrima, dbCotizacionesPerdidas });
-    const paqueteProductos = JSON.stringify(products);
-    const paqueteClientes = JSON.stringify(dbClients);
-    const paqueteCaja = JSON.stringify(dbMovimientosCaja);
-    const paqueteRRHH = JSON.stringify({ dbDirectorioRRHH, dbAsistenciaAuditada, dbBoletasEmitidas });
+            if (products.length === 0 && dbIntSellers.length <= 1) {
+                console.error("🛑 BLOQUEO DE SEGURIDAD: Se detectó un intento de sobreescribir la nube con listas vacías.");
+                return;
+            }
 
-    // 1. Solo guardamos Centrales si hubo un cambio real
-    if (paqueteCentrales !== ultimaVezGuardado.centrales) {
-        db.collection("plastensa_erp").doc("datos_centrales").set({
-            dbExtSellers: JSON.stringify(dbExtSellers), dbIntSellers: JSON.stringify(dbIntSellers), dbPendingVerifications: JSON.stringify(dbPendingVerifications), dbMpTipos: JSON.stringify(dbMpTipos), dbPreciosBase: JSON.stringify(dbPreciosBase), dbBancoRetazos: JSON.stringify(dbBancoRetazos), dbTolva: dbTolva, pizarraMateriaPrima: JSON.stringify(pizarraMateriaPrima), dbCotizacionesPerdidas: JSON.stringify(dbCotizacionesPerdidas)
-        }).catch(e => console.error(e));
-        ultimaVezGuardado.centrales = paqueteCentrales;
-    }
+            // Empaquetamos los datos temporalmente para comparar
+            const paqueteCentrales = JSON.stringify({ dbExtSellers, dbIntSellers, dbPendingVerifications, dbMpTipos, dbPreciosBase, dbBancoRetazos, dbTolva, pizarraMateriaPrima, dbCotizacionesPerdidas });
+            const paqueteProductos = JSON.stringify(products);
+            const paqueteClientes = JSON.stringify(dbClients);
+            const paqueteCaja = JSON.stringify(dbMovimientosCaja);
+            const paqueteRRHH = JSON.stringify({ dbDirectorioRRHH, dbAsistenciaAuditada, dbBoletasEmitidas });
 
-    // 2. Solo guardamos Productos si hubo un cambio
-    if (paqueteProductos !== ultimaVezGuardado.productos) {
-        db.collection("plastensa_erp").doc("datos_productos").set({ products: paqueteProductos }, { merge: true }).catch(e => console.error(e));
-        ultimaVezGuardado.productos = paqueteProductos;
-        localStorage.setItem('plast_products', paqueteProductos);
-    }
+            // 1. Solo guardamos Centrales si hubo un cambio real
+            if (paqueteCentrales !== ultimaVezGuardado.centrales) {
+                db.collection("plastensa_erp").doc("datos_centrales").set({
+                    dbExtSellers: JSON.stringify(dbExtSellers),
+                    dbIntSellers: JSON.stringify(dbIntSellers),
+                    dbPendingVerifications: JSON.stringify(dbPendingVerifications),
+                    dbMpTipos: JSON.stringify(dbMpTipos),
+                    dbPreciosBase: JSON.stringify(dbPreciosBase),
+                    dbBancoRetazos: JSON.stringify(dbBancoRetazos),
+                    dbTolva: dbTolva,
+                    pizarraMateriaPrima: JSON.stringify(pizarraMateriaPrima),
+                    dbCotizacionesPerdidas: JSON.stringify(dbCotizacionesPerdidas)
+                }).catch(error => console.error("Error guardando centrales: ", error));
+                ultimaVezGuardado.centrales = paqueteCentrales;
+            }
 
-    // 3. Solo guardamos Clientes si hubo un cambio
-    if (paqueteClientes !== ultimaVezGuardado.clientes) {
-        db.collection("plastensa_erp").doc("datos_clientes").set({ dbClients: paqueteClientes }, { merge: true }).catch(e => console.error(e));
-        ultimaVezGuardado.clientes = paqueteClientes;
-    }
+            // 2. Solo guardamos Catálogo de Productos si hubo un cambio
+            if (paqueteProductos !== ultimaVezGuardado.productos) {
+                db.collection("plastensa_erp").doc("datos_productos").set({
+                    products: paqueteProductos
+                }, { merge: true }).catch(error => console.error("Error guardando productos: ", error));
+                ultimaVezGuardado.productos = paqueteProductos;
+                localStorage.setItem('plast_products', paqueteProductos);
+            }
 
-    // 4. Solo guardamos Caja si hubo un cambio
-    if (paqueteCaja !== ultimaVezGuardado.caja) {
-        db.collection("plastensa_erp").doc("datos_caja").set({ dbMovimientosCaja: paqueteCaja }, { merge: true }).catch(e => console.error(e));
-        ultimaVezGuardado.caja = paqueteCaja;
-    }
+            // 3. Solo guardamos Clientes si hubo un cambio
+            if (paqueteClientes !== ultimaVezGuardado.clientes) {
+                db.collection("plastensa_erp").doc("datos_clientes").set({
+                    dbClients: paqueteClientes
+                }, { merge: true }).catch(error => console.error("Error guardando clientes: ", error));
+                ultimaVezGuardado.clientes = paqueteClientes;
+            }
 
-    // 5. Solo guardamos RRHH si hubo un cambio
-    if (paqueteRRHH !== ultimaVezGuardado.rrhh) {
-        db.collection("plastensa_erp").doc("datos_rrhh").set({ dbDirectorioRRHH: JSON.stringify(dbDirectorioRRHH), dbAsistenciaAuditada: JSON.stringify(dbAsistenciaAuditada), dbBoletasEmitidas: JSON.stringify(dbBoletasEmitidas) }, { merge: true }).catch(e => console.error(e));
-        ultimaVezGuardado.rrhh = paqueteRRHH;
-    }
-}
+            // 4. Solo guardamos Caja General si hubo un cambio
+            if (paqueteCaja !== ultimaVezGuardado.caja) {
+                db.collection("plastensa_erp").doc("datos_caja").set({
+                    dbMovimientosCaja: paqueteCaja
+                }, { merge: true }).catch(error => console.error("Error guardando caja: ", error));
+                ultimaVezGuardado.caja = paqueteCaja;
+            }
+
+            // 5. Solo guardamos Módulo RRHH si hubo un cambio
+            if (paqueteRRHH !== ultimaVezGuardado.rrhh) {
+                db.collection("plastensa_erp").doc("datos_rrhh").set({
+                    dbDirectorioRRHH: JSON.stringify(dbDirectorioRRHH),
+                    dbAsistenciaAuditada: JSON.stringify(dbAsistenciaAuditada),
+                    dbBoletasEmitidas: JSON.stringify(dbBoletasEmitidas)
+                }, { merge: true }).catch(error => console.error("Error guardando RRHH: ", error));
+                ultimaVezGuardado.rrhh = paqueteRRHH;
+            }
+
+            console.log("✅ Guardado Inteligente ejecutado correctamente.");
+        }
 
 function exportarExcelMaestro() {
     const wb = XLSX.utils.book_new();
