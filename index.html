@@ -12035,32 +12035,10 @@ function buscarTrazabilidadBloques() {
     const tbody = document.getElementById('trazabilidad-bloques-body');
     const codigoInput = document.getElementById('trazabilidad-codigo').value.trim().toUpperCase();
     
-    // Atrapamos las fechas si el usuario las seleccionó
-    const dateDesdeStr = document.getElementById('traz-filter-desde').value; 
-    const dateHastaStr = document.getElementById('traz-filter-hasta').value; 
+    tbody.innerHTML = `<tr><td colspan="7" class="p-8 text-center text-indigo-500 font-black uppercase animate-pulse">Rastreando todos los bloques en la base de datos...</td></tr>`;
 
-    tbody.innerHTML = `<tr><td colspan="7" class="p-8 text-center text-indigo-500 font-black uppercase animate-pulse">Rastreando en la base de datos profunda...</td></tr>`;
-
-    let query = db.collection("bloques_inventario");
-
-    if (dateDesdeStr || dateHastaStr) {
-        let timeDesde = 0;
-        let timeHasta = Infinity;
-
-        if (dateDesdeStr) {
-            const [y, m, d] = dateDesdeStr.split('-');
-            timeDesde = new Date(y, m - 1, d, 0, 0, 0).getTime();
-        }
-        if (dateHastaStr) {
-            const [y, m, d] = dateHastaStr.split('-');
-            timeHasta = new Date(y, m - 1, d, 23, 59, 59, 999).getTime();
-        }
-        
-        query = query.where("id", ">=", timeDesde).where("id", "<=", timeHasta).orderBy("id", "desc").limit(3000); 
-    } else {
-        const limiteLecturas = codigoInput ? 1000 : 200;
-        query = query.orderBy("id", "desc").limit(limiteLecturas);
-    }
+    // Descargamos un lote amplio (hasta 3000 registros) para incluir planta, cortados y procesados
+    let query = db.collection("bloques_inventario").orderBy("id", "desc").limit(3000);
 
     query.get().then(snapshot => {
         let resultados = [];
@@ -12068,7 +12046,10 @@ function buscarTrazabilidadBloques() {
         snapshot.forEach(doc => {
             const b = doc.data();
             if (codigoInput) {
-                if (b.codigo && b.codigo.toUpperCase().includes(codigoInput)) {
+                const matchCodigo = b.codigo && b.codigo.toUpperCase().includes(codigoInput);
+                const matchTanda = b.tandaProceso && String(b.tandaProceso).toUpperCase().includes(codigoInput);
+                
+                if (matchCodigo || matchTanda) {
                     resultados.push(b);
                 }
             } else {
@@ -12076,13 +12057,13 @@ function buscarTrazabilidadBloques() {
             }
         });
 
-        window.trazabilidadResultados = resultados; // Guardamos en la memoria temporal
-        filtrarTablaTrazabilidad(); // Pintamos usando los filtros locales
+        window.trazabilidadResultados = resultados; // Almacenamos el universo completo en memoria local
+        filtrarTablaTrazabilidad(); // Aplicamos los selectores y fechas de manera instantánea
         
-        showToast("Rastreo completado con éxito.");
+        showToast("Kardex actualizado con éxito.");
     }).catch(err => {
         console.error(err);
-        tbody.innerHTML = `<tr><td colspan="7" class="p-8 text-center text-red-500 font-bold italic">Error al conectar con la base de datos profunda.</td></tr>`;
+        tbody.innerHTML = `<tr><td colspan="7" class="p-8 text-center text-red-500 font-bold italic">Error al conectar con la base de datos.</td></tr>`;
     });
 }
 
@@ -12106,16 +12087,18 @@ function filtrarTablaTrazabilidad() {
         timeHasta = new Date(y, m - 1, d, 23, 59, 59, 999).getTime();
     }
 
-    const filtrados = window.trazabilidadResultados.filter(b => {
+    const filtrados = (window.trazabilidadResultados || []).filter(b => {
         let pasaFecha = true;
         let pasaEstado = true;
 
         if (dateDesdeStr || dateHastaStr) {
-            let bTime = getFilterableDate(b.fecha);
+            const bTime = b.id || getFilterableDate(b.fecha);
             if (bTime < timeDesde || bTime > timeHasta) pasaFecha = false;
         }
         
-        if (filtroEstado !== 'ALL') pasaEstado = b.ubicacion === filtroEstado;
+        if (filtroEstado !== 'ALL') {
+            pasaEstado = b.ubicacion === filtroEstado;
+        }
 
         return pasaFecha && pasaEstado;
     });
@@ -12123,7 +12106,7 @@ function filtrarTablaTrazabilidad() {
     if (contador) contador.innerText = `${filtrados.length} BLOQUES`;
 
     if (filtrados.length === 0) {
-        tbody.innerHTML = `<tr><td colspan="7" class="p-8 text-center text-slate-400 font-bold italic">No se encontró ningún bloque con esos filtros.</td></tr>`;
+        tbody.innerHTML = `<tr><td colspan="7" class="p-8 text-center text-slate-400 font-bold italic">No se encontró ningún bloque con los filtros seleccionados.</td></tr>`;
         return;
     }
 
