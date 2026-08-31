@@ -5632,7 +5632,7 @@ function renderAll() {
         else if(pestanaActiva === 'rrhh-asistencia') { if(typeof renderTablaAuditoriaZk === 'function') renderTablaAuditoriaZk(); }
         else if(pestanaActiva === 'rrhh-planilla') { if(typeof renderPlanillaGeneral === 'function') renderPlanillaGeneral(); }
         else if(pestanaActiva === 'materia-prima') { renderMateriaPrima(); }
-        else if(pestanaActiva === 'expansion') { renderExpansion(); renderHistorialSilos(); }
+        else if(pestanaActiva === 'expansion') { renderSilos(); renderExpansion(); renderHistorialSilos(); }
         else if(pestanaActiva === 'bloquera') { renderVolumenMaquina(); }
         else if(pestanaActiva === 'inventario-bloques') { renderInventarioBloques(); }
         else if(pestanaActiva === 'corte') { renderSalaCorte(); }
