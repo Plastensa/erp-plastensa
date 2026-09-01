@@ -5615,7 +5615,7 @@ function renderAll() {
         // El nuevo renderAll INTELIGENTE: solo dibuja lo que el usuario está viendo
         if(pestanaActiva === 'clientes') { renderClientes(); }
         else if(pestanaActiva === 'catalogo') { renderCatalogList(); }
-        else if(pestanaActiva === 'ventas') { renderCart(); }
+        else if(pestanaActiva === 'ventas') { renderCart(); if(typeof renderExtSellers === 'function') renderExtSellers(); }
         else if(pestanaActiva === 'cotizaciones') { renderQuotes(); }
         else if(pestanaActiva === 'registro-ventas') { renderRegistroVentas(); }
         else if(pestanaActiva === 'log-maestro') { renderMasterLog(); }
