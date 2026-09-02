@@ -2663,20 +2663,20 @@
         <h3 class="font-black text-slate-800 uppercase tracking-tight text-sm" id="lbl-tabla-caja">LIBRO MAYOR: TODAS LAS CUENTAS</h3>
     </div>
     <div class="overflow-auto max-h-[55vh]">
-        <table class="w-full text-left text-xs whitespace-nowrap" id="tabla-caja-general">
-                <thead class="bg-slate-900 text-white sticky top-0 z-20">
-                    <tr class="text-[9px] font-black uppercase text-slate-300 tracking-widest border-b-2 border-indigo-500">
-                        <th class="p-4 md:sticky md:left-0 bg-slate-900 md:z-20 min-w-[90px]">Fecha</th>
-                        <th class="p-4">Ref / Orden</th>
-                        <th class="p-4 min-w-[250px]">Detalle / Cliente</th>
-                        <th class="p-4 text-center">Cuenta Afectada</th>
-                        <th class="p-4 text-right text-blue-300">Ingreso (Bs)<br><span id="sum-ingresos-tabla" class="text-white text-xs">0.00</span></th>
-                        <th class="p-4 text-right text-red-300">Egreso (Bs)<br><span id="sum-egresos-tabla" class="text-white text-xs">0.00</span></th>
-                        <th class="p-4 text-center text-slate-400">X</th>
-                    </tr>
-                </thead>
-                <tbody id="caja-general-body" class="divide-y divide-slate-100 bg-white"></tbody>
-            </table>
+       <table class="w-full text-left text-xs whitespace-nowrap" id="tabla-caja-general">
+    <thead class="text-white">
+        <tr class="text-[9px] font-black uppercase text-slate-300 tracking-widest border-b-2 border-indigo-500">
+            <th class="p-4 sticky top-0 md:left-0 bg-slate-900 z-30 min-w-[90px]">Fecha</th>
+            <th class="p-4 sticky top-0 bg-slate-900 z-20">Ref / Orden</th>
+            <th class="p-4 sticky top-0 bg-slate-900 z-20 min-w-[250px]">Detalle / Cliente</th>
+            <th class="p-4 sticky top-0 bg-slate-900 z-20 text-center">Cuenta Afectada</th>
+            <th class="p-4 sticky top-0 bg-slate-900 z-20 text-right text-blue-300">Ingreso (Bs)<br><span id="sum-ingresos-tabla" class="text-white text-xs">0.00</span></th>
+            <th class="p-4 sticky top-0 bg-slate-900 z-20 text-right text-red-300">Egreso (Bs)<br><span id="sum-egresos-tabla" class="text-white text-xs">0.00</span></th>
+            <th class="p-4 sticky top-0 bg-slate-900 z-20 text-center text-slate-400">X</th>
+        </tr>
+    </thead>
+    <tbody id="caja-general-body" class="divide-y divide-slate-100 bg-white"></tbody>
+</table>
         </div>
     </div>
 </div>
