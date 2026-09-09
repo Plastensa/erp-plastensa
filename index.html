@@ -4169,102 +4169,151 @@ function handleFileUpload(e) {
         }
 
         function updateAdderMath() { 
-            if(!currentSelected) return; 
-            const q = parseFloat(document.getElementById('adder-qty').value)||0; 
-            const vu = Number(currentSelected.vol)||0; 
-            const itv = q*vu; 
-            const cv = cart.reduce((s, i) => s + i.volTotal, 0); 
-            const sv = cv + itv; 
-            
-            let p = 0; 
-            let tierName = '';
-            const esMayorista = esClienteMayorista();
-            
-            if(sv<=29) { 
-                if(esMayorista) {
-                    p=currentType==='CF'?Number(currentSelected.pCF2):Number(currentSelected.pSF2); 
-                    tierName='Tarifa 30 a 80 M3 (Beneficio Mayorista)';
-                } else {
-                    p=currentType==='CF'?Number(currentSelected.pCF1):Number(currentSelected.pSF1); 
-                    tierName='Tarifa 1 a 29 M3'; 
-                }
-            }
-            else if(sv<=80) { p=currentType==='CF'?Number(currentSelected.pCF2):Number(currentSelected.pSF2); tierName='Tarifa 30 a 80 M3'; }
-            else { p=currentType==='CF'?Number(currentSelected.pCF3):Number(currentSelected.pSF3); tierName='Tarifa Mayor a 80 M3'; }
-            
-            document.getElementById('adder-tier').innerHTML = `<i data-lucide="clock" class="w-3 h-3 inline"></i> ${tierName}`;
-            
-            if(p === 0) {
-                const msg = currentType === 'SF' ? 'Este ítem no puede venderse S/F' : 'ERROR: Ítem sin precio. Pida al Administrador que lo configure en Gestión Precios.';
-                document.getElementById('adder-math').innerHTML = `<div class="text-center py-2 text-red-500 font-black uppercase tracking-widest text-[10px]"><i data-lucide="alert-triangle" class="inline w-4 h-4 mb-1"></i> ${msg}</div>`;
-                lucide.createIcons(); return;
-            }
+    if(!currentSelected) return; 
+    const q = parseFloat(document.getElementById('adder-qty').value)||0; 
+    const vu = Number(currentSelected.vol)||0; 
+    const itv = q*vu; 
+    const cv = cart.reduce((s, i) => s + i.volTotal, 0); 
+    const sv = cv + itv; 
 
-            document.getElementById('adder-math').innerHTML = `
-                <div class="flex justify-between items-center border-b border-slate-100 pb-2">
-                    <span class="text-[10px] uppercase tracking-widest text-slate-400">Volumen Ítem:</span>
-                    <span class="font-black text-blue-600 text-base">${q} pzas <span class="text-slate-400 font-medium">&times;</span> ${vu} <span class="text-slate-400 font-medium">=</span> ${itv.toFixed(2)} M3</span>
-                </div>
-                <div class="flex justify-between items-center pt-2">
-                    <span class="text-[10px] uppercase tracking-widest text-slate-400">P.Unit (Basado en Vol Global: ${sv.toFixed(2)} M3)</span>
-                    <span class="font-black text-slate-800 text-lg">Bs ${p.toFixed(2)} <span class="text-[10px] text-slate-400 font-bold uppercase">/ Pza</span></span>
-                </div>
-            `; 
-            lucide.createIcons();
-        }
+    let p = 0; 
+    let tierName = ''; 
+    const esMayorista = esClienteMayorista(); 
+
+    let tarifaDeseada = 1;
+    const isPQT = currentSelected.name.toUpperCase().startsWith('PQT');
+
+    // Regla visual en tiempo real para el PQT
+    if (isPQT) {
+        const qtyPQTEnCarrito = cart.filter(i => i.name.toUpperCase().startsWith('PQT')).reduce((s, i) => s + i.qty, 0);
+        tarifaDeseada = (qtyPQTEnCarrito + q) > 15 ? 2 : 1;
+        tierName = tarifaDeseada === 2 ? 'Tarifa 2 (Descuento PQT > 15 pz)' : 'Tarifa 1 (PQT <= 15 pz)';
+    } else {
+        if(sv <= 29) { 
+            tarifaDeseada = esMayorista ? 2 : 1;
+            tierName = esMayorista ? 'Tarifa 30 a 80 M3 (Beneficio Mayorista)' : 'Tarifa 1 a 29 M3'; 
+        } 
+        else if(sv <= 80) { tarifaDeseada = 2; tierName = 'Tarifa 30 a 80 M3'; } 
+        else { tarifaDeseada = 3; tierName = 'Tarifa Mayor a 80 M3'; } 
+    }
+
+    let p1 = currentType === 'CF' ? Number(currentSelected.pCF1||0) : Number(currentSelected.pSF1||0);
+    let p2 = currentType === 'CF' ? Number(currentSelected.pCF2||0) : Number(currentSelected.pSF2||0);
+    let p3 = currentType === 'CF' ? Number(currentSelected.pCF3||0) : Number(currentSelected.pSF3||0);
+
+    if (tarifaDeseada === 3) p = p3 > 0 ? p3 : (p2 > 0 ? p2 : p1);
+    else if (tarifaDeseada === 2) p = p2 > 0 ? p2 : p1;
+    else p = p1 > 0 ? p1 : (p2 > 0 ? p2 : p3);
+
+    document.getElementById('adder-tier').innerHTML = `<i data-lucide="clock" class="w-3 h-3 inline"></i> ${tierName}`; 
+
+    if(p === 0) {
+        const msg = currentType === 'SF' ? 'Este ítem no puede venderse S/F' : 'ERROR: Ítem sin precio. Pida al Administrador que lo configure en Gestión Precios.';
+        document.getElementById('adder-math').innerHTML = `<div class="text-center py-2 text-red-500 font-black uppercase tracking-widest text-[10px]"><i data-lucide="alert-triangle" class="inline w-4 h-4 mb-1"></i> ${msg}</div>`;
+        lucide.createIcons(); return;
+    }
+
+    document.getElementById('adder-math').innerHTML = `
+        <div class="flex justify-between items-center border-b border-slate-100 pb-2">
+            <span class="text-[10px] uppercase tracking-widest text-slate-400">Volumen Ítem:</span>
+            <span class="font-black text-blue-600 text-base">${q} pzas <span class="text-slate-400 font-medium">&times;</span> ${vu} <span class="text-slate-400 font-medium">=</span> ${itv.toFixed(2)} M3</span>
+        </div>
+        <div class="flex justify-between items-center pt-2">
+            <span class="text-[10px] uppercase tracking-widest text-slate-400">P.Unit (Basado en Vol Global: ${sv.toFixed(2)} M3)</span>
+            <span class="font-black text-slate-800 text-lg">Bs ${p.toFixed(2)} <span class="text-[10px] text-slate-400 font-bold uppercase">/ Pza</span></span>
+        </div>
+    `; 
+    lucide.createIcons();
+}
 
         function addItemToCart() { 
-            if(!currentSelected) return; 
-            const q = parseFloat(document.getElementById('adder-qty').value)||1; 
-            const vu = Number(currentSelected.vol||0); 
-            const itv = q*vu;
-            const obs = document.getElementById('adder-obs').value.trim();
-            
-            const cv = cart.reduce((s, i) => s + i.volTotal, 0);
-            const sv = cv + itv; 
-            let pCheck = 0;
-            
-            if(sv<=29) pCheck=currentType==='CF'?Number(currentSelected.pCF1):Number(currentSelected.pSF1); 
-            else if(sv<=80) pCheck=currentType==='CF'?Number(currentSelected.pCF2):Number(currentSelected.pSF2); 
-            else pCheck=currentType==='CF'?Number(currentSelected.pCF3):Number(currentSelected.pSF3); 
+    if(!currentSelected) return; 
+    const q = parseFloat(document.getElementById('adder-qty').value)||1; 
+    const vu = Number(currentSelected.vol||0); 
+    const itv = q*vu;
+    const obs = document.getElementById('adder-obs').value.trim();
+    
+    const cv = cart.reduce((s, i) => s + i.volTotal, 0);
+    const sv = cv + itv; 
+    let pCheck = 0; 
+    
+    const esMayorista = esClienteMayorista();
+    let tarifaDeseada = 1;
+    const isPQT = currentSelected.name.toUpperCase().startsWith('PQT');
 
-            if(pCheck === 0) {
-                alert(currentType === 'SF' ? "Este ítem no puede venderse S/F (Sin Factura). Cambia el modo a C/F." : "🛑 ERROR: Este ítem tiene precio Bs 0. Por favor, solicite al Administrador que asigne un precio en la Matriz antes de cotizarlo."); 
-                return;
-            }
+    if (isPQT) {
+        const qtyPQTEnCarrito = cart.filter(i => i.name.toUpperCase().startsWith('PQT')).reduce((s, i) => s + i.qty, 0);
+        tarifaDeseada = (qtyPQTEnCarrito + q) > 15 ? 2 : 1;
+    } else {
+        if(sv <= 29) tarifaDeseada = esMayorista ? 2 : 1; 
+        else if(sv <= 80) tarifaDeseada = 2; 
+        else tarifaDeseada = 3; 
+    }
 
-            cart.push({ 
-                uid: Date.now(), prodId: currentSelected.id, name: currentSelected.name, 
-                volUnit: vu, qty: q, volTotal: itv, unitPrice: 0, subtotal: 0, obs: obs
-            }); 
-            
-            currentSelected = null; 
-            document.getElementById('cot-search').value = ''; 
-            document.getElementById('adder-obs').value = '';
-            document.getElementById('item-adder').classList.add('hidden');
-            recalculateCart(); 
-        }
+    let p1 = currentType === 'CF' ? Number(currentSelected.pCF1||0) : Number(currentSelected.pSF1||0);
+    let p2 = currentType === 'CF' ? Number(currentSelected.pCF2||0) : Number(currentSelected.pSF2||0);
+    let p3 = currentType === 'CF' ? Number(currentSelected.pCF3||0) : Number(currentSelected.pSF3||0);
+
+    if (tarifaDeseada === 3) pCheck = p3 > 0 ? p3 : (p2 > 0 ? p2 : p1);
+    else if (tarifaDeseada === 2) pCheck = p2 > 0 ? p2 : p1;
+    else pCheck = p1 > 0 ? p1 : (p2 > 0 ? p2 : p3);
+
+    if(pCheck === 0) {
+        alert(currentType === 'SF' ? "Este ítem no puede venderse S/F (Sin Factura). Cambia el modo a C/F." : "🛑 ERROR: Este ítem tiene precio Bs 0. Por favor, solicite al Administrador que asigne un precio en la Matriz antes de cotizarlo."); 
+        return;
+    }
+
+    cart.push({ 
+        uid: Date.now(), prodId: currentSelected.id, name: currentSelected.name, 
+        volUnit: vu, qty: q, volTotal: itv, unitPrice: 0, subtotal: 0, obs: obs
+    }); 
+    
+    currentSelected = null; 
+    document.getElementById('cot-search').value = ''; 
+    document.getElementById('adder-obs').value = '';
+    document.getElementById('item-adder').classList.add('hidden');
+    recalculateCart(); 
+}
 
         function recalculateCart() { 
-            const cv = cart.reduce((s, i) => s + i.volTotal, 0); 
-            const esMayorista = esClienteMayorista();
-            cart.forEach(item => { 
-                const p = products.find(prod => prod.id === item.prodId); 
-                if(p) { 
-                    if(cv <= 29) {
-                        item.unitPrice = currentType === 'CF' ? 
-                            (esMayorista ? Number(p.pCF2||0) : Number(p.pCF1||0)) : 
-                            (esMayorista ? Number(p.pSF2||0) : Number(p.pSF1||0));
-                    }
-                    else if(cv <= 80) item.unitPrice = currentType === 'CF' ? Number(p.pCF2||0) : Number(p.pSF2||0); 
-                    else item.unitPrice = currentType === 'CF' ? Number(p.pCF3||0) : Number(p.pSF3||0); 
-                    item.subtotal = item.qty * item.unitPrice; 
-                } 
-            });
-            document.getElementById('lbl-total-vol').innerText = `${cv.toFixed(2)} M3`; 
-            calculateFinals(); 
-            renderCart(); 
-        }
+    const cv = cart.reduce((s, i) => s + i.volTotal, 0); 
+    const esMayorista = esClienteMayorista();
+    
+    // Aislamos el conteo exclusivo de piezas "PQT"
+    const totalPQT = cart.filter(i => i.name.toUpperCase().startsWith('PQT')).reduce((s, i) => s + i.qty, 0);
+
+    cart.forEach(item => { 
+        const p = products.find(prod => prod.id === item.prodId); 
+        if(p) { 
+            let tarifaDeseada = 1;
+            const isPQT = item.name.toUpperCase().startsWith('PQT');
+
+            // Regla estricta de exclusión para "PQT"
+            if (isPQT) {
+                tarifaDeseada = totalPQT > 15 ? 2 : 1;
+            } else {
+                if (cv <= 29) tarifaDeseada = esMayorista ? 2 : 1; 
+                else if (cv <= 80) tarifaDeseada = 2; 
+                else tarifaDeseada = 3; 
+            }
+
+            // Extracción de tarifas
+            let p1 = currentType === 'CF' ? Number(p.pCF1||0) : Number(p.pSF1||0);
+            let p2 = currentType === 'CF' ? Number(p.pCF2||0) : Number(p.pSF2||0);
+            let p3 = currentType === 'CF' ? Number(p.pCF3||0) : Number(p.pSF3||0);
+
+            // Paracaídas: Si la tarifa deseada es 0, baja de escalón automáticamente
+            if (tarifaDeseada === 3) item.unitPrice = p3 > 0 ? p3 : (p2 > 0 ? p2 : p1);
+            else if (tarifaDeseada === 2) item.unitPrice = p2 > 0 ? p2 : p1;
+            else item.unitPrice = p1 > 0 ? p1 : (p2 > 0 ? p2 : p3);
+
+            item.subtotal = item.qty * item.unitPrice; 
+        } 
+    });
+    document.getElementById('lbl-total-vol').innerText = `${cv.toFixed(2)} M3`; 
+    calculateFinals(); 
+    renderCart(); 
+}
 
         function calculateFinals() { 
             const bt = cart.reduce((s, i) => s + i.subtotal, 0); 
