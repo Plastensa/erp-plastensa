@@ -5334,7 +5334,7 @@ function cargarHistorialMateriaPrima() {
                 <td class="p-4 text-[10px] uppercase font-bold text-slate-400">${h.operador}</td>
                 <td class="p-4 text-center">
                     ${currentUser && currentUser.role === 'ADMIN' ? `
-                    <button onclick="editarMarcaMateriaPrima(${h.id}, '${h.marca}', ${h.peso})" class="text-blue-500 hover:text-blue-700 bg-blue-50 p-2 rounded-lg border border-blue-100 shadow-sm mr-1" title="Corregir Marca"><i data-lucide="edit-3" class="w-4 h-4"></i></button>
+                    <button onclick="editarMarcaMateriaPrima(${h.id}, '${h.marca}', ${h.peso}, '${h.lote}')" class="text-blue-500 hover:text-blue-700 bg-blue-50 p-2 rounded-lg border border-blue-100 shadow-sm mr-1" title="Corregir Marca"><i data-lucide="edit-3" class="w-4 h-4"></i></button>
                     <button onclick="deleteMateriaPrima(${h.id}, '${h.marca}', ${h.peso})" class="text-red-400 hover:text-red-600 bg-red-50 p-2 rounded-lg border border-red-100 shadow-sm" title="Eliminar"><i data-lucide="trash-2" class="w-4 h-4"></i></button>
                     ` : ''}
                 </td>
@@ -13242,10 +13242,10 @@ async function robotRescatarLimbo() {
     }
 }
 
-function editarMarcaMateriaPrima(id, marcaAntigua, peso) {
+async function editarMarcaMateriaPrima(id, marcaAntigua, peso, lote) {
     let opcionesTexto = dbMpTipos.map((t, index) => `${index + 1}. ${t.marca}`).join('\n');
     
-    const seleccion = prompt(`CORRECCIÓN DE MARCA\n\nMarca registrada erróneamente: [ ${marcaAntigua} ]\n\nEscribe el NÚMERO de la marca correcta de la siguiente lista:\n\n${opcionesTexto}`);
+    const seleccion = prompt(`CORRECCIÓN DE MARCA\n\nLote afectado: ${lote}\nMarca registrada erróneamente: [ ${marcaAntigua} ]\n\nEscribe el NÚMERO de la marca correcta de la lista:\n\n${opcionesTexto}`);
     
     if (!seleccion) return;
     
@@ -13257,27 +13257,68 @@ function editarMarcaMateriaPrima(id, marcaAntigua, peso) {
     const marcaNueva = dbMpTipos[indexSeleccionado].marca;
     if (marcaNueva === marcaAntigua) return;
 
-    if (!confirm(`¿Estás seguro de mover estos ${peso} KG de ${marcaAntigua} hacia ${marcaNueva}?`)) return;
+    if (!confirm(`¿Seguro que deseas cambiar la marca del lote ${lote} a ${marcaNueva}?\n\nEl sistema actualizará automáticamente cualquier consumo registrado de esta bolsa y recalculará el stock general.`)) return;
 
-    db.collection("mp_ingresos").doc(String(id)).get().then(doc => {
-        if (doc.exists) {
-            let ingreso = doc.data();
-            ingreso.marca = marcaNueva;
-            
-            db.collection("mp_ingresos").doc(String(id)).set(ingreso).then(() => {
-                if (pizarraMateriaPrima[marcaAntigua] !== undefined) {
-                    pizarraMateriaPrima[marcaAntigua] -= peso;
-                    if (pizarraMateriaPrima[marcaAntigua] < 0) pizarraMateriaPrima[marcaAntigua] = 0;
-                }
-                pizarraMateriaPrima[marcaNueva] = (pizarraMateriaPrima[marcaNueva] || 0) + peso;
-                
-                save(); 
-                renderMateriaPrima(); 
-                cargarHistorialMateriaPrima();
-                showToast("Marca corregida y matemática de stock ajustada exitosamente.");
-            });
-        }
-    }).catch(err => alert("Error al conectar con la base de datos para la corrección."));
+    showToast("Procesando corrección en toda la base de datos...");
+
+    try {
+        const batch = db.batch();
+
+        // 1. Corregir el ingreso principal
+        const ingresoRef = db.collection("mp_ingresos").doc(String(id));
+        batch.update(ingresoRef, { marca: marcaNueva });
+
+        // 2. Buscar y corregir en Historial de Consumos (Expansión)
+        const consumosSnap = await db.collection("exp_consumos").where("lote", "==", lote).get();
+        consumosSnap.forEach(doc => {
+            batch.update(doc.ref, { marca: marcaNueva });
+        });
+
+        // 3. Buscar y corregir en Historial de Silos (Trazabilidad)
+        const silosSnap = await db.collection("silos_historial").where("lote", "==", lote).get();
+        silosSnap.forEach(doc => {
+            batch.update(doc.ref, { marca: marcaNueva });
+        });
+
+        // 4. Subir todos los cambios de golpe
+        await batch.commit();
+
+        // 5. Ejecutar el auditor silenciosamente para recalcular la matemática de la pizarra
+        let calcPizarra = {};
+        const [snapIngresos, snapConsumosFix] = await Promise.all([
+            db.collection("mp_ingresos").get(),
+            db.collection("exp_consumos").get()
+        ]);
+
+        snapIngresos.forEach(doc => {
+            const m = doc.data().marca;
+            if(!calcPizarra[m]) calcPizarra[m] = 0;
+            calcPizarra[m] += parseFloat(doc.data().peso) || 0;
+        });
+
+        snapConsumosFix.forEach(doc => {
+            const m = doc.data().marca;
+            if(!calcPizarra[m]) calcPizarra[m] = 0;
+            calcPizarra[m] -= parseFloat(doc.data().peso) || 0;
+        });
+
+        pizarraMateriaPrima = calcPizarra;
+        await db.collection("plastensa_erp").doc("datos_centrales").update({
+            pizarraMateriaPrima: JSON.stringify(pizarraMateriaPrima)
+        });
+
+        // 6. Refrescar pantalla
+        save(); 
+        renderMateriaPrima(); 
+        cargarHistorialMateriaPrima();
+        if(typeof renderExpansion === 'function') renderExpansion(); // Refresca la tabla si está abierta
+        
+        alert(`✅ Corrección Exitosa.\nEl lote ${lote} fue transferido a ${marcaNueva}. Los consumos y el stock fueron recalculados perfectamente.`);
+
+    } catch (error) {
+        console.error("Error corrigiendo la marca:", error);
+        alert("❌ Ocurrió un error al conectar con la base de datos de Google. Revise su conexión.");
+    }
 }
 
 renderAll();
