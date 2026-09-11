@@ -8998,7 +8998,12 @@ function anularTandaCorte(id) {
     }
     
     if(bloqueoDespacho) {
-        return alert("❌ OPERACIÓN DENEGADA:\nNo puedes anular este corte porque el pedido asociado YA FUE DESPACHADO al cliente.\nDebes anular primero el Ticket de Despacho en la pestaña 'Despachos'.");
+        if (currentUser && currentUser.role === 'ADMIN') {
+            const bypass = confirm("⚠️ ATENCIÓN ADMINISTRADOR (BYPASS):\n\nEl pedido asociado a este corte YA FUE DESPACHADO.\n\nSi anulas este corte, el inventario físico restará estas piezas y podría quedar en negativo temporalmente hasta que el operador registre el corte corregido.\n\n¿Deseas FORZAR la anulación del corte?");
+            if (!bypass) return;
+        } else {
+            return alert("❌ OPERACIÓN DENEGADA:\nNo puedes anular este corte porque el pedido asociado YA FUE DESPACHADO al cliente.\n\nDebes solicitar a un Administrador que autorice la anulación.");
+        }
     }
 
     if(!confirm(`⚠️ ATENCIÓN ADMINISTRADOR:\n¿Está seguro de ANULAR (Ctrl+Z) este corte?\n- Los bloques volverán a la Sala de Corte.\n- El inventario generado se restará.\n- Los pedidos afectados volverán a la lista "Por Programar".`)) return;
