@@ -9048,7 +9048,8 @@ function anularTandaCorte(id) {
             const prodCat = products.find(p => normalizarNombre(p.name) === normalizarNombre(c.item));
             if(prodCat) {
                 prodCat.stock = (parseInt(prodCat.stock) || 0) - totalStockCreado;
-                if(prodCat.stock < 0) prodCat.stock = 0;
+                // Dejamos que el stock sea negativo temporalmente. 
+                // Así, cuando el operador registre el corte corregido, la suma lo devolverá exactamente a cero.
             }
 
             if(c.schedId) {
