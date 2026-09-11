@@ -5265,7 +5265,13 @@ function saveMateriaPrima(e) {
         pizarraMateriaPrima[marca] = (pizarraMateriaPrima[marca] || 0) + peso;
         save();
         
-        e.target.reset(); initMpDate(); handleMpMarcaChange(); showToast("Bolsa registrada en inventario.");
+        const marcaSeleccionada = document.getElementById('mp-marca').value; // Guardar memoria
+        e.target.reset(); 
+        document.getElementById('mp-marca').value = marcaSeleccionada; // Restaurar marca
+        
+        initMpDate(); 
+        handleMpMarcaChange(); 
+        showToast("Bolsa registrada. La marca quedó fijada para la siguiente.");
         renderMateriaPrima();
     });
 }
@@ -5327,7 +5333,10 @@ function cargarHistorialMateriaPrima() {
                 <td class="p-4 text-right font-black text-slate-800">+ ${h.peso.toFixed(2)} KG</td>
                 <td class="p-4 text-[10px] uppercase font-bold text-slate-400">${h.operador}</td>
                 <td class="p-4 text-center">
-                    ${currentUser && currentUser.role === 'ADMIN' ? `<button onclick="deleteMateriaPrima(${h.id}, '${h.marca}', ${h.peso})" class="text-red-400 hover:text-red-600"><i data-lucide="trash-2" class="w-4 h-4"></i></button>` : ''}
+                    ${currentUser && currentUser.role === 'ADMIN' ? `
+                    <button onclick="editarMarcaMateriaPrima(${h.id}, '${h.marca}', ${h.peso})" class="text-blue-500 hover:text-blue-700 bg-blue-50 p-2 rounded-lg border border-blue-100 shadow-sm mr-1" title="Corregir Marca"><i data-lucide="edit-3" class="w-4 h-4"></i></button>
+                    <button onclick="deleteMateriaPrima(${h.id}, '${h.marca}', ${h.peso})" class="text-red-400 hover:text-red-600 bg-red-50 p-2 rounded-lg border border-red-100 shadow-sm" title="Eliminar"><i data-lucide="trash-2" class="w-4 h-4"></i></button>
+                    ` : ''}
                 </td>
             </tr>
         `).join('');
@@ -13231,6 +13240,44 @@ async function robotRescatarLimbo() {
         console.error("Error en el rescate:", error);
         alert("❌ Ocurrió un error al buscar en la nube. Revisa tu conexión a internet.");
     }
+}
+
+function editarMarcaMateriaPrima(id, marcaAntigua, peso) {
+    let opcionesTexto = dbMpTipos.map((t, index) => `${index + 1}. ${t.marca}`).join('\n');
+    
+    const seleccion = prompt(`CORRECCIÓN DE MARCA\n\nMarca registrada erróneamente: [ ${marcaAntigua} ]\n\nEscribe el NÚMERO de la marca correcta de la siguiente lista:\n\n${opcionesTexto}`);
+    
+    if (!seleccion) return;
+    
+    const indexSeleccionado = parseInt(seleccion) - 1;
+    if (isNaN(indexSeleccionado) || indexSeleccionado < 0 || indexSeleccionado >= dbMpTipos.length) {
+        return alert("❌ Selección inválida. Debes ingresar el número correcto de la lista.");
+    }
+    
+    const marcaNueva = dbMpTipos[indexSeleccionado].marca;
+    if (marcaNueva === marcaAntigua) return;
+
+    if (!confirm(`¿Estás seguro de mover estos ${peso} KG de ${marcaAntigua} hacia ${marcaNueva}?`)) return;
+
+    db.collection("mp_ingresos").doc(String(id)).get().then(doc => {
+        if (doc.exists) {
+            let ingreso = doc.data();
+            ingreso.marca = marcaNueva;
+            
+            db.collection("mp_ingresos").doc(String(id)).set(ingreso).then(() => {
+                if (pizarraMateriaPrima[marcaAntigua] !== undefined) {
+                    pizarraMateriaPrima[marcaAntigua] -= peso;
+                    if (pizarraMateriaPrima[marcaAntigua] < 0) pizarraMateriaPrima[marcaAntigua] = 0;
+                }
+                pizarraMateriaPrima[marcaNueva] = (pizarraMateriaPrima[marcaNueva] || 0) + peso;
+                
+                save(); 
+                renderMateriaPrima(); 
+                cargarHistorialMateriaPrima();
+                showToast("Marca corregida y matemática de stock ajustada exitosamente.");
+            });
+        }
+    }).catch(err => alert("Error al conectar con la base de datos para la corrección."));
 }
 
 renderAll();
