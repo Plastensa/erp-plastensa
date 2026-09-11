@@ -13242,6 +13242,9 @@ async function robotRescatarLimbo() {
     }
 }
 
+// ==========================================
+// ROBOT DE CORRECCIÓN DE MARCAS EN CADENA
+// ==========================================
 async function editarMarcaMateriaPrima(id, marcaAntigua, peso, lote) {
     let opcionesTexto = dbMpTipos.map((t, index) => `${index + 1}. ${t.marca}`).join('\n');
     
@@ -13311,7 +13314,7 @@ async function editarMarcaMateriaPrima(id, marcaAntigua, peso, lote) {
         save(); 
         renderMateriaPrima(); 
         cargarHistorialMateriaPrima();
-        if(typeof renderExpansion === 'function') renderExpansion(); // Refresca la tabla si está abierta
+        if(typeof renderExpansion === 'function') renderExpansion(); 
         
         alert(`✅ Corrección Exitosa.\nEl lote ${lote} fue transferido a ${marcaNueva}. Los consumos y el stock fueron recalculados perfectamente.`);
 
