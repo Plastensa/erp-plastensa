@@ -3679,7 +3679,7 @@ function iniciarRadar(userEmail) {
         if(currentUser) renderAll();
     });
 
-    db.collection("despachos_tickets").orderBy("idTicket", "desc").limit(1000).onSnapshot((snapshot) => {
+    db.collection("despachos_tickets").orderBy("timestamp", "desc").limit(1000).onSnapshot((snapshot) => {
         let tempD = [];
         snapshot.forEach(doc => tempD.push(doc.data()));
         dbDespachos = tempD.sort((a,b) => String(b.idTicket).localeCompare(String(a.idTicket)));
@@ -6632,12 +6632,13 @@ function renderDashboard() {
         
         // Búsqueda inteligente
         if(search) {
-            const matchOrden = t.orderId.toLowerCase().includes(search);
-            const matchCliente = t.cliente.toLowerCase().includes(search);
-            const matchItems = t.items && t.items.some(i => i.name.toLowerCase().includes(search));
-            
-            if(!matchOrden && !matchCliente && !matchItems) return false;
-        }
+    const matchTicket = t.idTicket.toLowerCase().includes(search); // <-- Añadir
+    const matchOrden = t.orderId.toLowerCase().includes(search);
+    const matchCliente = t.cliente.toLowerCase().includes(search);
+    const matchItems = t.items && t.items.some(i => i.name.toLowerCase().includes(search));
+    
+    if(!matchTicket && !matchOrden && !matchCliente && !matchItems) return false; // <-- Actualizar
+}
         return true;
     }).sort((a, b) => {
         // Función ultra-precisa para convertir tu formato "DD/MM/YYYY, HH:MM:SS" a un valor ordenable
@@ -6890,11 +6891,12 @@ function renderTransporteDetail() {
         let matchSearch = true;
 
         if (search) {
-            const itemsStr = t.items ? t.items.map(i => i.name).join(' ').toLowerCase() : '';
-            matchSearch = t.orderId.toLowerCase().includes(search) || 
-                          t.cliente.toLowerCase().includes(search) || 
-                          itemsStr.includes(search);
-        }
+    const itemsStr = t.items ? t.items.map(i => i.name).join(' ').toLowerCase() : '';
+    matchSearch = t.idTicket.toLowerCase().includes(search) || // <-- Añadir
+                  t.orderId.toLowerCase().includes(search) || 
+                  t.cliente.toLowerCase().includes(search) || 
+                  itemsStr.includes(search);
+	}
 
         return tTime >= timeDesde && tTime <= timeHasta && matchChofer && matchSearch;
     });
