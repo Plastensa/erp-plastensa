@@ -10937,7 +10937,9 @@ function ejecutarEmisionFactura() {
                 o.facturado = true;
                 o.cuf = res.data.cuf || "";
                 o.numeroFactura = res.data.number_invoice || "";
-                o.idInvoiceSiat = res.data.id_invoice || res.id_invoice || res.data.id || "ID_NO_ENCONTRADO"; 
+                
+                // ¡MISTERIO RESUELTO! El ID estaba escondido dentro de 'invoice_online'
+                o.idInvoiceSiat = (res.data.invoice_online && res.data.invoice_online.id) ? res.data.invoice_online.id : "ID_NO_ENCONTRADO";
                 
                 // NUEVO: Guardamos el PDF en texto para poder descargarlo luego
                 o.pdfBase64 = res.data.print_invoice; 
