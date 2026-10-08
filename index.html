@@ -10925,7 +10925,7 @@ function ejecutarEmisionFactura() {
                 
                 console.log("🔍 RESPUESTA COMPLETA DE FACTURACIÓN:", res);
                 
-                const safeId = String(o.id).replace(/\//g, '-');
+                // Ya no volvemos a declarar safeId porque ya existe arriba
                 db.collection("pedidos").doc(safeId).set(o);
                 save();
                 renderRegistroVentas(); // Refrescamos la tabla para que aparezca el botón Anular
