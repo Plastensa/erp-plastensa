@@ -10821,25 +10821,35 @@ function ejecutarEmisionFactura() {
     document.getElementById('modal-confirmar-factura').classList.add('hidden');
     showToast("Conectando con Servidor de Impuestos...");
 
+    // NUEVA LÓGICA MATEMÁTICA: INFLADO DE PRECIOS Y AJUSTE POR DESCUENTO
     const baseTotal = o.items.reduce((s,i) => s + i.subtotal, 0);
-    const subtotalTeorico = baseTotal + (o.trans || 0) + (o.comm || 0) + (o.extra || 0);
-    const descPorc = o.descuentoPorcentaje || 0;
-    const descMonto = subtotalTeorico * (descPorc / 100);
-    const subtotalProrrateado = o.total + descMonto; 
-    const multiplier = baseTotal > 0 ? (subtotalProrrateado / baseTotal) : 1;
+    const totalObjetivo = o.total; // EL MONTO EXACTO QUE PAGÓ EL CLIENTE
+    let sumaSubtotalesAcumulados = 0;
 
     const json_products = o.items.map((i, idx) => {
-        // LÓGICA MATEMÁTICA ESTRICTA PARA EL SIAT
-        // 1. Redondeamos el precio prorrateado a 2 decimales ANTES de cualquier cálculo
-        const unitPriceRounded = parseFloat((i.unitPrice * multiplier).toFixed(2));
+        // 1. Calculamos cuánto le toca a este ítem del total de la factura
+        let itemTargetTotal = 0;
         
-        // 2. Calculamos el bruto de la línea EXACTAMENTE como lo hace el SIAT (Cantidad * Precio ya redondeado)
+        // Si es el último ítem, le pasamos todo el saldo restante para cuadrar los centavos al 100%
+        if (idx === o.items.length - 1) {
+            itemTargetTotal = parseFloat((totalObjetivo - sumaSubtotalesAcumulados).toFixed(2));
+        } else {
+            const proporcion = baseTotal > 0 ? (i.subtotal / baseTotal) : (1 / o.items.length);
+            itemTargetTotal = parseFloat((totalObjetivo * proporcion).toFixed(2));
+            sumaSubtotalesAcumulados += itemTargetTotal;
+        }
+
+        // 2. Inflamos ligeramente el precio unitario (redondeando siempre hacia ARRIBA al centavo más cercano)
+        const unitPriceRounded = Math.ceil((itemTargetTotal / i.qty) * 100) / 100;
+        
+        // 3. Calculamos el bruto exacto como exige el SIAT
         const grossAmount = parseFloat((unitPriceRounded * i.qty).toFixed(2));
         
-        // 3. Descuento exacto calculado sobre el bruto redondeado
-        const discountItem = parseFloat((grossAmount * (descPorc / 100)).toFixed(2));
+        // 4. La magia: La diferencia se va al descuento para que el subtotal final sea EXACTAMENTE el target
+        let discountItem = parseFloat((grossAmount - itemTargetTotal).toFixed(2));
+        if (discountItem < 0) discountItem = 0; // Seguro anti-negativos
         
-        // 4. Subtotal: Resta matemática exacta (Bruto - Descuento) sin fallar por centavos
+        // 5. Verificación final exigida por el SIAT
         const subtotalItem = parseFloat((grossAmount - discountItem).toFixed(2));
         
         const pCat = products.find(p => p.name === i.name);
@@ -13459,10 +13469,11 @@ function ejecutarAnulacionFactura() {
     document.getElementById('modal-anular-factura').classList.add('hidden');
     showToast("Enviando solicitud de anulación al SIAT...");
 
-    // El Payload exacto que pide Systems Bolivia para anular
+   // El Payload exacto que pide Systems Bolivia para anular
     const payloadSiat = {
-        "id_invoice": String(o.idInvoiceSiat),
-        "reason_code": String(motivoCodigo)
+        "login": "admin",
+        "id_invoice": parseInt(o.idInvoiceSiat),
+        "reason_code": parseInt(motivoCodigo)
     };
 
     // EL ENRUTAMIENTO hacia tu puente de Google
