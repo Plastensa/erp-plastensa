@@ -10829,9 +10829,18 @@ function ejecutarEmisionFactura() {
     const multiplier = baseTotal > 0 ? (subtotalProrrateado / baseTotal) : 1;
 
     const json_products = o.items.map((i, idx) => {
-        const proratedPrice = i.unitPrice * multiplier;
-        const discountItem = (proratedPrice * i.qty) * (descPorc / 100);
-        const subtotalItem = (proratedPrice * i.qty) - discountItem;
+        // LÓGICA MATEMÁTICA ESTRICTA PARA EL SIAT
+        // 1. Redondeamos el precio prorrateado a 2 decimales ANTES de cualquier cálculo
+        const unitPriceRounded = parseFloat((i.unitPrice * multiplier).toFixed(2));
+        
+        // 2. Calculamos el bruto de la línea EXACTAMENTE como lo hace el SIAT (Cantidad * Precio ya redondeado)
+        const grossAmount = parseFloat((unitPriceRounded * i.qty).toFixed(2));
+        
+        // 3. Descuento exacto calculado sobre el bruto redondeado
+        const discountItem = parseFloat((grossAmount * (descPorc / 100)).toFixed(2));
+        
+        // 4. Subtotal: Resta matemática exacta (Bruto - Descuento) sin fallar por centavos
+        const subtotalItem = parseFloat((grossAmount - discountItem).toFixed(2));
         
         const pCat = products.find(p => p.name === i.name);
         const pCode = (pCat && pCat.code) ? pCat.code : "PROD-001";
@@ -10844,9 +10853,9 @@ function ejecutarEmisionFactura() {
             "description_product": i.name,
             "amount": i.qty,
             "unit_of_measurement": "58", 
-            "unit_price": parseFloat(proratedPrice.toFixed(2)),
-            "discount_amount": parseFloat(discountItem.toFixed(2)),
-            "subtotal": parseFloat(subtotalItem.toFixed(2))
+            "unit_price": unitPriceRounded,
+            "discount_amount": discountItem,
+            "subtotal": subtotalItem
         };
     });
 
