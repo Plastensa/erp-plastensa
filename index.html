@@ -3024,6 +3024,61 @@
     </div>
 </div>
 
+<!-- MODAL CONFIRMAR DATOS PRE-FACTURACIÓN -->
+<div id="modal-confirmar-factura" class="hidden fixed inset-0 bg-slate-900/80 backdrop-blur-sm z-[9999] flex items-center justify-center p-4">
+    <div class="bg-white rounded-[32px] p-8 w-full max-w-md shadow-2xl relative">
+        <button type="button" onclick="document.getElementById('modal-confirmar-factura').classList.add('hidden')" class="absolute top-6 right-6 text-slate-400 hover:text-red-500 transition-colors">
+            <i data-lucide="x" class="w-6 h-6"></i>
+        </button>
+        <div class="mb-6 border-b border-slate-100 pb-4">
+            <h3 class="font-black text-2xl text-slate-800 uppercase tracking-tight flex items-center gap-2"><i data-lucide="file-check-2" class="text-purple-600"></i> Datos de Facturación</h3>
+            <p class="text-xs font-bold text-slate-500 mt-1">Confirme o modifique los datos antes de emitir al SIAT.</p>
+        </div>
+        <div class="space-y-4">
+            <input type="hidden" id="fact-orden-id">
+            <div>
+                <label class="text-[10px] font-black uppercase text-slate-400 ml-2 block mb-1">Razón Social / Nombre</label>
+                <input type="text" id="fact-cliente-nombre" required class="w-full p-4 bg-slate-50 border border-slate-200 rounded-xl font-bold outline-none focus:ring-2 focus:ring-purple-500 text-slate-700 uppercase">
+            </div>
+            <div>
+                <label class="text-[10px] font-black uppercase text-slate-400 ml-2 block mb-1">NIT / CI</label>
+                <input type="text" id="fact-cliente-nit" required class="w-full p-4 bg-slate-50 border border-slate-200 rounded-xl font-bold outline-none focus:ring-2 focus:ring-purple-500 text-slate-700">
+            </div>
+            <button onclick="ejecutarEmisionFactura()" class="w-full bg-purple-600 text-white font-black p-4 rounded-xl shadow-lg hover:bg-purple-700 transition-colors uppercase mt-4 flex items-center justify-center gap-2">
+                <i data-lucide="send" class="w-5 h-5"></i> EMITIR FACTURA OFICIAL
+            </button>
+        </div>
+    </div>
+</div>
+
+<!-- MODAL MOTIVO DE ANULACIÓN DE FACTURA -->
+<div id="modal-anular-factura" class="hidden fixed inset-0 bg-slate-900/80 backdrop-blur-sm z-[9999] flex items-center justify-center p-4">
+    <div class="bg-white rounded-[32px] p-8 w-full max-w-sm shadow-2xl relative">
+        <button type="button" onclick="document.getElementById('modal-anular-factura').classList.add('hidden')" class="absolute top-6 right-6 text-slate-400 hover:text-red-500 transition-colors">
+            <i data-lucide="x" class="w-6 h-6"></i>
+        </button>
+        <div class="mb-6 border-b border-slate-100 pb-4">
+            <h3 class="font-black text-xl text-slate-800 uppercase tracking-tight flex items-center gap-2"><i data-lucide="alert-triangle" class="text-red-600"></i> Anular Factura</h3>
+            <p class="text-[10px] font-bold text-slate-500 mt-1 uppercase">Seleccione el motivo exigido por el SIAT.</p>
+        </div>
+        <div class="space-y-4">
+            <input type="hidden" id="anular-orden-id">
+            <div>
+                <label class="text-[10px] font-black uppercase text-slate-400 ml-2 block mb-1">Motivo de Anulación</label>
+                <select id="anular-motivo-codigo" class="w-full p-4 bg-slate-50 border border-slate-200 rounded-xl font-bold text-xs outline-none focus:ring-2 focus:ring-red-500 text-slate-700">
+                    <option value="1">1 - FACTURA MAL EMITIDA</option>
+                    <option value="2">2 - NOTA DE CREDITO-DEBITO MAL EMITIDA</option>
+                    <option value="3">3 - DATOS DE EMISION INCORRECTOS</option>
+                    <option value="4">4 - FACTURA O NOTA DE CREDITO-DEBITO DEVUELTA</option>
+                </select>
+            </div>
+            <button onclick="ejecutarAnulacionFactura()" class="w-full bg-red-600 text-white font-black p-4 rounded-xl shadow-lg hover:bg-red-700 transition-colors uppercase mt-4 flex items-center justify-center gap-2">
+                <i data-lucide="trash-2" class="w-5 h-5"></i> CONFIRMAR ANULACIÓN
+            </button>
+        </div>
+    </div>
+</div>
+
     <!-- VISTA INVISIBLE PARA IMPRESIÓN -->
     <div id="quote-print-view" class="print-only p-10 bg-white min-h-screen"></div>
 
@@ -6377,8 +6432,11 @@ function renderDashboard() {
                                 </div>
                                 ${(o.type === 'CF') ? (
                                     o.facturado 
-                                    ? `<span class="w-full bg-emerald-100 text-emerald-700 border border-emerald-300 px-3 py-1.5 rounded-lg text-[9px] font-black shadow-sm flex items-center justify-center gap-1 mt-1 tracking-widest"><i data-lucide="check-circle" class="w-3 h-3"></i> FACTURADA #${o.numeroFactura || ''}</span>`
-                                    : (currentUser && currentUser.role === 'ADMIN' ? `<button onclick="emitirFacturaPiloto('${o.id}')" class="w-full bg-purple-600 hover:bg-purple-700 text-white px-3 py-1.5 rounded-lg text-[9px] font-black shadow-sm transition-colors flex items-center justify-center gap-1 mt-1"><i data-lucide="send" class="w-3 h-3"></i> FACTURAR (PILOTO)</button>` : '')
+                                    ? `<div class="flex flex-col gap-1 w-full mt-1">
+                                        <span class="w-full bg-emerald-100 text-emerald-700 border border-emerald-300 px-3 py-1.5 rounded-lg text-[9px] font-black shadow-sm flex items-center justify-center gap-1 tracking-widest"><i data-lucide="check-circle" class="w-3 h-3"></i> FACTURADA #${o.numeroFactura || ''}</span>
+                                        ${(currentUser && currentUser.role === 'ADMIN') ? `<button onclick="abrirModalAnularFactura('${o.id}')" class="w-full bg-red-50 hover:bg-red-100 text-red-600 border border-red-200 px-3 py-1.5 rounded-lg text-[9px] font-black shadow-sm transition-colors flex items-center justify-center gap-1" title="Anular Factura en SIAT"><i data-lucide="x-circle" class="w-3 h-3"></i> ANULAR FACTURA</button>` : ''}
+                                       </div>`
+                                    : (currentUser && currentUser.role === 'ADMIN' ? `<button onclick="abrirModalEmitirFactura('${o.id}')" class="w-full bg-purple-600 hover:bg-purple-700 text-white px-3 py-1.5 rounded-lg text-[9px] font-black shadow-sm transition-colors flex items-center justify-center gap-1 mt-1"><i data-lucide="send" class="w-3 h-3"></i> FACTURAR (SIAT)</button>` : '')
                                 ) : ''}
                             </div>
                         </td>
@@ -10730,14 +10788,36 @@ function cambiarZoomSalidasEps(delta) {
 // =========================================================
 // INTEGRACIÓN API - SYSTEMS BOLIVIA (FACTURACIÓN SIAT)
 // =========================================================
-function emitirFacturaPiloto(orderId) {
-    if(!confirm("¿Deseas enviar este pedido al sistema de facturación de Systems Bolivia?")) return;
-
+// Abre el modal para confirmar datos antes de facturar
+function abrirModalEmitirFactura(orderId) {
     const o = orders.find(x => x.id === orderId);
     if(!o) return alert("Pedido no encontrado.");
+    
+    document.getElementById('fact-orden-id').value = o.id;
+    document.getElementById('fact-cliente-nombre').value = o.client || '';
+    document.getElementById('fact-cliente-nit').value = o.nit || '';
+    
+    document.getElementById('modal-confirmar-factura').classList.remove('hidden');
+}
 
-    if(!o.nit || o.nit.trim() === '') return alert("❌ ERROR: El cliente no tiene NIT o CI registrado.");
+// Ejecuta la emisión hacia el puente enrutador
+function ejecutarEmisionFactura() {
+    const orderId = document.getElementById('fact-orden-id').value;
+    const nuevoNombre = document.getElementById('fact-cliente-nombre').value.trim().toUpperCase();
+    const nuevoNit = document.getElementById('fact-cliente-nit').value.trim();
+    
+    if(!nuevoNombre || !nuevoNit) return alert("El Nombre y el NIT son obligatorios.");
+    
+    const o = orders.find(x => x.id === orderId);
+    if(!o) return;
 
+    if(!confirm("¿Confirmas que los datos son correctos para emitir la factura al SIAT?")) return;
+
+    // Actualizamos los datos en el pedido antes de enviarlo
+    o.client = nuevoNombre;
+    o.nit = nuevoNit;
+
+    document.getElementById('modal-confirmar-factura').classList.add('hidden');
     showToast("Conectando con Servidor de Impuestos...");
 
     const baseTotal = o.items.reduce((s,i) => s + i.subtotal, 0);
@@ -10773,7 +10853,8 @@ function emitirFacturaPiloto(orderId) {
     const cleanNit = String(o.nit).replace(/\s+/g, '');
     if (/^\d{8,15}$/.test(cleanNit) && cleanNit.length > 7) docType = 5; 
 
-    const payload = {
+    // Aquí empaquetamos los datos reales del SIAT
+    const payloadSiat = {
         "additional_discount": 0,
         "amount_giftcard": 0,
         "payment_method_code": 1, 
@@ -10791,12 +10872,19 @@ function emitirFacturaPiloto(orderId) {
         "number_invoice": 0
     };
 
+    // EL NUEVO ENRUTAMIENTO: Añadimos la capa externa para nuestro Google Apps Script
+    const dataAEnviar = {
+        accion: 'emitir',
+        payload: payloadSiat
+    };
+
+    // LA URL ES LA MISMA, el script ahora es inteligente
     const urlPuenteGoogle = "https://script.google.com/macros/s/AKfycbxaiCVugWIcBiafbjvKQ2chMWNk6SCmH2JEQxPshNvxqIYZaOYS6BGo31o7o6FfW4UmUw/exec";
 
     fetch(urlPuenteGoogle, {
         method: 'POST',
         headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-        body: JSON.stringify(payload)
+        body: JSON.stringify(dataAEnviar) // Enviamos el paquete enrutado
     })
     .then(response => response.text())
     .then(text => {
@@ -10816,21 +10904,24 @@ function emitirFacturaPiloto(orderId) {
                 const blob = new Blob([byteArray], {type: 'application/pdf'});
                 const blobUrl = URL.createObjectURL(blob);
                 
-                // Descarga forzada del PDF (Corregida para que el nombre no tenga barras)
+                // Descarga forzada del PDF
                 const safeId = String(o.id).replace(/\//g, '-');
                 const link = document.createElement('a');
                 link.href = blobUrl;
-                link.download = `Factura_Piloto_${safeId}.pdf`;
+                link.download = `Factura_${safeId}.pdf`;
                 document.body.appendChild(link);
                 link.click();
                 document.body.removeChild(link);
                 
-                // Guardamos en Firebase que ya está facturado
+                // GUARDAMOS EL ID_INVOICE Y LOS DATOS EN FIREBASE
                 o.facturado = true;
                 o.cuf = res.data.cuf;
                 o.numeroFactura = res.data.number_invoice;
+                o.idInvoiceSiat = res.data.id_invoice; // <--- GUARDAMOS EL DATO CRÍTICO PARA ANULAR
+                
                 db.collection("pedidos").doc(safeId).set(o);
                 save();
+                renderRegistroVentas(); // Refrescamos la tabla para que aparezca el botón Anular
 
             } else {
                 alert("⚠️ SYSTEMS BOLIVIA RECHAZÓ EL PEDIDO:\n\n" + JSON.stringify(res, null, 2));
@@ -13324,6 +13415,85 @@ async function editarMarcaMateriaPrima(id, marcaAntigua, peso, lote) {
         console.error("Error corrigiendo la marca:", error);
         alert("❌ Ocurrió un error al conectar con la base de datos de Google. Revise su conexión.");
     }
+}
+
+// Abre el modal de motivos de anulación
+function abrirModalAnularFactura(orderId) {
+    const o = orders.find(x => x.id === orderId);
+    if(!o) return alert("Pedido no encontrado.");
+    
+    if(!o.idInvoiceSiat) {
+        return alert("❌ ERROR: Este pedido no tiene registrado un 'ID de Factura SIAT'. Es posible que haya sido facturado antes de la actualización del sistema. Comuníquese con soporte.");
+    }
+    
+    document.getElementById('anular-orden-id').value = o.id;
+    document.getElementById('modal-anular-factura').classList.remove('hidden');
+}
+
+// Ejecuta la anulación hacia el puente enrutador
+function ejecutarAnulacionFactura() {
+    const orderId = document.getElementById('anular-orden-id').value;
+    const motivoCodigo = document.getElementById('anular-motivo-codigo').value;
+    
+    const o = orders.find(x => x.id === orderId);
+    if(!o || !o.idInvoiceSiat) return;
+
+    if(!confirm(`⚠️ ATENCIÓN:\n¿Estás completamente seguro de ANULAR la factura #${o.numeroFactura || ''} ante el SIAT? Esta acción no se puede deshacer.`)) return;
+
+    document.getElementById('modal-anular-factura').classList.add('hidden');
+    showToast("Enviando solicitud de anulación al SIAT...");
+
+    // El Payload exacto que pide Systems Bolivia para anular
+    const payloadSiat = {
+        "id_invoice": String(o.idInvoiceSiat),
+        "reason_code": String(motivoCodigo)
+    };
+
+    // EL ENRUTAMIENTO hacia tu puente de Google
+    const dataAEnviar = {
+        accion: 'anular',
+        payload: payloadSiat
+    };
+
+    const urlPuenteGoogle = "https://script.google.com/macros/s/AKfycbxaiCVugWIcBiafbjvKQ2chMWNk6SCmH2JEQxPshNvxqIYZaOYS6BGo31o7o6FfW4UmUw/exec";
+
+    fetch(urlPuenteGoogle, {
+        method: 'POST',
+        headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+        body: JSON.stringify(dataAEnviar)
+    })
+    .then(response => response.text())
+    .then(text => {
+        try {
+            const res = JSON.parse(text);
+            
+            if (res.status === "success") {
+                showToast("✅ ¡Factura Anulada Correctamente en el SIAT!");
+                
+                // REVERSIÓN EN LA BASE DE DATOS (Opción A)
+                o.facturado = false;
+                delete o.cuf;
+                delete o.numeroFactura;
+                delete o.idInvoiceSiat;
+                
+                const safeId = String(o.id).replace(/\//g, '-');
+                db.collection("pedidos").doc(safeId).set(o);
+                save();
+                
+                renderRegistroVentas(); // Refrescamos la tabla para que vuelva a mostrar "FACTURAR"
+
+            } else {
+                alert("⚠️ SYSTEMS BOLIVIA RECHAZÓ LA ANULACIÓN:\n\n" + JSON.stringify(res, null, 2));
+            }
+        } catch(e) {
+            console.error("Error al procesar respuesta de anulación:", e);
+            alert("⚠️ ERROR INTERNO AL LEER RESPUESTA DE ANULACIÓN:\n" + e.message);
+        }
+    })
+    .catch(error => {
+        console.error("Error de Red o de Puente en anulación:", error);
+        alert("❌ Error al contactar al Puente de Google o en la función:\n" + error.message);
+    });
 }
 
 renderAll();
