@@ -10915,9 +10915,15 @@ function ejecutarEmisionFactura() {
                 
                 // GUARDAMOS EL ID_INVOICE Y LOS DATOS EN FIREBASE
                 o.facturado = true;
-                o.cuf = res.data.cuf;
-                o.numeroFactura = res.data.number_invoice;
-                o.idInvoiceSiat = res.data.id_invoice; // <--- GUARDAMOS EL DATO CRÍTICO PARA ANULAR
+                o.cuf = res.data.cuf || "";
+                o.numeroFactura = res.data.number_invoice || "";
+                
+                // ESCUDO ANTI-CRASH: Si el ID no llega exactamente como id_invoice, buscamos alternativas. 
+                // Si no hay nada, ponemos un texto para que Firebase no se bloquee con "undefined".
+                o.idInvoiceSiat = res.data.id_invoice || res.id_invoice || res.data.id || "ID_NO_ENCONTRADO"; 
+                
+                // Imprimimos la respuesta secreta del servidor para ver dónde está el ID realmente
+                console.log("🔍 RESPUESTA COMPLETA DE FACTURACIÓN:", res);
                 
                 db.collection("pedidos").doc(safeId).set(o);
                 save();
