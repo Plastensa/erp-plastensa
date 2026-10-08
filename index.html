@@ -13472,14 +13472,9 @@ function ejecutarAnulacionFactura() {
    // El Payload exacto que pide Systems Bolivia para anular
     const payloadSiat = {
         "login": "admin",
-        "cuf": String(o.cuf),
+        "id_invoice": parseInt(o.idInvoiceSiat) || 0,
         "reason_code": parseInt(motivoCodigo)
     };
-    
-    // Si en las próximas facturas ya tenemos un ID numérico real, lo adjuntamos también por seguridad
-    if (!isNaN(parseInt(o.idInvoiceSiat))) {
-        payloadSiat.id_invoice = parseInt(o.idInvoiceSiat);
-    }
     // EL ENRUTAMIENTO hacia tu puente de Google
     const dataAEnviar = {
         accion: 'anular',
