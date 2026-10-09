@@ -94,6 +94,12 @@
 <body class="bg-slate-50 font-sans text-slate-800">
 
     <!-- PANTALLA DE LOGIN -->
+   <!-- PANTALLA DE CARGA INQUEBRANTABLE (ESCUDO ANTI-CLICS) -->
+    <div id="loading-overlay" class="hidden fixed inset-0 bg-slate-900/90 backdrop-blur-md z-[10000] flex flex-col items-center justify-center p-4">
+        <i data-lucide="loader-2" class="w-16 h-16 text-blue-500 animate-spin mb-6"></i>
+        <h2 class="text-3xl font-black text-white uppercase tracking-widest text-center mb-2">Procesando...</h2>
+        <p id="loading-msg" class="text-slate-400 font-bold text-center text-xs uppercase tracking-widest">Por favor espere. No cierre ni actualice la ventana.</p>
+    </div>
     <div id="login-screen" class="login-screen no-print">
         <div class="bg-white p-10 rounded-[40px] shadow-2xl w-full max-w-md">
             <div class="text-center mb-8">
@@ -10920,6 +10926,7 @@ function abrirModalEmitirFactura(orderId) {
 }
 
 // Ejecuta la emisión hacia el puente enrutador
+// Ejecuta la emisión hacia el puente enrutador
 function ejecutarEmisionFactura() {
     const orderId = document.getElementById('fact-orden-id').value;
     const nuevoNombre = document.getElementById('fact-cliente-nombre').value.trim().toUpperCase();
@@ -10937,7 +10944,10 @@ function ejecutarEmisionFactura() {
     o.nit = nuevoNit;
 
     document.getElementById('modal-confirmar-factura').classList.add('hidden');
-    showToast("Conectando con Servidor de Impuestos...");
+    
+    // --- ACTIVAR ESCUDO DE PANTALLA ---
+    document.getElementById('loading-msg').innerText = "Emitiendo factura en el SIAT... Por favor espere.";
+    document.getElementById('loading-overlay').classList.remove('hidden');
 
     // NUEVA LÓGICA MATEMÁTICA: INFLADO DE PRECIOS Y AJUSTE POR DESCUENTO
     const baseTotal = o.items.reduce((s,i) => s + i.subtotal, 0);
@@ -11026,6 +11036,7 @@ function ejecutarEmisionFactura() {
     })
     .then(response => response.text())
     .then(text => {
+        document.getElementById('loading-overlay').classList.add('hidden'); // APAGAR ESCUDO
         try {
             const res = JSON.parse(text);
             
@@ -11051,8 +11062,7 @@ function ejecutarEmisionFactura() {
                 link.click();
                 document.body.removeChild(link);
                 
-                // GUARDAMOS EL ID_INVOICE Y LOS DATOS EN FIREBASE// ¡MISTERIO RESUELTO! El ID interno de Systems Bolivia se llama 'response_id_invoice'
-                o.idInvoiceSiat = res.data.response_id_invoice ? res.data.response_id_invoice : "ID_NO_ENCONTRADO";
+                // GUARDAMOS EL ID_INVOICE Y LOS DATOS EN FIREBASE
                 o.facturado = true;
                 o.cuf = res.data.cuf || "";
                 o.numeroFactura = res.data.number_invoice || "";
@@ -11064,7 +11074,8 @@ function ejecutarEmisionFactura() {
                 o.pdfBase64 = res.data.print_invoice; 
                 
                 console.log("🔍 RESPUESTA COMPLETA DE FACTURACIÓN:", res);
-		// --- NUEVO MÓDULO: GUARDAR COPIA INMUTABLE EN EL LIBRO DE FACTURAS ---
+                
+                // --- NUEVO MÓDULO: GUARDAR COPIA INMUTABLE EN EL LIBRO DE FACTURAS ---
                 const linkPdfSiat = res.data.link_print_invoice || "";
                 const linkRolloSiat = res.data.link_print_roll_invoice || "";
                 
@@ -11086,7 +11097,6 @@ function ejecutarEmisionFactura() {
                 db.collection("facturas_emitidas").doc(String(nuevaFacturaFiscal.id)).set(nuevaFacturaFiscal);
                 // ---------------------------------------------------------------------
                 
-                // Ya no volvemos a declarar safeId porque ya existe arriba
                 db.collection("pedidos").doc(safeId).set(o);
                 save();
                 renderRegistroVentas(); // Refrescamos la tabla para que aparezca el botón Anular
@@ -11100,8 +11110,9 @@ function ejecutarEmisionFactura() {
         }
     })
     .catch(error => {
+        document.getElementById('loading-overlay').classList.add('hidden'); // APAGAR ESCUDO
         console.error("Error de Red o de Puente:", error);
-        alert("❌ Error al contactar al Puente de Google o en la función:\n" + error.message);
+        alert("⚠️ ALERTA DE SEGURIDAD DEL NAVEGADOR:\n\nTu navegador Chrome/Safari bloqueó la recepción de la respuesta por seguridad (interrupción de red).\n\nEs MUY PROBABLE que la factura SÍ se haya emitido correctamente en Systems Bolivia.\n\n👉 POR FAVOR, REVISA TU PANEL DE SYSTEMS BOLIVIA antes de volver a presionar el botón para evitar facturar 2 veces el mismo pedido.");
     });
 }
 
@@ -13602,6 +13613,7 @@ function abrirModalAnularFactura(orderId) {
 }
 
 // Ejecuta la anulación hacia el puente enrutador
+// Ejecuta la anulación hacia el puente enrutador
 function ejecutarAnulacionFactura() {
     const orderId = document.getElementById('anular-orden-id').value;
     const motivoCodigo = document.getElementById('anular-motivo-codigo').value;
@@ -13612,7 +13624,10 @@ function ejecutarAnulacionFactura() {
     if(!confirm(`⚠️ ATENCIÓN:\n¿Estás completamente seguro de ANULAR la factura #${o.numeroFactura || ''} ante el SIAT? Esta acción no se puede deshacer.`)) return;
 
     document.getElementById('modal-anular-factura').classList.add('hidden');
-    showToast("Enviando solicitud de anulación al SIAT...");
+    
+    // --- ACTIVAR ESCUDO DE PANTALLA ---
+    document.getElementById('loading-msg').innerText = "Anulando factura en el SIAT... Por favor espere.";
+    document.getElementById('loading-overlay').classList.remove('hidden');
 
    // El Payload exacto que pide Systems Bolivia para anular
     const payloadSiat = {
@@ -13635,20 +13650,22 @@ function ejecutarAnulacionFactura() {
     })
     .then(response => response.text())
     .then(text => {
+        document.getElementById('loading-overlay').classList.add('hidden'); // APAGAR ESCUDO
         try {
             const res = JSON.parse(text);
             
             if (res.status === "success") {
                 showToast("✅ ¡Factura Anulada Correctamente en el SIAT!");
                 
-                // REVERSIÓN EN LA BASE DE DATOS (Opción A)
-		// --- NUEVO MÓDULO: ACTUALIZAR ESTADO EN EL LIBRO DE FACTURAS ---
+                // --- NUEVO MÓDULO: ACTUALIZAR ESTADO EN EL LIBRO DE FACTURAS ---
                 db.collection("facturas_emitidas").doc(String(o.idInvoiceSiat)).update({
                     estado: 'ANULADO',
                     fechaAnulacion: new Date().toLocaleString(),
                     motivoAnulacion: motivoCodigo
                 }).catch(e => console.log("Error al marcar factura como anulada en el libro:", e));
                 // ---------------------------------------------------------------
+                
+                // REVERSIÓN EN LA BASE DE DATOS
                 o.facturado = false;
                 delete o.cuf;
                 delete o.numeroFactura;
@@ -13669,8 +13686,9 @@ function ejecutarAnulacionFactura() {
         }
     })
     .catch(error => {
+        document.getElementById('loading-overlay').classList.add('hidden'); // APAGAR ESCUDO
         console.error("Error de Red o de Puente en anulación:", error);
-        alert("❌ Error al contactar al Puente de Google o en la función:\n" + error.message);
+        alert("⚠️ ALERTA DEL NAVEGADOR:\n\nLa anulación fue enviada, pero el navegador bloqueó la confirmación por seguridad.\nPor favor, verifica en Systems Bolivia si la factura ya aparece como Anulada.");
     });
 }
 
