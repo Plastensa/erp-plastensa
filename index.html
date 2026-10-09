@@ -11002,13 +11002,14 @@ function ejecutarEmisionFactura() {
                 link.click();
                 document.body.removeChild(link);
                 
-                // GUARDAMOS EL ID_INVOICE Y LOS DATOS EN FIREBASE
+                // GUARDAMOS EL ID_INVOICE Y LOS DATOS EN FIREBASE// ¡MISTERIO RESUELTO! El ID interno de Systems Bolivia se llama 'response_id_invoice'
+                o.idInvoiceSiat = res.data.response_id_invoice ? res.data.response_id_invoice : "ID_NO_ENCONTRADO";
                 o.facturado = true;
                 o.cuf = res.data.cuf || "";
                 o.numeroFactura = res.data.number_invoice || "";
                 
-                // ¡MISTERIO RESUELTO! El ID estaba escondido dentro de 'invoice_online'
-                o.idInvoiceSiat = (res.data.invoice_online && res.data.invoice_online.id) ? res.data.invoice_online.id : "ID_NO_ENCONTRADO";
+                // ¡MISTERIO RESUELTO! El ID interno de Systems Bolivia se llama 'response_id_invoice'
+                o.idInvoiceSiat = res.data.response_id_invoice ? res.data.response_id_invoice : "ID_NO_ENCONTRADO";
                 
                 // NUEVO: Guardamos el PDF en texto para poder descargarlo luego
                 o.pdfBase64 = res.data.print_invoice; 
