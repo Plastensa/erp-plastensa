@@ -3774,14 +3774,24 @@ function aplicarPermisosVisuales(role) {
        if(adminInventoryTools) adminInventoryTools.classList.remove('hidden');
         
         // --- ESCUDO FANTASMA: OCULTAR MÓDULOS AL AUDITOR ---
-        if (currentUser && currentUser.email === 'administrador@plastensa.com') {
+        if (currentUser && String(currentUser.email).toLowerCase() === 'administrador@plastensa.com') {
             const navPrecios = document.getElementById('nav-precios-admin');
             if(navPrecios) navPrecios.classList.add('hidden'); // Oculta Gestión de Precios
             
-            const btnCajaBs = document.querySelector('[data-cuenta="CAJA PLASTENSA"]');
+            // Ocultar botones de bancos específicos en Caja General
+            const btnBnb = document.querySelector('[data-cuenta="BNB"]');
+            const btnUnion = document.querySelector('[data-cuenta="UNION"]');
+            const btnMercantil = document.querySelector('[data-cuenta="MERCANTIL"]');
             const btnCajaUsd = document.querySelector('[data-cuenta="CAJA DOLARES"]');
-            if(btnCajaBs) btnCajaBs.classList.add('hidden'); // Oculta Caja Efectivo
+            const btnBisaUsd = document.querySelector('[data-cuenta="BISA USDT"]');
+            const btnTower = document.querySelector('[data-cuenta="TOWERBANK"]');
+            
+            if(btnBnb) btnBnb.classList.add('hidden');
+            if(btnUnion) btnUnion.classList.add('hidden');
+            if(btnMercantil) btnMercantil.classList.add('hidden');
             if(btnCajaUsd) btnCajaUsd.classList.add('hidden');
+            if(btnBisaUsd) btnBisaUsd.classList.add('hidden');
+            if(btnTower) btnTower.classList.add('hidden');
 
             const btnMaestro = document.querySelector('button[onclick="exportarExcelMaestro()"]');
             const btnRespaldo = document.querySelector('button[onclick="downloadBackup()"]');
@@ -5556,7 +5566,7 @@ function exportVentasCSV() {
             
             const selectMes = document.getElementById('filter-reg-mes').value;
             const selectVend = document.getElementById('filter-reg-vendedor').value;
-            const esAuditor = currentUser && currentUser.email === 'administrador@plastensa.com';
+            const esAuditor = currentUser && String(currentUser.email).toLowerCase() === 'administrador@plastensa.com';
 
             const filteredOrders = orders.filter(o => {
                 if (esAuditor && o.type !== 'CF') return false; // ESCUDO FANTASMA
@@ -5616,7 +5626,7 @@ function exportVentasCSV() {
             let csv = "FECHA REG,N ORDEN,CLIENTE,EPS TIPO,VOL PZA,CANT PED.,CANT ENTREGADA,SALDO PENDIENTE,VOL TOTAL,COD DETALLE,VENDEDOR,PAGO,ESTADO\n";
             const selectMes = document.getElementById('filter-log-mes').value;
             const selectVend = document.getElementById('filter-log-vendedor').value;
-            const esAuditor = currentUser && currentUser.email === 'administrador@plastensa.com';
+            const esAuditor = currentUser && String(currentUser.email).toLowerCase() === 'administrador@plastensa.com';
 
             const filteredOrders = orders.filter(o => {
                 if (esAuditor && o.type !== 'CF') return false; // ESCUDO FANTASMA
@@ -5665,7 +5675,7 @@ function exportSalidasCSV() {
     let csv = "FECHA REG,N ORDEN,CLIENTE,EPS TIPO,VOL PZA M3,CANTIDAD,VOL TOTAL M3,PRECIO (BS/PZA),PRECIO (BS/M3),PRECIO TOTAL,VENDEDOR,COD DETALLE\n";
     const selM = document.getElementById('filter-salidas-mes'); const selV = document.getElementById('filter-salidas-vendedor');
     const vM = selM ? selM.value : 'ALL'; const vV = selV ? selV.value : 'ALL';
-    const esAuditor = currentUser && currentUser.email === 'administrador@plastensa.com';
+    const esAuditor = currentUser && String(currentUser.email).toLowerCase() === 'administrador@plastensa.com';
 
     orders.filter(o => {
         if (esAuditor && o.type !== 'CF') return false; // ESCUDO FANTASMA
@@ -5697,7 +5707,7 @@ function renderSalidasEPS() {
     if(sV) sV.innerHTML = `<option value="ALL">Todos los vendedores</option>` + Array.from(vends).sort().map(v => `<option value="${v}" ${vV===v?'selected':''}>${v}</option>`).join('');
 
     let h = ''; let tM3 = 0; let tBs = 0;
-    const esAuditor = currentUser && currentUser.email === 'administrador@plastensa.com';
+    const esAuditor = currentUser && String(currentUser.email).toLowerCase() === 'administrador@plastensa.com';
     orders.filter(o => {
         if (esAuditor && o.type !== 'CF') return false; // ESCUDO FANTASMA
         let mM = true; let mV = true;
@@ -5721,7 +5731,7 @@ function renderSalidasEPS() {
 
         function exportToCSV() { 
             let csv = "FECHA,N ORDEN,NOMBRE CLIENTE,TOTAL VENTA POR COBRAR,BNB,CAJA PRETENSA,BANCO UNION,BANCO BISA,VENDEDOR\n"; 
-            const esAuditor = currentUser && currentUser.email === 'administrador@plastensa.com';
+            const esAuditor = currentUser && String(currentUser.email).toLowerCase() === 'administrador@plastensa.com';
             orders.forEach(o => { 
                 if (esAuditor && o.type !== 'CF') return; // ESCUDO FANTASMA 
                 if(o.pagos && o.pagos.length > 0) {
@@ -5823,7 +5833,7 @@ function renderAll() {
                 const esOperador = currentUser && currentUser.role === 'OPERADOR';
                 // Si es operador imprime "---", si no, imprime el HTML del precio normal
               // MAQUILLAJE VISUAL Y ESCUDO AUDITOR
-                const esAuditor = currentUser && currentUser.email === 'administrador@plastensa.com';
+                const esAuditor = currentUser && String(currentUser.email).toLowerCase() === 'administrador@plastensa.com';
                 const formatCol = (cf, sf) => {
                     if (esOperador) return '<span class="text-slate-300 font-bold">---</span>';
                     if (esAuditor) return `<span class="text-blue-600 font-black">${cf.toFixed(2)}</span>`; // Oculta el DES al auditor
@@ -5929,7 +5939,7 @@ function renderAll() {
     const searchName = (document.getElementById('quote-search-name')?.value || '').toLowerCase();
     const searchDate = document.getElementById('quote-search-date')?.value || ''; 
     
-    const esAuditor = currentUser && currentUser.email === 'administrador@plastensa.com';
+    const esAuditor = currentUser && String(currentUser.email).toLowerCase() === 'administrador@plastensa.com';
     const filteredQuotes = quotes.filter(q => {
         if (esAuditor && q.type !== 'CF') return false; // ESCUDO FANTASMA
         // AHORA BUSCA POR CLIENTE, N° DE ORDEN Y TAMBIÉN ADENTRO DE LOS ÍTEMS
@@ -6118,7 +6128,7 @@ function renderDashboard() {
         return new Date(dateStr).toISOString().slice(0,7);
     }
 
-    const esAuditor = currentUser && currentUser.email === 'administrador@plastensa.com';
+    const esAuditor = currentUser && String(currentUser.email).toLowerCase() === 'administrador@plastensa.com';
     let fOrders = esAuditor ? orders.filter(o => o.type === 'CF') : orders;
     let fPerdidas = dbCotizacionesPerdidas || []; // Lemos la bolsa de estadísticas
     
@@ -6263,10 +6273,12 @@ function renderDashboard() {
         }
 
         function renderHistorialAdmin() {
-            const container = document.getElementById('historial-list');
-            let rowsHtml = '';
-            orders.forEach(o => {
-                if(o.pagos && o.pagos.length > 0) {
+    const container = document.getElementById('historial-list');
+    let rowsHtml = '';
+    const esAuditor = currentUser && String(currentUser.email).toLowerCase() === 'administrador@plastensa.com';
+    orders.forEach(o => {
+        if (esAuditor && o.type !== 'CF') return; // ESCUDO FANTASMA
+        if(o.pagos && o.pagos.length > 0) {
                     o.pagos.filter(p => p.verificado).forEach(p => {
                         let bnb = (p.cuenta && p.cuenta.includes('BNB')) ? p.monto : 0; 
                         let caja = (p.cuenta && p.cuenta.includes('CAJA')) ? p.monto : 0; 
@@ -6293,7 +6305,7 @@ function renderDashboard() {
 
         function renderTesoreria() {
             // Mostrar TODOS los pedidos confirmados (tengan pagos registrados o no)
-            const esAuditor = currentUser && currentUser.email === 'administrador@plastensa.com';
+            const esAuditor = currentUser && String(currentUser.email).toLowerCase() === 'administrador@plastensa.com';
             const list = esAuditor ? orders.filter(o => o.type === 'CF') : [...orders];
             
             if(list.length === 0) { document.getElementById('tesoreria-list').innerHTML = `<tr><td colspan="7" class="p-10 text-center font-bold text-slate-400 italic">No hay cobros ni créditos registrados</td></tr>`; return; }
@@ -6376,7 +6388,7 @@ function renderDashboard() {
 
             let html = '';
             let rowIndex = 0; // Contador para el efecto cebra
-            const esAuditor = currentUser && currentUser.email === 'administrador@plastensa.com';
+            const esAuditor = currentUser && String(currentUser.email).toLowerCase() === 'administrador@plastensa.com';
             orders.filter(o => {
                 if (esAuditor && o.type !== 'CF') return false; // ESCUDO FANTASMA
                 let matchMes = true; let matchVend = true; let matchTexto = true;
@@ -6506,7 +6518,7 @@ function renderDashboard() {
 
    let html = ''; let totalM3 = 0;
     let rowIndex = 0; // Contador para el efecto cebra
-    const esAuditor = currentUser && currentUser.email === 'administrador@plastensa.com';
+    const esAuditor = currentUser && String(currentUser.email).toLowerCase() === 'administrador@plastensa.com';
 
     orders.filter(o => {
         if (esAuditor && o.type !== 'CF') return false; // ESCUDO FANTASMA
@@ -10276,8 +10288,10 @@ function renderCajaGeneral() {
     
     let movimientos = [];
     
-    // 1. Integrar cobros liquidados automáticos de ventas
+   // 1. Integrar cobros liquidados automáticos de ventas
+    const esAuditor = currentUser && String(currentUser.email).toLowerCase() === 'administrador@plastensa.com';
     orders.forEach(o => {
+        if (esAuditor && o.type !== 'CF') return; // ESCUDO FANTASMA
         if(o.pagos && o.pagos.length > 0) {
             o.pagos.filter(p => p.verificado).forEach(p => {
                 movimientos.push({
@@ -10295,10 +10309,9 @@ function renderCajaGeneral() {
         if(m.entrada) movimientos.push({ id: m.id, fecha: m.fecha, orden: '-', desc: m.desc, categoria: m.categoria, totalCobrar: 0, monto: parseFloat(m.monto), cuenta: m.entrada, tipo: 'INGRESO', esTraspaso: isTraspaso, otraCuenta: m.salida, rawId: m.id });
     });
 
-   // ESCUDO FANTASMA: Borrar movimientos en Efectivo para el auditor
-    const esAuditor = currentUser && currentUser.email === 'administrador@plastensa.com';
+   // ESCUDO FANTASMA: Mostrar solo BISA y CAJA PLASTENSA (Efectivo Bs)
     if (esAuditor) {
-        movimientos = movimientos.filter(m => m.cuenta && !m.cuenta.includes('CAJA'));
+        movimientos = movimientos.filter(m => m.cuenta && (m.cuenta.includes('BISA') || m.cuenta === 'CAJA PLASTENSA') && !m.cuenta.includes('USDT'));
     }
 
     // 3. Ordenar por fecha cronológica y aplicar preferencia
@@ -12386,9 +12399,12 @@ function buscarOrdenReporteEntregas() {
     
     if (!s) { dd.classList.add('hidden'); return; }
 
-    const filtrados = orders.filter(o => 
-        o.id.toLowerCase().includes(s) || o.client.toLowerCase().includes(s)
-    ).slice(0, 15); // Limitar a 15 para no saturar
+    const esAuditor = currentUser && String(currentUser.email).toLowerCase() === 'administrador@plastensa.com';
+
+    const filtrados = orders.filter(o => {
+        if (esAuditor && o.type !== 'CF') return false; // ESCUDO FANTASMA
+        return o.id.toLowerCase().includes(s) || o.client.toLowerCase().includes(s);
+    }).slice(0, 15); // Limitar a 15 para no saturar
 
     if (filtrados.length === 0) {
         dd.innerHTML = `<div class="p-4 text-center text-slate-400 font-bold text-xs">No se encontró ningún pedido.</div>`;
