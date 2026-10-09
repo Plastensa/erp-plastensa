@@ -423,6 +423,9 @@
                 <button id="nav-historial-admin" onclick="showTab('historial-admin')" class="nav-btn w-full flex items-center justify-between p-4 rounded-xl transition-all text-slate-400 hover:bg-slate-800 hidden" data-tab="historial-admin">
                     <div class="flex items-center gap-4"><i data-lucide="bar-chart-3" class="w-5 h-5"></i><span class="font-bold text-xs uppercase tracking-wider">Reporte Pagos</span></div>
                 </button>
+		<button id="nav-facturas-admin" onclick="showTab('facturas-admin')" class="nav-btn w-full flex items-center justify-between p-4 rounded-xl transition-all text-slate-400 hover:bg-slate-800 hidden" data-tab="facturas-admin">
+                    <div class="flex items-center gap-4"><i data-lucide="file-check-2" class="w-5 h-5"></i><span class="font-bold text-xs uppercase tracking-wider">Gestión Facturas</span></div>
+                </button>
                 <button id="nav-caja-general" onclick="showTab('caja-general')" class="nav-btn w-full flex items-center justify-between p-4 rounded-xl transition-all text-slate-400 hover:bg-slate-800 hidden" data-tab="caja-general">
                     <div class="flex items-center gap-4"><i data-lucide="book-open-check" class="w-5 h-5"></i><span class="font-bold text-xs uppercase tracking-wider">Caja General</span></div>
                 </button>
@@ -1503,7 +1506,40 @@
                     </div>
                     <div id="verificacion-list" class="grid gap-4"></div>
                 </div>
-
+		<!-- TAB: GESTIÓN DE FACTURAS (FISCAL) -->
+                <div id="tab-facturas-admin" class="tab-content hidden space-y-6">
+                    <div class="flex flex-col md:flex-row items-center justify-between gap-4 mb-4">
+                        <div class="bg-white p-6 rounded-[32px] border border-slate-200 shadow-sm flex-1 w-full flex items-center gap-4 border-l-8 border-purple-600">
+                            <div class="p-3 bg-purple-100 text-purple-600 rounded-2xl"><i data-lucide="file-check-2" class="w-8 h-8"></i></div>
+                            <div>
+                                <h2 class="text-2xl font-black uppercase tracking-tighter text-slate-800">Gestión de Facturas</h2>
+                                <p class="text-[10px] font-black text-slate-400 uppercase tracking-widest">Libro Fiscal Inmutable (Conectado a SIAT)</p>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="flex gap-4 mb-4 bg-white p-4 rounded-2xl border border-slate-200 shadow-sm">
+                        <i data-lucide="search" class="w-5 h-5 text-slate-400 mt-3 ml-2"></i>
+                        <input type="text" id="buscador-facturas" onkeyup="renderFacturasAdmin()" placeholder="Buscar por N° Factura, NIT o Razón Social..." class="w-full bg-transparent border-none outline-none font-bold text-sm text-slate-700 p-2">
+                    </div>
+                    <div class="bg-white rounded-[32px] border border-slate-200 overflow-hidden shadow-sm">
+                        <div class="overflow-x-auto">
+                            <table class="w-full text-left text-xs whitespace-nowrap">
+                                <thead class="bg-slate-900 text-white border-b border-slate-100">
+                                    <tr>
+                                        <th class="p-5 text-[10px] font-black uppercase tracking-widest">N° Factura</th>
+                                        <th class="p-5 text-[10px] font-black uppercase tracking-widest">Fecha Emisión</th>
+                                        <th class="p-5 text-[10px] font-black uppercase tracking-widest">NIT</th>
+                                        <th class="p-5 text-[10px] font-black uppercase tracking-widest">Razón Social</th>
+                                        <th class="p-5 text-[10px] font-black uppercase tracking-widest text-right">Monto (Bs)</th>
+                                        <th class="p-5 text-[10px] font-black uppercase tracking-widest text-center">Estado</th>
+                                        <th class="p-5 text-[10px] font-black uppercase tracking-widest text-center">Acciones</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="facturas-list-body" class="divide-y divide-slate-100"></tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
                 <!-- TAB: HISTORIAL PAGOS (EXPORTABLE) -->
                 <div id="tab-historial-admin" class="tab-content hidden space-y-6">
                     <div class="flex flex-col md:flex-row items-center justify-between gap-4 mb-8">
@@ -3104,6 +3140,7 @@
         let dbExtSellers = []; let dbIntSellers = []; let dbPendingVerifications = [];
         let dbSchedules = []; let dbReportesCorte = []; let dbDespachos = []; let dbBloques = [];
         let dbKardex = []; // NUEVO: Historial de Inventario PT
+        let dbFacturas = []; // NUEVO: Historial inmutable de facturas fiscales
         let dbTolva = 0; // Tolva en la Nube (Sin límite de llenado)
         let dbCotizacionesPerdidas = []; // NUEVO: Historial súper liviano de pérdidas
         let pizarraMateriaPrima = {}; // Pizarra de Saldos en tiempo real
@@ -3748,11 +3785,21 @@ function iniciarRadar(userEmail) {
         dbLiquidaciones = tempL;
         if(currentUser) renderAll();
     });
+
+    // NUEVO RADAR: LIBRO DE FACTURAS FISCALES
+    db.collection("facturas_emitidas").orderBy("timestamp", "desc").onSnapshot((snapshot) => {
+        let tempF = [];
+        snapshot.forEach(doc => tempF.push(doc.data()));
+        dbFacturas = tempF;
+        if(currentUser && pestanaActiva === 'facturas-admin') {
+            if(typeof renderFacturasAdmin === 'function') renderFacturasAdmin();
+        }
+    });
 }
 
 // 3. Matriz Estricta de Roles y Permisos (Intacta)
 function aplicarPermisosVisuales(role) {
-    const adminTabs = ['dashboard-gerencial', 'directorio', 'tesoreria-admin', 'salidas-eps', 'historial-admin', 'precios-admin', 'transporte','caja-general', 'seguridad', 'rrhh-directorio', 'rrhh-asistencia', 'rrhh-planilla'];
+    const adminTabs = ['dashboard-gerencial', 'directorio', 'tesoreria-admin', 'salidas-eps', 'historial-admin', 'facturas-admin', 'precios-admin', 'transporte','caja-general', 'seguridad', 'rrhh-directorio', 'rrhh-asistencia', 'rrhh-planilla'];
     const comercialTabs = ['clientes', 'catalogo', 'ventas', 'cotizaciones', 'registro-ventas'];
     const produccionTabs = ['materia-prima', 'expansion', 'bloquera', 'inventario-bloques', 'corte', 'reporte-corte', 'produccion', 'plan-diario', 'inventario'];
     const finanzasTabs = ['tesoreria'];
@@ -5775,6 +5822,7 @@ function renderAll() {
         else if(pestanaActiva === 'tesoreria-admin') { renderTesoreriaAdmin(); }
         else if(pestanaActiva === 'salidas-eps') { renderSalidasEPS(); }
         else if(pestanaActiva === 'historial-admin') { renderHistorialAdmin(); }
+        else if(pestanaActiva === 'facturas-admin') { if(typeof renderFacturasAdmin === 'function') renderFacturasAdmin(); }
         else if(pestanaActiva === 'caja-general') { renderCajaGeneral(); }
         else if(pestanaActiva === 'precios-admin') { renderPreciosBase(); }
         else if(pestanaActiva === 'transporte') { renderTransporte(); renderTransporteDetail(); if(typeof renderLiquidaciones === 'function') renderLiquidaciones(); }
@@ -11015,6 +11063,27 @@ function ejecutarEmisionFactura() {
                 o.pdfBase64 = res.data.print_invoice; 
                 
                 console.log("🔍 RESPUESTA COMPLETA DE FACTURACIÓN:", res);
+		// --- NUEVO MÓDULO: GUARDAR COPIA INMUTABLE EN EL LIBRO DE FACTURAS ---
+                const linkPdfSiat = res.data.link_print_invoice || "";
+                const linkRolloSiat = res.data.link_print_roll_invoice || "";
+                
+                const nuevaFacturaFiscal = {
+                    id: String(o.idInvoiceSiat),
+                    numeroFactura: res.data.number_invoice || o.numeroFactura || "0",
+                    fechaEmision: new Date().toLocaleString(),
+                    timestamp: Date.now(),
+                    nit: o.nit,
+                    razonSocial: o.client,
+                    montoTotal: o.total,
+                    estado: 'VALIDO',
+                    cuf: res.data.cuf || "",
+                    linkPdf: linkPdfSiat,
+                    linkRollo: linkRolloSiat,
+                    orderId: o.id,
+                    responsable: currentUser ? currentUser.name : 'Sistema'
+                };
+                db.collection("facturas_emitidas").doc(String(nuevaFacturaFiscal.id)).set(nuevaFacturaFiscal);
+                // ---------------------------------------------------------------------
                 
                 // Ya no volvemos a declarar safeId porque ya existe arriba
                 db.collection("pedidos").doc(safeId).set(o);
@@ -13572,6 +13641,13 @@ function ejecutarAnulacionFactura() {
                 showToast("✅ ¡Factura Anulada Correctamente en el SIAT!");
                 
                 // REVERSIÓN EN LA BASE DE DATOS (Opción A)
+		// --- NUEVO MÓDULO: ACTUALIZAR ESTADO EN EL LIBRO DE FACTURAS ---
+                db.collection("facturas_emitidas").doc(String(o.idInvoiceSiat)).update({
+                    estado: 'ANULADO',
+                    fechaAnulacion: new Date().toLocaleString(),
+                    motivoAnulacion: motivoCodigo
+                }).catch(e => console.log("Error al marcar factura como anulada en el libro:", e));
+                // ---------------------------------------------------------------
                 o.facturado = false;
                 delete o.cuf;
                 delete o.numeroFactura;
@@ -13624,6 +13700,65 @@ function descargarFacturaSiatGuardada(orderId) {
         console.error("Error al regenerar el PDF:", e);
         alert("Error al intentar descargar el archivo.");
     }
+}
+
+// ==========================================
+// RENDERIZADO DEL LIBRO DE FACTURAS FISCALES
+// ==========================================
+function renderFacturasAdmin() {
+    const tbody = document.getElementById('facturas-list-body');
+    const searchInput = document.getElementById('buscador-facturas');
+    if(!tbody) return;
+
+    const term = searchInput ? searchInput.value.toLowerCase() : '';
+
+    const filtrados = dbFacturas.filter(f => {
+        if(!term) return true;
+        return (f.numeroFactura && String(f.numeroFactura).includes(term)) ||
+               (f.nit && String(f.nit).includes(term)) ||
+               (f.razonSocial && f.razonSocial.toLowerCase().includes(term));
+    });
+
+    if(filtrados.length === 0) {
+        tbody.innerHTML = `<tr><td colspan="7" class="p-10 text-center text-slate-400 font-bold italic">No hay facturas registradas.</td></tr>`;
+        return;
+    }
+
+    tbody.innerHTML = filtrados.map(f => {
+        const esAnulada = f.estado === 'ANULADO';
+        const colorEstado = esAnulada ? 'bg-red-500 text-white border-red-600' : 'bg-green-500 text-white border-green-600';
+        const textoEstado = esAnulada ? 'ANULADO' : 'VÁLIDO';
+
+        // Botones de acción usando los enlaces directos de Systems Bolivia
+        const btnVerPdf = f.linkPdf ? `<a href="${f.linkPdf}" target="_blank" class="bg-slate-100 hover:bg-slate-200 text-slate-700 px-3 py-2 rounded-lg text-[9px] font-black uppercase shadow-sm transition-colors border border-slate-300 flex items-center gap-1" title="Ver PDF A4"><i data-lucide="file-text" class="w-3 h-3"></i> PDF</a>` : '';
+        const btnVerRollo = f.linkRollo ? `<a href="${f.linkRollo}" target="_blank" class="bg-slate-100 hover:bg-slate-200 text-slate-700 px-3 py-2 rounded-lg text-[9px] font-black uppercase shadow-sm transition-colors border border-slate-300 flex items-center gap-1" title="Ver Ticket Rollo"><i data-lucide="receipt" class="w-3 h-3"></i> TICKET</a>` : '';
+
+        return `
+        <tr class="hover:bg-purple-50/30 transition-colors border-b border-slate-100">
+            <td class="p-5 font-black text-slate-800 text-lg">#${f.numeroFactura}</td>
+            <td class="p-5 font-bold text-slate-500">
+                <span class="block">${f.fechaEmision}</span>
+                <span class="text-[9px] text-slate-400 uppercase tracking-widest mt-1 block">Pedido: ${f.orderId}</span>
+            </td>
+            <td class="p-5 font-bold text-slate-600">${f.nit}</td>
+            <td class="p-5 font-black text-slate-700">
+                <span class="block">${f.razonSocial}</span>
+                ${esAnulada ? `<span class="text-[9px] text-red-500 font-bold uppercase block mt-1">Anulada el: ${f.fechaAnulacion || 'N/A'}</span>` : ''}
+            </td>
+            <td class="p-5 text-right font-black text-slate-800">Bs ${(Number(f.montoTotal)||0).toFixed(2)}</td>
+            <td class="p-5 text-center">
+                <span class="px-3 py-1.5 rounded-xl text-[10px] font-black uppercase tracking-widest border shadow-sm ${colorEstado}">${textoEstado}</span>
+            </td>
+            <td class="p-5 text-center">
+                <div class="flex gap-2 justify-center">
+                    ${btnVerPdf}
+                    ${btnVerRollo}
+                </div>
+            </td>
+        </tr>`;
+    }).join('');
+
+    if(window.lucide) lucide.createIcons();
 }
 
 renderAll();
