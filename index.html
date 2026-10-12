@@ -4822,6 +4822,7 @@ const existingClientIndex = dbClients.findIndex(x => {
     document.getElementById('cot-phone').value = ''; 
     if(document.getElementById('cot-mapa')) document.getElementById('cot-mapa').value = '';
     document.getElementById('cot-vendedor').value = '';
+    if(currentUser && document.getElementById('cot-interno')) document.getElementById('cot-interno').value = currentUser.name;
     document.getElementById('inp-trans').value = 0; 
     document.getElementById('inp-comm').value = 0;
     document.getElementById('inp-extra').value = 0;
@@ -9837,8 +9838,27 @@ function editQuote(id) {
     document.getElementById('cot-validez').value = q.validezDias || 15;
     if(document.getElementById('cot-next-contact')) document.getElementById('cot-next-contact').value = q.nextContactDate || '';
     
-    // 3. Cambiar de vista y recalcular
+    // 3. Cambiar de vista (esto actualiza las listas desplegables)
     showTab('ventas'); 
+
+    // 4. PROTECCIÓN DE VENDEDOR EXTERNO E INTERNO ORIGINAL
+    const selExt = document.getElementById('cot-vendedor');
+    if (selExt) {
+        const valExt = (q.vendedorExterno && q.vendedorExterno !== 'NINGUNO') ? q.vendedorExterno : '';
+        if (valExt && !Array.from(selExt.options).some(opt => opt.value === valExt)) {
+            selExt.innerHTML += `<option value="${valExt}">${valExt}</option>`;
+        }
+        selExt.value = valExt;
+    }
+
+    const selInt = document.getElementById('cot-interno');
+    if (selInt && q.vendedorInterno) {
+        if (!Array.from(selInt.options).some(opt => opt.value === q.vendedorInterno)) {
+            selInt.innerHTML += `<option value="${q.vendedorInterno}">${q.vendedorInterno}</option>`;
+        }
+        selInt.value = q.vendedorInterno;
+    }
+
     setInvoiceType(q.type); 
     renderCart();
     calculateFinals();
