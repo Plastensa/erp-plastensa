@@ -4352,13 +4352,13 @@ function handleFileUpload(e) {
     document.getElementById('adder-math').innerHTML = `
         <div class="flex justify-between items-center border-b border-slate-100 pb-2">
             <span class="text-[10px] uppercase tracking-widest text-slate-400">Volumen Ítem:</span>
-            <span class="font-black text-blue-600 text-base">${q} pzas <span class="text-slate-400 font-medium">&times;</span> ${vu} <span class="text-slate-400 font-medium">=</span> ${itv.toFixed(2)} M3</span>
+            <span class="font-black text-blue-600 text-base">${q} pzas <span class="text-slate-400 font-medium">&times;</span> ${vu} <span class="text-slate-400 font-medium">=</span> ${itv.toFixed(4)} M3</span>
         </div>
         <div class="flex justify-between items-center pt-2">
-            <span class="text-[10px] uppercase tracking-widest text-slate-400">P.Unit (Basado en Vol Global: ${sv.toFixed(2)} M3)</span>
+            <span class="text-[10px] uppercase tracking-widest text-slate-400">P.Unit (Basado en Vol Global: ${sv.toFixed(4)} M3)</span>
             <span class="font-black text-slate-800 text-lg">Bs ${p.toFixed(2)} <span class="text-[10px] text-slate-400 font-bold uppercase">/ Pza</span></span>
         </div>
-    `; 
+    `;
     lucide.createIcons();
 }
 
@@ -4433,7 +4433,7 @@ function handleFileUpload(e) {
                 else tarifaDeseada = 3; 
             }
 
-            // Extracción de tarifas
+            // Extracción de tarifas por pieza
             let p1 = currentType === 'CF' ? Number(p.pCF1||0) : Number(p.pSF1||0);
             let p2 = currentType === 'CF' ? Number(p.pCF2||0) : Number(p.pSF2||0);
             let p3 = currentType === 'CF' ? Number(p.pCF3||0) : Number(p.pSF3||0);
@@ -4443,10 +4443,35 @@ function handleFileUpload(e) {
             else if (tarifaDeseada === 2) item.unitPrice = p2 > 0 ? p2 : p1;
             else item.unitPrice = p1 > 0 ? p1 : (p2 > 0 ? p2 : p3);
 
+            // NUEVO: Extraer la tarifa limpia por M3 directamente de la Matriz de Precios
+            let precioM3 = 0;
+            const match = (p.name || '').trim().match(/^([A-Za-z]+?)(SR|C|\d+)(?=\/|$|-|\()/i);
+            if (match && dbPreciosBase && Array.isArray(dbPreciosBase.matriz)) {
+                const familiaProd = match[1].toUpperCase();
+                const densProd = ['SR', 'C'].includes(match[2].toUpperCase()) ? match[2].toUpperCase() : 'D' + match[2];
+                const regla = dbPreciosBase.matriz.find(r => 
+                    (r.familia || '').toUpperCase().trim() === familiaProd && 
+                    (r.dens || '').toUpperCase().trim() === densProd
+                );
+                if (regla) {
+                    const mult = 1 + ((Number(dbPreciosBase.ajusteGlobal) || 0) / 100);
+                    let m1 = (currentType === 'CF' ? Number(regla.pCF1||0) : Number(regla.pSF1||0)) * mult;
+                    let m2 = (currentType === 'CF' ? Number(regla.pCF2||0) : Number(regla.pSF2||0)) * mult;
+                    let m3 = (currentType === 'CF' ? Number(regla.pCF3||0) : Number(regla.pSF3||0)) * mult;
+                    if (tarifaDeseada === 3) precioM3 = m3 > 0 ? m3 : (m2 > 0 ? m2 : m1);
+                    else if (tarifaDeseada === 2) precioM3 = m2 > 0 ? m2 : m1;
+                    else precioM3 = m1 > 0 ? m1 : (m2 > 0 ? m2 : m3);
+                }
+            }
+            if (precioM3 === 0 && item.volUnit > 0) {
+                precioM3 = Math.round(item.unitPrice / item.volUnit);
+            }
+            item.priceM3 = precioM3;
+
             item.subtotal = item.qty * item.unitPrice; 
         } 
     });
-    document.getElementById('lbl-total-vol').innerText = `${cv.toFixed(2)} M3`; 
+    document.getElementById('lbl-total-vol').innerText = `${cv.toFixed(4)} M3`; 
     calculateFinals(); 
     renderCart(); 
 }
@@ -4513,14 +4538,16 @@ function handleFileUpload(e) {
     if(cart.length === 0) {
         tbody.innerHTML = `<tr><td colspan="5" class="p-8 text-center text-slate-400 font-bold italic">La cotización está vacía</td></tr>`;
     } else {
-        tbody.innerHTML = cart.map(i => `
+        tbody.innerHTML = cart.map(i => {
+            const precioM3 = i.priceM3 || (i.volUnit > 0 ? Math.round(i.unitPrice / i.volUnit) : 0);
+            return `
         <tr class="hover:bg-slate-50 transition-colors">
             <td class="p-4">
                 <span class="font-black text-slate-800 block">${i.name}</span>
                 ${i.obs ? `<span class="text-[10px] text-orange-600 font-bold uppercase bg-orange-50 px-2 py-0.5 rounded mt-1 inline-block border border-orange-100">Corte: ${i.obs}</span>` : ''}
             </td>
             
-            <!-- NUEVA COLUMNA EDITABLE -->
+            <!-- COLUMNA CANT. / VOL. CON 4 DECIMALES -->
             <td class="p-4 text-center">
                 <div class="flex flex-col items-center justify-center gap-1">
                     <div class="flex items-center gap-1">
@@ -4532,18 +4559,25 @@ function handleFileUpload(e) {
                                class="w-20 text-center font-black text-slate-800 bg-white border-2 border-slate-200 rounded-xl p-1.5 outline-none focus:border-blue-500 focus:ring-4 focus:ring-blue-500/20 transition-all shadow-sm">
                         <span class="text-xs font-bold text-slate-500">Pzas</span>
                     </div>
-                    <span class="text-[10px] text-slate-400 font-bold uppercase">(${i.volTotal.toFixed(2)} M³)</span>
+                    <span class="text-[10px] text-slate-400 font-bold uppercase">(${i.volTotal.toFixed(4)} M³)</span>
                 </div>
             </td>
 
-            <td class="p-4 text-right font-bold text-slate-500">Bs ${i.unitPrice.toFixed(2)}</td>
+            <!-- COLUMNA P. UNITARIO + PRECIO POR M3 DEBAJO -->
+            <td class="p-4 text-right">
+                <div class="flex flex-col items-end justify-center gap-1">
+                    <span class="font-bold text-slate-600">Bs ${i.unitPrice.toFixed(2)}</span>
+                    <span class="text-[10px] text-slate-400 font-bold uppercase">(Bs ${precioM3.toFixed(2)} / M³)</span>
+                </div>
+            </td>
             <td class="p-4 text-right font-black text-blue-600 text-lg">Bs ${i.subtotal.toFixed(2)}</td>
             <td class="p-4 text-center">
                 <button type="button" onclick="removeFromCart(${i.uid})" class="bg-red-50 text-red-500 hover:bg-red-100 px-3 py-2 rounded-xl transition-colors font-black flex items-center justify-center mx-auto shadow-sm border border-red-100">
                     <i data-lucide="trash-2" class="w-4 h-4 mr-1"></i> <span class="text-xs">BORRAR</span>
                 </button>
             </td>
-        </tr>`).join('');
+        </tr>`;
+        }).join('');
     }
     lucide.createIcons();
 }
