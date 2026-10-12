@@ -11167,10 +11167,13 @@ async function ejecutarEmisionFactura() {
                 const blob = new Blob([byteArray], {type: 'application/pdf'});
                 const blobUrl = URL.createObjectURL(blob);
                 
-                // Descarga forzada del PDF
+                // --- FORMATO DE NOMBRE DE DESCARGA: F(NRO) NOMBRE CLIENTE ---
+                const numFacDescarga = res.data.number_invoice || o.numeroFactura || "0";
+                const clienteLimpio = String(o.client || "CLIENTE").replace(/[\\/:*?"<>|]/g, "").trim();
+                
                 const link = document.createElement('a');
                 link.href = blobUrl;
-                link.download = `Factura_${safeId}.pdf`;
+                link.download = `F${numFacDescarga} ${clienteLimpio}.pdf`;
                 document.body.appendChild(link);
                 link.click();
                 document.body.removeChild(link);
@@ -13822,10 +13825,13 @@ function descargarFacturaSiatGuardada(orderId) {
         const blob = new Blob([byteArray], {type: 'application/pdf'});
         const blobUrl = URL.createObjectURL(blob);
         
-        const safeId = String(o.id).replace(/\//g, '-');
+        // --- FORMATO DE NOMBRE DE DESCARGA: F(NRO) NOMBRE CLIENTE ---
+        const numFacDescarga = o.numeroFactura || "0";
+        const clienteLimpio = String(o.client || "CLIENTE").replace(/[\\/:*?"<>|]/g, "").trim();
+
         const link = document.createElement('a');
         link.href = blobUrl;
-        link.download = `Factura_${safeId}.pdf`;
+        link.download = `F${numFacDescarga} ${clienteLimpio}.pdf`;
         document.body.appendChild(link);
         link.click();
         document.body.removeChild(link);
@@ -13937,10 +13943,14 @@ async function imprimirFacturaAnuladaLocal(orderId) {
         const blob = new Blob([pdfBytesModified], { type: 'application/pdf' });
         const blobUrl = URL.createObjectURL(blob);
 
-        // 5. Descargar automáticamente el nuevo PDF sellado
+        // 5. Rescatar el número de factura desde el Libro Fiscal para nombrar el archivo: F(NRO) ANULADA.pdf
+        const facturaLibro = dbFacturas.find(f => f.orderId === orderId && f.estado === 'ANULADO') || dbFacturas.find(f => f.orderId === orderId);
+        const numFacAnulada = (facturaLibro && facturaLibro.numeroFactura) ? facturaLibro.numeroFactura : (o.numeroFactura || 'SIAT');
+
+        // 6. Descargar automáticamente el nuevo PDF sellado
         const link = document.createElement('a');
         link.href = blobUrl;
-        link.download = `Factura_Anulada_${o.numeroFactura || 'SIAT'}.pdf`;
+        link.download = `F${numFacAnulada} ANULADA.pdf`;
         document.body.appendChild(link);
         link.click();
         document.body.removeChild(link);
