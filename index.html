@@ -6493,11 +6493,20 @@ function renderDashboard() {
                     payStatusBadge = `<span class="bg-red-100 text-red-600 px-2 py-1 rounded text-[9px] font-black uppercase tracking-widest shadow-sm block w-max mx-auto border border-red-200">NO PAGADO</span>`;
                 }
 
-               // 1. FORMATO EN 2 LÍNEAS PARA N° DE ORDEN (Ej: PED-0123- arriba y 10/2026 abajo)
+// 1. FORMATO EN 2 LÍNEAS PARA N° DE ORDEN (Ej: PED-0123- arriba y 10/2026 abajo)
                 const partesOrden = String(o.id || '').split('-');
                 const ordenDosLineas = partesOrden.length === 3
                     ? `<span class="block leading-tight">${partesOrden[0]}-${partesOrden[1]}-</span><span class="block text-[10px] text-slate-500 font-bold leading-tight">${partesOrden[2]}</span>`
                     : `<span class="block leading-tight">${o.id}</span>`;
+
+                // 1B. FORMATO EN 2 LÍNEAS PARA VENDEDOR EXTERNO (2 palabras arriba y el resto abajo)
+                const palabrasExt = String(o.vendedorExterno || 'NINGUNO').trim().split(/\s+/);
+                const vendedorExtDosLineas = palabrasExt.length > 2
+                    ? `<span class="block leading-tight">${palabrasExt.slice(0, 2).join(' ')}</span><span class="block leading-tight mt-0.5">${palabrasExt.slice(2).join(' ')}</span>`
+                    : `<span class="block leading-tight">${palabrasExt.join(' ')}</span>`;
+
+                // 1C. FORMATO COMPACTO PARA MÉTODO DE PAGO (Si hay 2 bancos en un pedido, los apila para no ensanchar la columna)
+                const metodosCompacto = metodosStr.split(', ').map(m => `<span class="block leading-tight">${m}</span>`).join('');
 
                 // 2. BOTÓN DE EDICIÓN COMPACTO CON DESCRIPCIÓN AL PASAR EL MOUSE
                 const btnEditar = (!o.facturado && o.status !== 'DESPACHADO' && currentUser && (currentUser.role === 'ADMIN' || currentUser.role === 'VENDEDOR')) 
@@ -6557,12 +6566,12 @@ function renderDashboard() {
                         <td class="py-2.5 px-4 text-right font-bold text-red-500 bg-red-50/30 align-middle">${descMonto > 0 ? '- Bs ' + descMonto.toFixed(2) : '-'}</td>
                         <td class="py-2.5 px-4 text-right font-black text-green-600 bg-green-50/30 align-middle">Bs ${o.total.toFixed(2)}</td>
                         <td class="py-2.5 px-4 text-center align-middle">${typeBadge}</td>
-                        <td class="py-2.5 px-4 text-[10px] font-black uppercase text-slate-500 align-middle">${o.vendedorInterno}</td>
-                        <td class="py-2.5 px-4 text-[10px] font-black uppercase text-slate-400 align-middle">${o.vendedorExterno || 'NINGUNO'}</td>
-                        <td class="py-2.5 px-4 text-right font-black text-slate-700 align-middle">${(o.volGlobalCotizacion || 0).toFixed(2)} M3</td>
-                        <td class="py-2.5 px-4 text-[10px] font-black uppercase text-slate-500 align-middle">${metodosStr}</td>
-                        <td class="py-2.5 px-4 text-center align-middle">${payStatusBadge}</td>
-                        <td class="py-2.5 px-4 text-center align-middle">
+                        <td class="py-2.5 px-3 text-[10px] font-black uppercase text-slate-500 align-middle">${o.vendedorInterno}</td>
+                        <td class="py-2.5 px-3 text-[10px] font-black uppercase text-slate-400 align-middle whitespace-normal max-w-[130px]">${vendedorExtDosLineas}</td>
+                        <td class="py-2.5 px-3 text-right font-black text-slate-700 align-middle">${(o.volGlobalCotizacion || 0).toFixed(2)} M3</td>
+                        <td class="py-2.5 px-3 text-[10px] font-black uppercase text-slate-500 align-middle whitespace-normal max-w-[110px]">${metodosCompacto}</td>
+                        <td class="py-2.5 px-3 text-center align-middle">${payStatusBadge}</td>
+                        <td class="py-2.5 px-3 text-center align-middle">
                             <div class="flex items-center justify-center gap-1.5 whitespace-nowrap">
                                 <button onclick="printQuote('${o.id}')" class="bg-blue-600 hover:bg-blue-700 text-white p-1.5 rounded-lg text-[9px] font-black shadow-sm transition-colors inline-flex items-center justify-center" title="Imprimir / Ver PDF del Pedido">
                                     <i data-lucide="printer" class="w-3.5 h-3.5"></i>
