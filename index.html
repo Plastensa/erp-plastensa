@@ -11017,6 +11017,11 @@ async function ejecutarEmisionFactura() {
         const pCat = products.find(p => p.name === i.name);
         const pCode = (pCat && pCat.code) ? pCat.code : "PROD-001";
 
+        // 6. DETECTOR AUTOMÁTICO DE UNIDAD DE MEDIDA SIAT
+        // 22 = KILOGRAMO (Para PL y MR) | 47 = PIEZAS (Para el resto del catálogo)
+        const nombreItemUpper = String(i.name || '').trim().toUpperCase();
+        const codigoUnidadSiat = (nombreItemUpper.startsWith('PL') || nombreItemUpper.startsWith('MR')) ? "22" : "47";
+
         return {
             "id": "39",
             "economic_activity": "2220300", 
@@ -11024,7 +11029,7 @@ async function ejecutarEmisionFactura() {
             "product_code": pCode,
             "description_product": i.name,
             "amount": i.qty,
-            "unit_of_measurement": "58", 
+            "unit_of_measurement": codigoUnidadSiat, 
             "unit_price": unitPriceRounded,
             "discount_amount": discountItem,
             "subtotal": subtotalItem
