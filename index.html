@@ -6499,10 +6499,26 @@ function renderDashboard() {
                     : '';
 
                 // NUEVO: Etiqueta visual de auditoría si el pedido fue modificado
-                // NUEVO: Etiqueta visual de auditoría si el pedido fue modificado
                 const badgeEditado = o.editado 
                     ? `<br><span class="bg-purple-100 text-purple-700 border border-purple-200 px-1.5 py-0.5 rounded text-[8px] font-black uppercase tracking-widest mt-1.5 inline-block shadow-sm" title="Editado el ${o.fechaEdicion || 'fecha desconocida'}"><i data-lucide="edit-2" class="w-2.5 h-2.5 inline mr-1 -mt-0.5"></i>Editado</span>` 
                     : '';
+
+                // --- NUEVA LÓGICA DE BOTONES SIAT (CON CANDADO PRE-VUELO) ---
+                let htmlBotonesSiat = '';
+                if (o.type === 'CF') {
+                    if (o.facturado) {
+                        htmlBotonesSiat = `<div class="flex flex-col gap-1 w-full mt-1">
+                            <span class="w-full bg-emerald-100 text-emerald-700 border border-emerald-300 px-3 py-1.5 rounded-lg text-[9px] font-black shadow-sm flex items-center justify-center gap-1 tracking-widest"><i data-lucide="check-circle" class="w-3 h-3"></i> FACTURADA #${o.numeroFactura || ''}</span>
+                            ${o.pdfBase64 ? `<button onclick="descargarFacturaSiatGuardada('${o.id}')" class="w-full bg-blue-50 hover:bg-blue-100 text-blue-600 border border-blue-200 px-3 py-1.5 rounded-lg text-[9px] font-black shadow-sm transition-colors flex items-center justify-center gap-1" title="Descargar PDF de Factura"><i data-lucide="download" class="w-3 h-3"></i> DESCARGAR PDF</button>` : ''}
+                            ${(currentUser && currentUser.role === 'ADMIN') ? `<button onclick="abrirModalAnularFactura('${o.id}')" class="w-full bg-red-50 hover:bg-red-100 text-red-600 border border-red-200 px-3 py-1.5 rounded-lg text-[9px] font-black shadow-sm transition-colors flex items-center justify-center gap-1" title="Anular Factura en SIAT"><i data-lucide="x-circle" class="w-3 h-3"></i> ANULAR FACTURA</button>` : ''}
+                        </div>`;
+                    } else if (o.estadoSiat === 'PROCESANDO') {
+                        htmlBotonesSiat = `<button onclick="resolverDudaSiat('${o.id}')" class="w-full bg-orange-500 hover:bg-orange-600 text-white px-3 py-1.5 rounded-lg text-[9px] font-black shadow-sm transition-colors flex items-center justify-center gap-1 mt-1 animate-pulse" title="Conexión fallida. Requiere acción manual."><i data-lucide="alert-triangle" class="w-3 h-3"></i> VERIFICAR SIAT</button>`;
+                    } else if (currentUser && currentUser.role === 'ADMIN') {
+                        htmlBotonesSiat = `<button onclick="abrirModalEmitirFactura('${o.id}')" class="w-full bg-purple-600 hover:bg-purple-700 text-white px-3 py-1.5 rounded-lg text-[9px] font-black shadow-sm transition-colors flex items-center justify-center gap-1 mt-1"><i data-lucide="send" class="w-3 h-3"></i> FACTURAR AL SIAT</button>`;
+                    }
+                }
+                // -----------------------------------------------------------
 
                 // Efecto Cebra: Intercala plomo claro y blanco
                 const rowBg = rowIndex % 2 === 0 ? 'bg-white' : 'bg-slate-100';
@@ -6537,15 +6553,7 @@ function renderDashboard() {
                                     ${btnEditar}
                                     ${(currentUser && currentUser.role === 'ADMIN') ? `<button onclick="anularPedido('${o.id}')" class="bg-red-50 hover:bg-red-100 text-red-600 border border-red-200 px-3 py-1.5 rounded-lg text-[9px] font-black shadow-sm transition-colors inline-flex items-center gap-1" title="Anular Pedido"><i data-lucide="trash-2" class="w-3 h-3"></i> Anular</button>` : ''}
                                 </div>
-                                ${(o.type === 'CF') ? (
-                                    o.facturado 
-                                    ? `<div class="flex flex-col gap-1 w-full mt-1">
-                                        <span class="w-full bg-emerald-100 text-emerald-700 border border-emerald-300 px-3 py-1.5 rounded-lg text-[9px] font-black shadow-sm flex items-center justify-center gap-1 tracking-widest"><i data-lucide="check-circle" class="w-3 h-3"></i> FACTURADA #${o.numeroFactura || ''}</span>
-                                        ${o.pdfBase64 ? `<button onclick="descargarFacturaSiatGuardada('${o.id}')" class="w-full bg-blue-50 hover:bg-blue-100 text-blue-600 border border-blue-200 px-3 py-1.5 rounded-lg text-[9px] font-black shadow-sm transition-colors flex items-center justify-center gap-1" title="Descargar PDF de Factura"><i data-lucide="download" class="w-3 h-3"></i> DESCARGAR PDF</button>` : ''}
-                                        ${(currentUser && currentUser.role === 'ADMIN') ? `<button onclick="abrirModalAnularFactura('${o.id}')" class="w-full bg-red-50 hover:bg-red-100 text-red-600 border border-red-200 px-3 py-1.5 rounded-lg text-[9px] font-black shadow-sm transition-colors flex items-center justify-center gap-1" title="Anular Factura en SIAT"><i data-lucide="x-circle" class="w-3 h-3"></i> ANULAR FACTURA</button>` : ''}
-                                       </div>`
-                                    : (currentUser && currentUser.role === 'ADMIN' ? `<button onclick="abrirModalEmitirFactura('${o.id}')" class="w-full bg-purple-600 hover:bg-purple-700 text-white px-3 py-1.5 rounded-lg text-[9px] font-black shadow-sm transition-colors flex items-center justify-center gap-1 mt-1"><i data-lucide="send" class="w-3 h-3"></i> FACTURAR AL SIAT</button>` : '')
-                                ) : ''}
+                                ${htmlBotonesSiat}
                             </div>
                         </td>
                     </tr>`;
@@ -10926,8 +10934,7 @@ function abrirModalEmitirFactura(orderId) {
 }
 
 // Ejecuta la emisión hacia el puente enrutador
-// Ejecuta la emisión hacia el puente enrutador
-function ejecutarEmisionFactura() {
+async function ejecutarEmisionFactura() {
     const orderId = document.getElementById('fact-orden-id').value;
     const nuevoNombre = document.getElementById('fact-cliente-nombre').value.trim().toUpperCase();
     const nuevoNit = document.getElementById('fact-cliente-nit').value.trim();
@@ -10939,15 +10946,42 @@ function ejecutarEmisionFactura() {
 
     if(!confirm("¿Confirmas que los datos son correctos para emitir la factura al SIAT?")) return;
 
-    // Actualizamos los datos en el pedido antes de enviarlo
+    // Cerramos el modal y activamos el escudo de pantalla
+    document.getElementById('modal-confirmar-factura').classList.add('hidden');
+    document.getElementById('loading-msg').innerText = "Paso 1/2: Verificando estabilidad de la conexión con el SIAT...";
+    document.getElementById('loading-overlay').classList.remove('hidden');
+
+    const urlPuenteGoogle = "https://script.google.com/macros/s/AKfycbxaiCVugWIcBiafbjvKQ2chMWNk6SCmH2JEQxPshNvxqIYZaOYS6BGo31o7o6FfW4UmUw/exec";
+
+    // --- PASO 1: PING PREVIO DE CONEXIÓN (checkConnection) ---
+    try {
+        const pingResponse = await fetch(urlPuenteGoogle, {
+            method: 'POST',
+            headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+            body: JSON.stringify({ accion: 'verificar_conexion', payload: {} })
+        });
+        
+        const pingText = await pingResponse.text();
+        const pingData = JSON.parse(pingText);
+
+        if (!pingData || pingData.status === "error") {
+            document.getElementById('loading-overlay').classList.add('hidden');
+            return alert("⚠️ CONEXIÓN INESTABLE CON EL SIAT:\n\nEl servidor de facturación no respondió de forma estable.\nPor seguridad, la factura NO fue enviada. Intente nuevamente en unos momentos.");
+        }
+    } catch (errPing) {
+        document.getElementById('loading-overlay').classList.add('hidden');
+        return alert("❌ CONEXIÓN INESTABLE O SIN INTERNET:\n\nSe detectó un fallo en la red antes de enviar la factura.\nEl proceso se detuvo a tiempo y no se emitió nada. Intente más tarde.");
+    }
+
+    // --- PASO 2: CANDADO PRE-VUELO EN FIREBASE ---
+    document.getElementById('loading-msg').innerText = "Paso 2/2: Conexión estable. Emitiendo factura en el SIAT...";
     o.client = nuevoNombre;
     o.nit = nuevoNit;
-
-    document.getElementById('modal-confirmar-factura').classList.add('hidden');
+    o.estadoSiat = 'PROCESANDO';
     
-    // --- ACTIVAR ESCUDO DE PANTALLA ---
-    document.getElementById('loading-msg').innerText = "Emitiendo factura en el SIAT... Por favor espere.";
-    document.getElementById('loading-overlay').classList.remove('hidden');
+    const safeId = String(o.id).replace(/\//g, '-');
+    db.collection("pedidos").doc(safeId).set(o);
+    renderRegistroVentas();
 
     // NUEVA LÓGICA MATEMÁTICA: INFLADO DE PRECIOS Y AJUSTE POR DESCUENTO
     const baseTotal = o.items.reduce((s,i) => s + i.subtotal, 0);
@@ -11020,19 +11054,15 @@ function ejecutarEmisionFactura() {
         "number_invoice": 0
     };
 
-    // EL NUEVO ENRUTAMIENTO: Añadimos la capa externa para nuestro Google Apps Script
     const dataAEnviar = {
         accion: 'emitir',
         payload: payloadSiat
     };
 
-    // LA URL ES LA MISMA, el script ahora es inteligente
-    const urlPuenteGoogle = "https://script.google.com/macros/s/AKfycbxaiCVugWIcBiafbjvKQ2chMWNk6SCmH2JEQxPshNvxqIYZaOYS6BGo31o7o6FfW4UmUw/exec";
-
     fetch(urlPuenteGoogle, {
         method: 'POST',
         headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-        body: JSON.stringify(dataAEnviar) // Enviamos el paquete enrutado
+        body: JSON.stringify(dataAEnviar)
     })
     .then(response => response.text())
     .then(text => {
@@ -11054,7 +11084,6 @@ function ejecutarEmisionFactura() {
                 const blobUrl = URL.createObjectURL(blob);
                 
                 // Descarga forzada del PDF
-                const safeId = String(o.id).replace(/\//g, '-');
                 const link = document.createElement('a');
                 link.href = blobUrl;
                 link.download = `Factura_${safeId}.pdf`;
@@ -11062,20 +11091,17 @@ function ejecutarEmisionFactura() {
                 link.click();
                 document.body.removeChild(link);
                 
-                // GUARDAMOS EL ID_INVOICE Y LOS DATOS EN FIREBASE
+                // GUARDAMOS EL ID_INVOICE Y LIBERAMOS EL CANDADO COMO COMPLETADO
                 o.facturado = true;
+                o.estadoSiat = 'COMPLETADO';
                 o.cuf = res.data.cuf || "";
                 o.numeroFactura = res.data.number_invoice || "";
-                
-                // ¡MISTERIO RESUELTO! El ID interno de Systems Bolivia se llama 'response_id_invoice'
                 o.idInvoiceSiat = res.data.response_id_invoice ? res.data.response_id_invoice : "ID_NO_ENCONTRADO";
-                
-                // NUEVO: Guardamos el PDF en texto para poder descargarlo luego
                 o.pdfBase64 = res.data.print_invoice; 
                 
                 console.log("🔍 RESPUESTA COMPLETA DE FACTURACIÓN:", res);
                 
-                // --- NUEVO MÓDULO: GUARDAR COPIA INMUTABLE EN EL LIBRO DE FACTURAS ---
+                // --- GUARDAR COPIA INMUTABLE EN EL LIBRO DE FACTURAS ---
                 const linkPdfSiat = res.data.link_print_invoice || "";
                 const linkRolloSiat = res.data.link_print_roll_invoice || "";
                 
@@ -11095,24 +11121,30 @@ function ejecutarEmisionFactura() {
                     responsable: currentUser ? currentUser.name : 'Sistema'
                 };
                 db.collection("facturas_emitidas").doc(String(nuevaFacturaFiscal.id)).set(nuevaFacturaFiscal);
-                // ---------------------------------------------------------------------
                 
                 db.collection("pedidos").doc(safeId).set(o);
                 save();
-                renderRegistroVentas(); // Refrescamos la tabla para que aparezca el botón Anular
+                renderRegistroVentas();
 
             } else {
+                // Si Systems Bolivia rechaza explícitamente el pedido, quitamos el candado para permitir corregir
+                o.estadoSiat = null;
+                db.collection("pedidos").doc(safeId).set(o);
+                renderRegistroVentas();
                 alert("⚠️ SYSTEMS BOLIVIA RECHAZÓ EL PEDIDO:\n\n" + JSON.stringify(res, null, 2));
             }
         } catch(e) {
             console.error("Error al procesar el PDF:", e);
-            alert("⚠️ ERROR INTERNO AL GENERAR EL PDF:\n" + e.message);
+            renderRegistroVentas();
+            alert("⚠️ ERROR INTERNO AL GENERAR EL PDF:\n" + e.message + "\n\nEl pedido quedó bloqueado con el botón naranja 'VERIFICAR SIAT' por seguridad.");
         }
     })
     .catch(error => {
+        // --- PASO 3: LA RED DE SEGURIDAD (EL CANDADO QUEDA ACTIVO EN NARANJA) ---
         document.getElementById('loading-overlay').classList.add('hidden'); // APAGAR ESCUDO
         console.error("Error de Red o de Puente:", error);
-        alert("⚠️ ALERTA DE SEGURIDAD DEL NAVEGADOR:\n\nTu navegador Chrome/Safari bloqueó la recepción de la respuesta por seguridad (interrupción de red).\n\nEs MUY PROBABLE que la factura SÍ se haya emitido correctamente en Systems Bolivia.\n\n👉 POR FAVOR, REVISA TU PANEL DE SYSTEMS BOLIVIA antes de volver a presionar el botón para evitar facturar 2 veces el mismo pedido.");
+        renderRegistroVentas();
+        alert("⚠️ CORTE DE CONEXIÓN DETECTADO:\n\nEl internet o el navegador interrumpieron la conexión MIENTRAS se enviaba la factura.\n\n🔒 Por seguridad anti-duplicados, el botón de este pedido ha cambiado a '⚠️ VERIFICAR SIAT' (Naranja).\n\n👉 Revisa tu panel de Systems Bolivia y haz clic en el botón naranja para liberar o sincronizar el pedido.");
     });
 }
 
@@ -13834,6 +13866,72 @@ async function imprimirFacturaAnuladaLocal(orderId) {
     } catch (error) {
         console.error("Error al procesar el PDF:", error);
         alert("❌ Ocurrió un error interno al intentar estampar la marca de agua.");
+    }
+}
+
+// ==========================================
+// PASO 3: RESOLUCIÓN HUMANA ANTI-DUPLICADOS (BOTÓN NARANJA)
+// ==========================================
+function resolverDudaSiat(orderId) {
+    const o = orders.find(x => x.id === orderId);
+    if(!o) return;
+
+    const accion = prompt(
+        `⚠️ ESCUDO ANTI-DUPLICADOS (${o.id} - ${o.client}):\n\n` +
+        `La conexión se cortó durante el envío al SIAT y el pedido quedó bloqueado para evitar facturar dos veces.\n\n` +
+        `Por favor, verifica en el panel de Systems Bolivia y escribe el número de la opción:\n\n` +
+        `1 ➔ La factura NO se emitió (Desbloquear botón morado para reintentar)\n` +
+        `2 ➔ La factura SÍ se emitió (Sincronizar datos manualmente)`
+    );
+
+    const safeId = String(o.id).replace(/\//g, '-');
+
+    if (accion === '1') {
+        o.estadoSiat = null;
+        db.collection("pedidos").doc(safeId).set(o);
+        save();
+        renderRegistroVentas();
+        showToast("🔓 Candado liberado. Ya puedes volver a facturar.");
+    } else if (accion === '2') {
+        const numFac = prompt("Ingresa el NÚMERO DE FACTURA que aparece en Systems Bolivia:");
+        if (!numFac) return alert("Operación cancelada. El número de factura es obligatorio.");
+
+        const cufSiat = prompt("Ingresa el CUF de la factura (Obligatorio para respaldo fiscal):");
+        if (!cufSiat) return alert("Operación cancelada. El CUF es obligatorio.");
+
+        const idSiat = prompt("Ingresa el ID interno de la factura en Systems Bolivia (Si no lo tienes a mano, escribe el mismo Número de Factura):");
+        const idFinal = idSiat ? idSiat.trim() : `SYNC-${numFac.trim()}`;
+
+        // 1. Actualizamos el pedido como Facturado
+        o.facturado = true;
+        o.estadoSiat = 'COMPLETADO';
+        o.numeroFactura = numFac.trim();
+        o.cuf = cufSiat.trim();
+        o.idInvoiceSiat = idFinal;
+
+        // 2. Registramos la factura en el Libro Fiscal (Gestión Facturas)
+        const nuevaFacturaFiscal = {
+            id: String(idFinal),
+            numeroFactura: numFac.trim(),
+            fechaEmision: new Date().toLocaleString(),
+            timestamp: Date.now(),
+            nit: o.nit,
+            razonSocial: o.client,
+            montoTotal: o.total,
+            estado: 'VALIDO',
+            cuf: cufSiat.trim(),
+            linkPdf: "",
+            linkRollo: "",
+            orderId: o.id,
+            responsable: currentUser ? currentUser.name : 'Sistema (Sinc. Manual)'
+        };
+        db.collection("facturas_emitidas").doc(String(nuevaFacturaFiscal.id)).set(nuevaFacturaFiscal);
+
+        // 3. Guardamos el pedido en Firebase
+        db.collection("pedidos").doc(safeId).set(o);
+        save();
+        renderRegistroVentas();
+        showToast("✅ Pedido sincronizado como FACTURADO correctamente.");
     }
 }
 
