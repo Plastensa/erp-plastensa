@@ -3879,7 +3879,7 @@ function aplicarPermisosVisuales(role) {
         if(adminInventoryTools) adminInventoryTools.classList.add('hidden');
         document.querySelectorAll('nav p').forEach(p => {
             const text = p.innerText.toUpperCase().trim();
-            if(['FINANZAS', 'ADMINISTRACIÓN'].includes(text)) p.classList.add('hidden');
+            if(['FINANZAS', 'ADMINISTRACIÓN', 'RECURSOS HUMANOS'].includes(text)) p.classList.add('hidden');
         });
         showTab('corte');
     } 
@@ -3896,8 +3896,18 @@ function aplicarPermisosVisuales(role) {
         if(despCreator) despCreator.classList.add('hidden');
         document.querySelectorAll('nav p').forEach(p => {
             const text = p.innerText.toUpperCase().trim();
-            if(['PRODUCCIÓN', 'ADMINISTRACIÓN'].includes(text)) p.classList.add('hidden');
+            if(['PRODUCCIÓN', 'ADMINISTRACIÓN', 'RECURSOS HUMANOS'].includes(text)) p.classList.add('hidden');
         });
+
+        // --- PERMISO ESPECIAL RRHH PARA GZUNIGA ---
+        if (currentUser && String(currentUser.email).toLowerCase().trim() === 'gzuniga@plastensa.com') {
+            document.getElementById('label-rrhh')?.classList.remove('hidden');
+            document.getElementById('nav-rrhh-directorio')?.classList.remove('hidden');
+            document.getElementById('nav-rrhh-asistencia')?.classList.remove('hidden');
+            document.getElementById('nav-rrhh-planilla')?.classList.remove('hidden');
+        }
+        // ------------------------------------------
+
         showTab('ventas');
     }
 
