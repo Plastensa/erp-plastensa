@@ -3216,7 +3216,7 @@
             const paqueteProductos = JSON.stringify(products);
             const paqueteClientes = JSON.stringify(dbClients);
             const paqueteCaja = JSON.stringify(dbMovimientosCaja);
-            const paqueteRRHH = JSON.stringify({ dbDirectorioRRHH, dbAsistenciaAuditada, dbBoletasEmitidas });
+            const paqueteRRHH = JSON.stringify({ dbAsistenciaAuditada, dbBoletasEmitidas });
 
             // 1. Solo guardamos Centrales si hubo un cambio real
             if (paqueteCentrales !== ultimaVezGuardado.centrales) {
@@ -3243,10 +3243,9 @@
                 localStorage.setItem('plast_products', paqueteProductos);
             }
 
-            // 5. Solo guardamos Módulo RRHH si hubo un cambio
+            // 5. Solo guardamos Asistencias y Boletas si hubo un cambio
             if (paqueteRRHH !== ultimaVezGuardado.rrhh) {
                 db.collection("plastensa_erp").doc("datos_rrhh").set({
-                    dbDirectorioRRHH: JSON.stringify(dbDirectorioRRHH),
                     dbAsistenciaAuditada: JSON.stringify(dbAsistenciaAuditada),
                     dbBoletasEmitidas: JSON.stringify(dbBoletasEmitidas)
                 }, { merge: true }).catch(error => console.error("Error guardando RRHH: ", error));
@@ -3716,17 +3715,21 @@ function iniciarRadar(userEmail) {
         if(currentUser) renderCajaGeneral();
     });
 
-    // RADAR MÓDULO RRHH
+    // RADAR MÓDULO RRHH (AHORA LEE DEL GAVETERO INDIVIDUAL)
+    db.collection("rrhh_directorio").onSnapshot((snapshot) => {
+        let tempRRHH = [];
+        snapshot.forEach(doc => tempRRHH.push(doc.data()));
+        dbDirectorioRRHH = tempRRHH;
+        if(currentUser && typeof renderDirectorioRRHH === 'function') renderDirectorioRRHH();
+    });
+
+    // RADAR PARA ASISTENCIA Y BOLETAS (SE MANTIENE AQUÍ TEMPORALMENTE)
     db.collection("plastensa_erp").doc("datos_rrhh").onSnapshot((doc) => {
         if (doc.exists) { 
             const data = doc.data();
-            dbDirectorioRRHH = data.dbDirectorioRRHH ? JSON.parse(data.dbDirectorioRRHH) : [];
             dbAsistenciaAuditada = data.dbAsistenciaAuditada ? JSON.parse(data.dbAsistenciaAuditada) : [];
             dbBoletasEmitidas = data.dbBoletasEmitidas ? JSON.parse(data.dbBoletasEmitidas) : [];
-            if(currentUser) { 
-                if(typeof renderDirectorioRRHH === 'function') renderDirectorioRRHH(); 
-                if(typeof renderPlanillaGeneral === 'function') renderPlanillaGeneral(); 
-            } 
+            if(currentUser && typeof renderPlanillaGeneral === 'function') renderPlanillaGeneral(); 
         }
     });
 
@@ -12986,19 +12989,21 @@ function guardarEmpleadoRRHH(e) {
         // Editando
         const index = dbDirectorioRRHH.findIndex(emp => String(emp.id) === String(uidInput));
         if (index > -1) {
-            dbDirectorioRRHH[index] = { ...dbDirectorioRRHH[index], nombre, idZk, area, salario, bono, fecha, banco };
-            showToast("Empleado actualizado correctamente.");
+            const empAct = { ...dbDirectorioRRHH[index], nombre, idZk, area, salario, bono, fecha, banco };
+            db.collection("rrhh_directorio").doc(String(uidInput)).set(empAct);
+            showToast("Empleado actualizado en la nube.");
         }
     } else {
         // Nuevo
-        if (dbDirectorioRRHH.find(emp => emp.idZk === idZk)) {
+        if (dbDirectorioRRHH.find(emp => String(emp.idZk) === String(idZk))) {
             return alert("Error: El ID de ZKTeco ya está asignado a otro empleado.");
         }
-        dbDirectorioRRHH.push({ id: Date.now(), nombre, idZk, area, salario, bono, fecha, banco, estado: 'ACTIVO' });
+        const nuevoEmp = { id: Date.now(), nombre, idZk, area, salario, bono, fecha, banco, estado: 'ACTIVO' };
+        db.collection("rrhh_directorio").doc(String(nuevoEmp.id)).set(nuevoEmp);
         showToast("Empleado registrado en la base de datos.");
     }
 
-    save(); limpiarFormRRHH(); renderDirectorioRRHH();
+    limpiarFormRRHH(); 
 }
 
 function limpiarFormRRHH() {
@@ -13024,7 +13029,10 @@ function editarEmpleadoRRHH(id) {
 function darBajaEmpleadoRRHH(id) {
     if(!confirm("¿Estás seguro de dar de BAJA a este empleado?\nNo aparecerá en planillas futuras, pero su historial se mantendrá.")) return;
     const emp = dbDirectorioRRHH.find(e => String(e.id) === String(id));
-    if (emp) { emp.estado = 'BAJA'; save(); renderDirectorioRRHH(); }
+    if (emp) { 
+        emp.estado = 'BAJA'; 
+        db.collection("rrhh_directorio").doc(String(emp.id)).set(emp);
+    }
 }
 
 function renderDirectorioRRHH() {
