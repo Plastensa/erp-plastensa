@@ -3023,6 +3023,58 @@
                             <button onclick="exportarPlanillaBancoCSV()" class="bg-slate-900 text-white px-4 py-3 rounded-xl font-black text-xs uppercase shadow-md hover:bg-slate-800 transition-colors flex items-center gap-2"><i data-lucide="download" class="w-4 h-4"></i> TXT BANCO</button>
                         </div>
                     </div>
+			<!-- NUEVO: MÓDULO DE VALES Y ANTICIPOS -->
+                    <div class="grid lg:grid-cols-3 gap-6 mb-8">
+                        <div class="lg:col-span-1 bg-white p-6 rounded-[32px] border border-slate-200 shadow-sm h-fit">
+                            <h3 class="font-black text-slate-800 uppercase mb-4 flex items-center gap-2 text-sm"><i data-lucide="hand-coins" class="text-orange-500 w-5 h-5"></i> Solicitar Vale / Anticipo</h3>
+                            <form onsubmit="solicitarAnticipoRRHH(event)" class="space-y-4">
+                                <div>
+                                    <label class="text-[10px] font-black uppercase text-slate-400 ml-2 block mb-1">Empleado</label>
+                                    <select id="anticipo-empleado" required class="w-full bg-slate-50 border border-slate-200 p-3 rounded-xl font-bold text-slate-700 text-xs outline-none focus:ring-2 focus:ring-orange-500"></select>
+                                </div>
+                                <div class="grid grid-cols-2 gap-3">
+                                    <div>
+                                        <label class="text-[10px] font-black uppercase text-slate-400 ml-2 block mb-1">Monto (Bs)</label>
+                                        <input type="number" id="anticipo-monto" required min="1" step="0.5" class="w-full bg-white border-2 border-orange-200 p-3 rounded-xl font-black text-orange-600 outline-none focus:border-orange-500">
+                                    </div>
+                                    <div>
+                                        <label class="text-[10px] font-black uppercase text-slate-400 ml-2 block mb-1">Fecha</label>
+                                        <input type="date" id="anticipo-fecha" required class="w-full bg-slate-50 border border-slate-200 p-3 rounded-xl font-bold text-xs outline-none">
+                                    </div>
+                                </div>
+                                <div>
+                                    <label class="text-[10px] font-black uppercase text-slate-400 ml-2 block mb-1">Motivo / Descripción</label>
+                                    <input type="text" id="anticipo-motivo" required placeholder="Ej: Adelanto quincena..." class="w-full bg-slate-50 border border-slate-200 p-3 rounded-xl font-bold text-xs outline-none">
+                                </div>
+                                <!-- BOTÓN DE MIGRACIÓN PARA EL MES DE TRANSICIÓN -->
+                                <div class="flex items-center gap-2 bg-orange-50 p-3 rounded-xl border border-orange-100 mt-2">
+                                    <input type="checkbox" id="anticipo-ya-pagado" class="w-4 h-4 accent-orange-500 cursor-pointer">
+                                    <label for="anticipo-ya-pagado" class="text-[9px] font-black uppercase text-orange-700 leading-tight cursor-pointer">Marcar solo si este anticipo YA fue entregado y anotado en Caja por Admin (Migración)</label>
+                                </div>
+                                <button type="submit" class="w-full bg-orange-500 text-white p-4 rounded-2xl font-black text-xs uppercase shadow-md hover:bg-orange-600 transition-colors">Registrar Anticipo</button>
+                            </form>
+                        </div>
+                        <div class="lg:col-span-2 bg-white rounded-[32px] border border-slate-200 shadow-sm overflow-hidden flex flex-col">
+                            <div class="p-4 bg-slate-50 border-b border-slate-100 flex justify-between items-center">
+                                <h3 class="font-black text-slate-800 uppercase text-sm flex items-center gap-2"><i data-lucide="list" class="text-slate-400"></i> Historial de Vales</h3>
+                                <span class="bg-orange-100 text-orange-700 px-2 py-1 rounded text-[9px] font-black uppercase tracking-widest border border-orange-200" id="lbl-total-anticipos">0 Pendientes</span>
+                            </div>
+                            <div class="overflow-x-auto flex-1 max-h-[350px] overflow-y-auto">
+                                <table class="w-full text-left text-xs whitespace-nowrap">
+                                    <thead class="bg-slate-900 text-slate-300 sticky top-0 z-10 text-[9px] font-black uppercase tracking-widest">
+                                        <tr>
+                                            <th class="p-3">Fecha</th>
+                                            <th class="p-3">Empleado</th>
+                                            <th class="p-3">Motivo</th>
+                                            <th class="p-3 text-right text-orange-300">Monto</th>
+                                            <th class="p-3 text-center">Estado / Acción</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="rrhh-anticipos-body" class="divide-y divide-slate-100 bg-white"></tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
 
                     <div class="bg-white rounded-[32px] border border-slate-200 shadow-sm overflow-hidden">
                         <div class="overflow-x-auto">
@@ -3165,6 +3217,7 @@
         let dbLiquidaciones = [];
         let liquidacionEnProceso = null; // Memoria oculta para cerrar el círculo del pago
 	let dbDirectorioRRHH = []; // Personal completo (Operarios, Externos, Administracion)
+	let dbAnticipos = []; // Control de Vales de RRHH
         let dbAsistenciaAuditada = []; // Resultados limpios del archivo ZK
         let dbBoletasEmitidas = []; // Historial de boletas de pago generadas
         let tempAsistenciaZK = {}; // Memoria temporal mientras lees el archivo CSV
@@ -3730,6 +3783,17 @@ function iniciarRadar(userEmail) {
             dbAsistenciaAuditada = data.dbAsistenciaAuditada ? JSON.parse(data.dbAsistenciaAuditada) : [];
             dbBoletasEmitidas = data.dbBoletasEmitidas ? JSON.parse(data.dbBoletasEmitidas) : [];
             if(currentUser && typeof renderPlanillaGeneral === 'function') renderPlanillaGeneral(); 
+        }
+    });
+
+    // RADAR MÓDULO RRHH: ANTICIPOS
+    db.collection("rrhh_anticipos").orderBy("id", "desc").onSnapshot((snapshot) => {
+        let temp = [];
+        snapshot.forEach(doc => temp.push(doc.data()));
+        dbAnticipos = temp;
+        if (currentUser && typeof renderAnticiposRRHH === 'function') {
+            renderAnticiposRRHH();
+            renderPlanillaGeneral(); // Para que el descuento en planilla se actualice en vivo
         }
     });
 
@@ -9362,6 +9426,124 @@ function exportarReporteCorteCSV() {
     });
 }
 
+// =========================================================
+// MÓDULO RRHH: GESTIÓN DE VALES Y ANTICIPOS
+// =========================================================
+
+function solicitarAnticipoRRHH(e) {
+    e.preventDefault();
+    const empId = document.getElementById('anticipo-empleado').value;
+    const emp = dbDirectorioRRHH.find(x => String(x.id) === String(empId));
+    if(!emp) return;
+
+    const monto = parseFloat(document.getElementById('anticipo-monto').value);
+    const fecha = document.getElementById('anticipo-fecha').value;
+    const motivo = document.getElementById('anticipo-motivo').value.trim();
+    const yaPagado = document.getElementById('anticipo-ya-pagado').checked;
+
+    const nuevoAnticipo = {
+        id: Date.now(),
+        empleadoId: emp.id,
+        empleadoNombre: emp.nombre,
+        monto: monto,
+        fecha: fecha,
+        motivo: motivo,
+        estado: yaPagado ? 'PAGADO' : 'PENDIENTE',
+        registradoPor: currentUser.name
+    };
+
+    db.collection("rrhh_anticipos").doc(String(nuevoAnticipo.id)).set(nuevoAnticipo);
+    e.target.reset();
+    document.getElementById('anticipo-ya-pagado').checked = false;
+    showToast(yaPagado ? "Vale histórico registrado directamente para descuento." : "Vale enviado a gerencia para aprobación.");
+}
+
+function renderAnticiposRRHH() {
+    const selectEmp = document.getElementById('anticipo-empleado');
+    if(selectEmp && (!selectEmp.options.length || selectEmp.options.length === 1)) {
+        selectEmp.innerHTML = `<option value="">-- Seleccionar Empleado --</option>` + 
+            dbDirectorioRRHH.filter(e => e.estado !== 'BAJA').map(e => `<option value="${e.id}">${e.nombre}</option>`).join('');
+    }
+
+    const tbody = document.getElementById('rrhh-anticipos-body');
+    if(!tbody) return;
+
+    const mesFiltroInput = document.getElementById('planilla-filtro-mes');
+    const mesFiltro = mesFiltroInput ? mesFiltroInput.value : '';
+
+    // Filtra: Mostrar siempre los pendientes. Si están pagados, mostrar solo los del mes de la planilla.
+    const filtrados = dbAnticipos.filter(a => {
+        if (a.estado === 'PENDIENTE') return true;
+        if (mesFiltro && a.fecha.startsWith(mesFiltro)) return true;
+        return false;
+    });
+
+    document.getElementById('lbl-total-anticipos').innerText = `${dbAnticipos.filter(a => a.estado === 'PENDIENTE').length} Pendientes`;
+
+    if(filtrados.length === 0) {
+        tbody.innerHTML = `<tr><td colspan="5" class="p-4 text-center text-slate-400 font-bold italic">No hay anticipos pendientes o en el mes seleccionado.</td></tr>`;
+        return;
+    }
+
+    tbody.innerHTML = filtrados.map(a => {
+        let badge = a.estado === 'PAGADO' ? `<span class="bg-green-100 text-green-700 px-2 py-1 rounded text-[9px] font-black uppercase"><i data-lucide="check-circle" class="w-3 h-3 inline"></i> Pagado</span>` : `<span class="bg-orange-100 text-orange-700 px-2 py-1 rounded text-[9px] font-black uppercase"><i data-lucide="clock" class="w-3 h-3 inline"></i> Pendiente</span>`;
+        
+        let btnAccion = '';
+        if (a.estado === 'PENDIENTE' && currentUser && currentUser.role === 'ADMIN') {
+            btnAccion = `
+                <button onclick="aprobarAnticipoRRHH(${a.id})" class="bg-green-500 hover:bg-green-600 text-white px-3 py-1.5 rounded-lg text-[9px] font-black uppercase shadow-sm transition-colors mr-1">Aprobar y Pagar</button>
+                <button onclick="rechazarAnticipoRRHH(${a.id})" class="bg-red-50 hover:bg-red-100 text-red-600 border border-red-200 px-2 py-1.5 rounded-lg text-[9px] font-black uppercase shadow-sm transition-colors"><i data-lucide="x" class="w-3 h-3"></i></button>
+            `;
+        } else if (a.estado === 'PENDIENTE') {
+            btnAccion = `<span class="text-[9px] text-slate-400 font-bold uppercase">Esperando Admin</span>`;
+        } else if (currentUser && currentUser.role === 'ADMIN') {
+            btnAccion = `<button onclick="eliminarAnticipoPagado(${a.id})" class="text-slate-300 hover:text-red-500 transition-colors" title="Borrar (No deshace la caja)"><i data-lucide="trash-2" class="w-4 h-4"></i></button>`;
+        }
+
+        return `
+        <tr class="hover:bg-slate-50 border-b border-slate-100 transition-colors">
+            <td class="p-3 font-bold text-slate-500">${a.fecha}</td>
+            <td class="p-3 font-black text-slate-800">${a.empleadoNombre}</td>
+            <td class="p-3 font-bold text-slate-600 text-[10px] truncate max-w-[150px]" title="${a.motivo}">${a.motivo}</td>
+            <td class="p-3 text-right font-black text-orange-600">Bs ${a.monto.toFixed(2)}</td>
+            <td class="p-3 text-center flex justify-center items-center gap-2">
+                ${badge} ${btnAccion}
+            </td>
+        </tr>`;
+    }).join('');
+    if(window.lucide) lucide.createIcons();
+}
+
+function aprobarAnticipoRRHH(id) {
+    if(!currentUser || currentUser.role !== 'ADMIN') return alert("Solo el administrador puede desembolsar anticipos.");
+    const ant = dbAnticipos.find(a => a.id === id);
+    if(!ant) return;
+
+    // Mandamos el pago a la ventana de Caja General
+    showTab('caja-general');
+    openSaldoInicialCaja();
+    document.getElementById('caja-mov-fecha').valueAsDate = new Date();
+    if(document.getElementById('caja-mov-categoria')) document.getElementById('caja-mov-categoria').value = '👥 Planilla y Anticipos';
+    document.getElementById('caja-mov-desc').value = `ANTICIPO: ${ant.empleadoNombre} - ${ant.motivo}`;
+    document.getElementById('caja-mov-monto').value = ant.monto.toFixed(2);
+    document.getElementById('caja-mov-salida').value = '';
+    document.getElementById('caja-mov-entrada').value = '';
+    
+    // Trampa para que cuando se guarde en caja, se marque como PAGADO el anticipo
+    window.anticipoEnProceso = ant.id; 
+    showToast("Vale autorizado. Elige de qué cuenta sacarás el dinero y guarda.");
+}
+
+function rechazarAnticipoRRHH(id) {
+    if(!confirm("¿Rechazar y eliminar esta solicitud de anticipo?")) return;
+    db.collection("rrhh_anticipos").doc(String(id)).delete();
+}
+
+function eliminarAnticipoPagado(id) {
+    if(!confirm("⚠️ ¿Borrar este vale del historial?\nSi ya sacaste el dinero de la Caja General, ese movimiento NO se borrará automáticamente, deberás borrarlo manual en Caja si fue un error.")) return;
+    db.collection("rrhh_anticipos").doc(String(id)).delete();
+}
+
 // --- NUEVO MOTOR VELOZ Y AUTO-SANADOR PARA STOCK FÍSICO ---
 function renderStockFisico() {
     const stockBody = document.getElementById('stock-fisico-body');
@@ -10739,6 +10921,16 @@ async function submitMovimientoCaja(e) {
             });
         }
         window.liquidacionEnProceso = null;
+    }
+
+    // Conexión automática con el módulo de Anticipos RRHH
+    if (window.anticipoEnProceso) {
+        let ant = dbAnticipos.find(a => a.id === window.anticipoEnProceso);
+        if (ant) {
+            ant.estado = 'PAGADO';
+            batch.set(db.collection("rrhh_anticipos").doc(String(ant.id)), ant);
+        }
+        window.anticipoEnProceso = null;
     }
 
     await batch.commit(); // Sube todo de golpe
@@ -13428,23 +13620,14 @@ function renderPlanillaGeneral() {
             }
         }
 
-        // 4. Búsqueda de Anticipos en la Caja General
+        // 4. Búsqueda de Vales/Anticipos Aprobados (Nuevo Sistema)
         let descuentoAnticipos = 0;
-        dbMovimientosCaja.forEach(m => {
-            if (m.tipo === 'EGRESO') {
-                // Verificamos si la fecha del movimiento coincide con el mes de la planilla
-                let coincideMes = false;
-                if(m.fecha.includes('-')) {
-                    const p = m.fecha.split('-');
-                    coincideMes = (p[1] === mesFiltro && p[0] === anioFiltro);
-                } else if(m.fecha.includes('/')) {
-                    const p = m.fecha.split('/');
-                    coincideMes = (p[1] === mesFiltro && p[2] === anioFiltro);
-                }
-                
-                // Si coincide el mes y el nombre del empleado está en la descripción
-                if (coincideMes && m.desc.toUpperCase().includes(emp.nombre.toUpperCase()) && m.categoria && m.categoria.includes("Anticipos")) {
-                    descuentoAnticipos += parseFloat(m.monto);
+        dbAnticipos.forEach(a => {
+            if (a.estado === 'PAGADO' && String(a.empleadoId) === String(emp.id)) {
+                // Extraemos el mes y año del anticipo (Ej: 2026-07-21)
+                const p = a.fecha.split('-'); 
+                if (p.length === 3 && p[1] === mesFiltro && p[0] === anioFiltro) {
+                    descuentoAnticipos += parseFloat(a.monto);
                 }
             }
         });
