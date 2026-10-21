@@ -2856,8 +2856,8 @@
                 </div>
 
 <!-- ========================================== -->
-                <!-- MÓDULO RRHH: DIRECTORIO AVANZADO           -->
-                <!-- ========================================== -->
+<!-- MÓDULO RRHH: DIRECTORIO AVANZADO           -->
+<!-- ========================================== -->
                 <div id="tab-rrhh-directorio" class="tab-content hidden space-y-6">
                     <div class="flex flex-col md:flex-row justify-between items-center mb-6 gap-4 border-l-8 border-indigo-600 pl-6 bg-white p-4 rounded-3xl shadow-sm">
                         <div>
@@ -2883,12 +2883,25 @@
                                     <div>
                                         <label class="text-[10px] font-black uppercase text-slate-400 ml-2 block mb-1">Área / Depto</label>
                                         <select id="rrhh-emp-area" class="w-full bg-slate-50 border border-slate-200 p-3 rounded-xl font-bold text-xs outline-none">
-                                            <option value="Planta">Planta</option>
+                                            <option value="Producción Bloques">Producción Bloques</option>
                                             <option value="Corte">Sala Corte</option>
-                                            <option value="Externo">Externo (Chofer)</option>
                                             <option value="Ventas">Ventas / Comercial</option>
                                             <option value="Administracion">Administración</option>
                                         </select>
+                                    </div>
+                                </div>
+                                <div class="grid grid-cols-2 gap-3">
+                                    <div>
+                                        <label class="text-[10px] font-black uppercase text-slate-400 ml-2 block mb-1">Tipo de Contrato</label>
+                                        <select id="rrhh-emp-contrato" onchange="toggleFechaFinContrato()" class="w-full bg-slate-50 border border-slate-200 p-3 rounded-xl font-bold text-xs outline-none">
+                                            <option value="INDEFINIDO">Indefinido</option>
+                                            <option value="TEMPORAL">Temporal</option>
+                                            <option value="EVENTUAL">Eventual (Prueba)</option>
+                                        </select>
+                                    </div>
+                                    <div id="div-fin-contrato" class="hidden">
+                                        <label class="text-[10px] font-black uppercase text-red-500 ml-2 block mb-1">Fin de Contrato</label>
+                                        <input type="date" id="rrhh-emp-fin-contrato" class="w-full bg-red-50 border border-red-200 p-3 rounded-xl font-bold text-red-600 text-xs outline-none">
                                     </div>
                                 </div>
                                 <div class="grid grid-cols-2 gap-3">
@@ -3014,6 +3027,30 @@
                     </div>
                 </div>
 
+<!-- MODAL EDICIÓN MANUAL ZKTECO -->
+                <div id="modal-zk-manual" class="hidden fixed inset-0 bg-slate-900/80 backdrop-blur-sm z-[9999] flex items-center justify-center p-4">
+                    <div class="bg-white rounded-[32px] p-8 w-full max-w-sm shadow-2xl">
+                        <h3 class="font-black text-xl mb-2 text-slate-800 flex items-center gap-2"><i data-lucide="edit-3" class="text-teal-500"></i> Modificar Horas</h3>
+                        <p id="zk-manual-info" class="text-xs font-bold text-slate-500 mb-6"></p>
+                        
+                        <input type="hidden" id="zk-manual-emp">
+                        <input type="hidden" id="zk-manual-idx">
+                        
+                        <div class="space-y-4 mb-6">
+                            <div>
+                                <label class="text-[10px] font-black uppercase text-slate-400 block mb-1">Hora de Entrada Ficticia/Real</label>
+                                <input type="time" step="1" id="zk-manual-entrada" class="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl font-bold text-sm text-slate-700 outline-none focus:ring-2 focus:ring-teal-500">
+                            </div>
+                            <div>
+                                <label class="text-[10px] font-black uppercase text-slate-400 block mb-1">Hora de Salida Ficticia/Real</label>
+                                <input type="time" step="1" id="zk-manual-salida" class="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl font-bold text-sm text-slate-700 outline-none focus:ring-2 focus:ring-teal-500">
+                            </div>
+                        </div>
+                        <button onclick="guardarEdicionManualZk()" class="w-full bg-teal-600 hover:bg-teal-700 text-white p-4 rounded-2xl font-black shadow-lg transition-colors mb-2">GUARDAR HORAS</button>
+                        <button onclick="document.getElementById('modal-zk-manual').classList.add('hidden')" class="w-full text-slate-400 font-bold text-xs p-2 uppercase hover:text-slate-600">Cancelar</button>
+                    </div>
+                </div>
+
                 <!-- ========================================== -->
                 <!-- MÓDULO RRHH: PLANILLA DE SUELDOS           -->
                 <!-- ========================================== -->
@@ -3085,11 +3122,14 @@
                         <div class="overflow-x-auto">
                             <table class="w-full text-left text-[10px] whitespace-nowrap">
                                 <thead class="bg-slate-100 text-slate-500 border-b border-slate-200 font-black uppercase tracking-widest">
-                                    <tr>
+                                   <tr>
                                         <th class="p-3">Empleado</th>
                                         <th class="p-3 text-right bg-blue-50/50 text-blue-600">Haber Básico</th>
-                                        <th class="p-3 text-center text-red-500" title="Atrasos y Faltas Injustificadas (-)">Faltas/Ret</th>
-                                        <th class="p-3 text-center text-red-500" title="Anticipos en Caja (-)">Anticipos</th>
+                                        <th class="p-3 text-center text-orange-500" title="Atrasos descontados por minuto">Atrasos</th>
+                                        <th class="p-3 text-center text-red-500" title="Días no laborados">Faltas</th>
+                                        <th class="p-3 text-center text-purple-600 w-24">D. Material (Bs)</th>
+                                        <th class="p-3 text-center text-slate-600 w-24">Sanciones (Bs)</th>
+                                        <th class="p-3 text-center text-red-500">Anticipos</th>
                                         <th class="p-3 text-right bg-green-50 text-green-700 text-xs">Líquido Pagable</th>
                                         <th class="p-3 text-center">Acción</th>
                                     </tr>
@@ -13286,6 +13326,13 @@ function ejecutarDescargaKardex() {
 // MÓDULO RRHH: DIRECTORIO Y LECTOR ZKTECO
 // =========================================================
 
+function toggleFechaFinContrato() {
+    const tipo = document.getElementById('rrhh-emp-contrato').value;
+    const divFin = document.getElementById('div-fin-contrato');
+    if(tipo === 'TEMPORAL' || tipo === 'EVENTUAL') divFin.classList.remove('hidden');
+    else divFin.classList.add('hidden');
+}
+
 function guardarEmpleadoRRHH(e) {
     e.preventDefault();
     const uidInput = document.getElementById('rrhh-emp-uid').value;
@@ -13296,12 +13343,14 @@ function guardarEmpleadoRRHH(e) {
     const bono = parseFloat(document.getElementById('rrhh-emp-bono').value) || 0;
     const fecha = document.getElementById('rrhh-emp-fecha').value;
     const banco = document.getElementById('rrhh-emp-banco').value.toUpperCase().trim();
+    const contrato = document.getElementById('rrhh-emp-contrato').value;
+    const finContrato = document.getElementById('rrhh-emp-fin-contrato').value;
 
     if (uidInput) {
         // Editando
         const index = dbDirectorioRRHH.findIndex(emp => String(emp.id) === String(uidInput));
         if (index > -1) {
-            const empAct = { ...dbDirectorioRRHH[index], nombre, idZk, area, salario, bono, fecha, banco };
+            const empAct = { ...dbDirectorioRRHH[index], nombre, idZk, area, salario, bono, fecha, banco, contrato, finContrato };
             db.collection("rrhh_directorio").doc(String(uidInput)).set(empAct);
             showToast("Empleado actualizado en la nube.");
         }
@@ -13310,11 +13359,10 @@ function guardarEmpleadoRRHH(e) {
         if (dbDirectorioRRHH.find(emp => String(emp.idZk) === String(idZk))) {
             return alert("Error: El ID de ZKTeco ya está asignado a otro empleado.");
         }
-        const nuevoEmp = { id: Date.now(), nombre, idZk, area, salario, bono, fecha, banco, estado: 'ACTIVO' };
+        const nuevoEmp = { id: Date.now(), nombre, idZk, area, salario, bono, fecha, banco, contrato, finContrato, estado: 'ACTIVO' };
         db.collection("rrhh_directorio").doc(String(nuevoEmp.id)).set(nuevoEmp);
         showToast("Empleado registrado en la base de datos.");
     }
-
     limpiarFormRRHH(); 
 }
 
@@ -13322,6 +13370,7 @@ function limpiarFormRRHH() {
     document.getElementById('form-rrhh-emp').reset();
     document.getElementById('rrhh-emp-uid').value = '';
     document.getElementById('btn-save-emp').innerText = "GUARDAR FICHA";
+    toggleFechaFinContrato();
 }
 
 function editarEmpleadoRRHH(id) {
@@ -13335,6 +13384,9 @@ function editarEmpleadoRRHH(id) {
     document.getElementById('rrhh-emp-bono').value = emp.bono;
     document.getElementById('rrhh-emp-fecha').value = emp.fecha || '';
     document.getElementById('rrhh-emp-banco').value = emp.banco || '';
+    document.getElementById('rrhh-emp-contrato').value = emp.contrato || 'INDEFINIDO';
+    document.getElementById('rrhh-emp-fin-contrato').value = emp.finContrato || '';
+    toggleFechaFinContrato();
     document.getElementById('btn-save-emp').innerText = "ACTUALIZAR FICHA";
 }
 
@@ -13363,12 +13415,43 @@ function renderDirectorioRRHH() {
         return;
     }
 
-    tbody.innerHTML = filtrados.sort((a,b) => a.area.localeCompare(b.area)).map(e => `
-        <tr class="hover:bg-indigo-50/30 transition-colors border-b border-slate-100">
+    const hoy = new Date();
+    hoy.setHours(0,0,0,0);
+    let alertasHTML = '';
+    let contratosPorVencer = 0;
+
+    tbody.innerHTML = filtrados.sort((a,b) => a.area.localeCompare(b.area)).map(e => {
+        let badgeContrato = `<span class="text-[9px] font-bold text-slate-400 bg-slate-100 px-2 py-0.5 rounded uppercase mt-1 inline-block">Indefinido</span>`;
+        let filaAlertaClass = '';
+
+        if (e.contrato === 'TEMPORAL' || e.contrato === 'EVENTUAL') {
+            if (e.finContrato) {
+                const [y, m, d] = e.finContrato.split('-');
+                const fechaFin = new Date(y, m-1, d);
+                fechaFin.setHours(0,0,0,0);
+                const diffTime = fechaFin - hoy;
+                const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+
+                if (diffDays <= 15 && diffDays >= 0) {
+                    badgeContrato = `<span class="text-[9px] font-black text-red-600 bg-red-100 px-2 py-0.5 rounded uppercase mt-1 inline-block border border-red-200 animate-pulse">Vence en ${diffDays} días</span>`;
+                    filaAlertaClass = 'bg-red-50/30';
+                    contratosPorVencer++;
+                    alertasHTML += `<div class="bg-red-100 border-l-4 border-red-500 p-3 rounded-lg flex justify-between items-center shadow-sm"><p class="text-xs font-black text-red-700 uppercase">⚠️ Contrato de ${e.nombre} vence el ${e.finContrato} (${diffDays} días)</p></div>`;
+                } else if (diffDays < 0) {
+                    badgeContrato = `<span class="text-[9px] font-black text-red-600 bg-red-100 px-2 py-0.5 rounded uppercase mt-1 inline-block border border-red-200">VENCIDO</span>`;
+                } else {
+                    badgeContrato = `<span class="text-[9px] font-bold text-orange-600 bg-orange-50 px-2 py-0.5 rounded uppercase mt-1 inline-block">${e.contrato}</span>`;
+                }
+            }
+        }
+
+        return `
+        <tr class="hover:bg-indigo-50/30 transition-colors border-b border-slate-100 ${filaAlertaClass}">
             <td class="p-4 font-black text-indigo-600 text-sm">#${e.idZk}</td>
             <td class="p-4 font-bold text-slate-700">
                 <span class="block">${e.nombre}</span>
                 ${e.banco ? `<span class="text-[9px] text-slate-400 uppercase tracking-widest block mt-1"><i data-lucide="building" class="w-3 h-3 inline mr-1"></i>${e.banco}</span>` : ''}
+                ${badgeContrato}
             </td>
             <td class="p-4"><span class="bg-slate-100 text-slate-600 px-2 py-1 rounded text-[10px] font-black uppercase tracking-widest shadow-sm border border-slate-200">${e.area}</span></td>
             <td class="p-4 text-right font-black text-blue-600">Bs ${e.salario.toFixed(2)}</td>
@@ -13378,7 +13461,21 @@ function renderDirectorioRRHH() {
                 <button onclick="darBajaEmpleadoRRHH(${e.id})" class="text-red-500 hover:bg-red-100 p-2 rounded-lg bg-red-50 shadow-sm border border-red-200 transition-colors" title="Dar de Baja"><i data-lucide="user-minus" class="w-4 h-4"></i></button>
             </td>
         </tr>
-    `).join('');
+    `}).join('');
+
+    // Inyectar Alertas debajo del título
+    const headerTitleDiv = document.querySelector('#tab-rrhh-directorio h2').parentElement;
+    const oldAlerts = document.getElementById('dir-alertas-box');
+    if (oldAlerts) oldAlerts.remove();
+
+    if (contratosPorVencer > 0) {
+        const alertBox = document.createElement('div');
+        alertBox.id = 'dir-alertas-box';
+        alertBox.className = 'w-full mt-4 space-y-2';
+        alertBox.innerHTML = alertasHTML;
+        headerTitleDiv.appendChild(alertBox);
+    }
+
     if(window.lucide) lucide.createIcons();
 }
 
@@ -13545,11 +13642,11 @@ function renderTablaAuditoriaZk() {
 
             // Selector para que RRHH perdone faltas en caliente
             let selectorAccion = '';
-            if (m.estado === 'FALTA' || m.estado === 'FALTA_MARCA') {
+            if (m.estado === 'FALTA' || m.estado === 'FALTA_MARCA' || m.estado === 'ATRASO') {
                 selectorAccion = `
                     <select onchange="justificarFaltaZK('${empId}', ${idx}, this.value)" class="text-[9px] font-bold border border-slate-300 rounded p-1.5 ml-2 bg-white text-slate-600 outline-none w-[130px] shadow-sm">
                         <option value="">-- Acción --</option>
-                        <option value="JUSTIFICAR">Permiso Normal</option>
+                        <option value="MODIFICAR_MANUAL">✍️ Modificar Manualmente</option>
                         <option value="BAJA_MEDICA">Baja Médica</option>
                         <option value="VACACION">Día de Vacación</option>
                         <option value="FERIADO">Día Feriado</option>
@@ -13586,18 +13683,68 @@ function justificarFaltaZK(empId, idxMarca, accion) {
     if(!accion) return;
     const marca = tempAsistenciaZK[empId].marcas[idxMarca];
     
+    if (accion === 'MODIFICAR_MANUAL') {
+        document.getElementById('zk-manual-emp').value = empId;
+        document.getElementById('zk-manual-idx').value = idxMarca;
+        document.getElementById('zk-manual-info').innerHTML = `Empleado: <b>${tempAsistenciaZK[empId].nombre}</b><br>Fecha: <b>${marca.fecha}</b>`;
+        
+        // Cargar datos actuales si existen, si no, dejar vacío o poner valores estándar
+        document.getElementById('zk-manual-entrada').value = marca.entrada || '08:00:00';
+        document.getElementById('zk-manual-salida').value = marca.salida || '18:00:00';
+        
+        document.getElementById('modal-zk-manual').classList.remove('hidden');
+        renderTablaAuditoriaZk(); // Refresca para resetear el selector
+        return;
+    }
+
     if (accion === 'IGNORAR') {
         marca.estado = 'OK';
         marca.obs = 'Día libre / Franco';
     } else {
         marca.estado = 'JUSTIFICADA';
-        if(accion === 'JUSTIFICAR') marca.obs = 'Permiso Normal';
-        else if(accion === 'BAJA_MEDICA') marca.obs = 'Baja Médica';
+        if(accion === 'BAJA_MEDICA') marca.obs = 'Baja Médica';
         else if(accion === 'VACACION') marca.obs = 'Día de Vacación';
         else if(accion === 'FERIADO') marca.obs = 'Día Feriado';
         else if(accion === 'NO_LABORADO') marca.obs = 'No Laborado Gral.';
     }
     renderTablaAuditoriaZk();
+}
+
+function guardarEdicionManualZk() {
+    const empId = document.getElementById('zk-manual-emp').value;
+    const idx = document.getElementById('zk-manual-idx').value;
+    const nEntrada = document.getElementById('zk-manual-entrada').value;
+    const nSalida = document.getElementById('zk-manual-salida').value;
+
+    if(!nEntrada || !nSalida) return alert("Debe proporcionar ambas horas para completar el día.");
+
+    const marca = tempAsistenciaZK[empId].marcas[idx];
+    marca.entrada = nEntrada;
+    marca.salida = nSalida;
+
+    // Recalcular el atraso real
+    let minAtraso = 0;
+    let estadoFlag = 'OK';
+    const horaTeoricaStr = `${marca.fecha}T08:00:00`;
+    const horaRealStr = `${marca.fecha}T${nEntrada}`;
+    
+    try {
+        const tEntradaTeorica = new Date(horaTeoricaStr).getTime();
+        const tEntradaReal = new Date(horaRealStr).getTime();
+        
+        if (tEntradaReal > tEntradaTeorica) {
+            minAtraso = Math.floor((tEntradaReal - tEntradaTeorica) / 60000);
+            if(minAtraso > 0) estadoFlag = 'ATRASO';
+        }
+    } catch(err){}
+
+    marca.atrasoMin = minAtraso;
+    marca.estado = estadoFlag;
+    marca.obs = 'Editado Manualmente';
+
+    document.getElementById('modal-zk-manual').classList.add('hidden');
+    renderTablaAuditoriaZk();
+    showToast("Horas modificadas con éxito.");
 }
 
 function aplicarJustificacionGlobal() {
@@ -13708,28 +13855,23 @@ function renderPlanillaGeneral() {
         // 1. Haber Básico
         let haberBasico = parseFloat(emp.salario) || 0;
 
-        // 3. Cálculo de Descuentos por Atrasos y Faltas (Según ZKTeco)
-        let descuentoFaltas = 0;
-        let detalleFaltas = "OK";
-        let colorFaltas = "text-slate-300";
+        // 3. Cálculo de Descuentos por Atrasos y Faltas
+        let penalizacionAtraso = 0;
+        let penalizacionFalta = 0;
         
         const asistenciaMes = dbAsistenciaAuditada.find(a => String(a.idEmp) === String(emp.id) && a.mes === mesAnio);
         if (asistenciaMes) {
-            const penalizacionAtraso = asistenciaMes.minAtraso * COSTO_MINUTO_ATRASO;
-            const penalizacionFalta = asistenciaMes.faltasInjus * COSTO_FALTA;
-            descuentoFaltas = penalizacionAtraso + penalizacionFalta;
-            
-            if (descuentoFaltas > 0) {
-                detalleFaltas = `- Bs ${descuentoFaltas.toFixed(2)}<br><span class="text-[8px] text-slate-400 uppercase tracking-widest">${asistenciaMes.minAtraso}m Atraso | ${asistenciaMes.faltasInjus} Faltas</span>`;
-                colorFaltas = "text-red-500 font-bold";
-            }
+            penalizacionAtraso = asistenciaMes.minAtraso * COSTO_MINUTO_ATRASO;
+            penalizacionFalta = asistenciaMes.faltasInjus * COSTO_FALTA;
         }
 
-        // 4. Búsqueda de Vales/Anticipos Aprobados (Nuevo Sistema)
+        let htmlAtraso = penalizacionAtraso > 0 ? `- Bs ${penalizacionAtraso.toFixed(2)}<br><span class="text-[8px] text-slate-400 uppercase tracking-widest">${asistenciaMes.minAtraso} min</span>` : '-';
+        let htmlFalta = penalizacionFalta > 0 ? `- Bs ${penalizacionFalta.toFixed(2)}<br><span class="text-[8px] text-slate-400 uppercase tracking-widest">${asistenciaMes.faltasInjus} días</span>` : '-';
+
+        // 4. Búsqueda de Vales/Anticipos Aprobados
         let descuentoAnticipos = 0;
         dbAnticipos.forEach(a => {
             if (a.estado === 'PAGADO' && String(a.empleadoId) === String(emp.id)) {
-                // Extraemos el mes y año del anticipo (Ej: 2026-07-21)
                 const p = a.fecha.split('-'); 
                 if (p.length === 3 && p[1] === mesFiltro && p[0] === anioFiltro) {
                     descuentoAnticipos += parseFloat(a.monto);
@@ -13737,8 +13879,8 @@ function renderPlanillaGeneral() {
             }
         });
 
-        // 5. Total Líquido Pagable
-        const liquidoPagable = haberBasico - descuentoFaltas - descuentoAnticipos;
+        // 5. Total Líquido Teórico
+        const liquidoBase = haberBasico - penalizacionAtraso - penalizacionFalta - descuentoAnticipos;
 
         htmlPlanilla += `
         <tr class="hover:bg-green-50/30 transition-colors border-b border-slate-100">
@@ -13747,11 +13889,18 @@ function renderPlanillaGeneral() {
                 <span class="block text-[9px] text-slate-400 uppercase tracking-widest mt-1">${emp.area}</span>
             </td>
             <td class="p-4 text-right font-black text-blue-600">Bs ${haberBasico.toFixed(2)}</td>
-            <td class="p-4 text-center ${colorFaltas}">${detalleFaltas}</td>
-            <td class="p-4 text-center font-bold ${descuentoAnticipos > 0 ? 'text-red-500' : 'text-slate-300'}">${descuentoAnticipos > 0 ? '- Bs ' + descuentoAnticipos.toFixed(2) : '-'}</td>
-            <td class="p-4 text-right font-black text-green-700 text-lg bg-green-50/30">Bs ${liquidoPagable.toFixed(2)}</td>
+            <td class="p-4 text-center font-bold ${penalizacionAtraso > 0 ? 'text-orange-500' : 'text-slate-300'}">${htmlAtraso}</td>
+            <td class="p-4 text-center font-bold ${penalizacionFalta > 0 ? 'text-red-500' : 'text-slate-300'}">${htmlFalta}</td>
             <td class="p-4 text-center">
-                <button onclick="imprimirBoletaSueldo('${emp.id}', '${mesAnio}', ${haberBasico}, ${descuentoFaltas}, ${descuentoAnticipos}, ${liquidoPagable})" class="bg-slate-800 hover:bg-slate-700 text-white p-2 rounded-lg shadow-sm transition-colors text-[9px] font-black uppercase tracking-widest flex items-center gap-1 mx-auto"><i data-lucide="printer" class="w-3 h-3"></i> Boleta</button>
+                <input type="number" id="plan-dano-${emp.id}" value="0" min="0" step="0.5" oninput="recalcFilaPlanilla('${emp.id}', ${liquidoBase})" class="w-full bg-white border border-slate-300 p-2 rounded-lg font-black text-center text-purple-600 outline-none focus:ring-2 focus:ring-purple-500 text-xs">
+            </td>
+            <td class="p-4 text-center">
+                <input type="number" id="plan-sancion-${emp.id}" value="0" min="0" step="0.5" oninput="recalcFilaPlanilla('${emp.id}', ${liquidoBase})" class="w-full bg-white border border-slate-300 p-2 rounded-lg font-black text-center text-slate-600 outline-none focus:ring-2 focus:ring-slate-500 text-xs">
+            </td>
+            <td class="p-4 text-center font-bold ${descuentoAnticipos > 0 ? 'text-red-500' : 'text-slate-300'}">${descuentoAnticipos > 0 ? '- Bs ' + descuentoAnticipos.toFixed(2) : '-'}</td>
+            <td class="p-4 text-right font-black text-green-700 text-lg bg-green-50/30" id="plan-liquido-${emp.id}">Bs ${liquidoBase.toFixed(2)}</td>
+            <td class="p-4 text-center">
+                <button onclick="prepararImpresionBoleta('${emp.id}', '${mesAnio}', ${haberBasico}, ${penalizacionAtraso}, ${penalizacionFalta}, ${descuentoAnticipos})" class="bg-slate-800 hover:bg-slate-700 text-white p-2 rounded-lg shadow-sm transition-colors text-[9px] font-black uppercase tracking-widest flex items-center gap-1 mx-auto"><i data-lucide="printer" class="w-3 h-3"></i> Boleta</button>
             </td>
         </tr>`;
     });
@@ -13760,50 +13909,34 @@ function renderPlanillaGeneral() {
     if(window.lucide) lucide.createIcons();
 }
 
-function exportarPlanillaBancoCSV() {
-    const filtroMes = document.getElementById('planilla-filtro-mes').value;
-    if (!filtroMes) return alert("Seleccione un mes para exportar.");
-    
-    // Simulación simple del formato TXT que piden los bancos para abono masivo en Bolivia
-    let csv = "CUENTA_DESTINO,MONTO,NOMBRE_EMPLEADO,GLOSA\n";
-    
-    const [anioFiltro, mesFiltro] = filtroMes.split('-');
-    const mesAnio = `${mesFiltro}/${anioFiltro}`;
-    
-    const filas = document.querySelectorAll('#rrhh-planilla-body tr');
-    if (filas.length === 0 || (filas.length === 1 && filas[0].innerText.includes("No hay"))) {
-        return alert("No hay datos en la planilla para exportar.");
-    }
-    
-    filas.forEach(tr => {
-        const tds = tr.querySelectorAll('td');
-        if (tds.length === 7) {
-            const nombre = tds[0].innerText.split('\\n')[0].trim();
-            const liquido = tds[5].innerText.replace('Bs', '').trim();
-            
-            // Buscar cuenta del banco
-            const emp = dbDirectorioRRHH.find(e => e.nombre.toUpperCase() === nombre.toUpperCase());
-            const cuenta = emp && emp.banco ? emp.banco : 'PAGO_EN_EFECTIVO';
-            
-            if (parseFloat(liquido) > 0) {
-                csv += `${cuenta},${liquido},${nombre},PAGO SUELDO ${mesAnio}\n`;
-            }
-        }
-    });
-
-    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
-    const link = document.createElement("a");
-    link.href = URL.createObjectURL(blob);
-    link.download = `Pago_Banco_Planilla_${mesFiltro}_${anioFiltro}.csv`;
-    link.style.visibility = 'hidden';
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
+function recalcFilaPlanilla(empId, liquidoBase) {
+    const dano = parseFloat(document.getElementById(`plan-dano-${empId}`).value) || 0;
+    const sancion = parseFloat(document.getElementById(`plan-sancion-${empId}`).value) || 0;
+    const nuevoLiquido = liquidoBase - dano - sancion;
+    document.getElementById(`plan-liquido-${empId}`).innerText = `Bs ${nuevoLiquido.toFixed(2)}`;
 }
 
-function imprimirBoletaSueldo(idEmp, mes, basico, faltas, anticipos, liquido) {
+function prepararImpresionBoleta(idEmp, mes, basico, atrasos, faltas, anticipos) {
+    // Leemos los valores ingresados en los cajones dinámicos de la fila
+    const dano = parseFloat(document.getElementById(`plan-dano-${idEmp}`).value) || 0;
+    const sancion = parseFloat(document.getElementById(`plan-sancion-${idEmp}`).value) || 0;
+    
+    // Calculamos el líquido en vivo justo antes de imprimir
+    const liquido = basico - atrasos - faltas - anticipos - dano - sancion;
+
+    // Ejecutamos la impresión con todos los datos
+    imprimirBoletaSueldo(idEmp, mes, basico, atrasos, faltas, anticipos, dano, sancion, liquido);
+}
+
+function imprimirBoletaSueldo(idEmp, mes, basico, atrasos, faltas, anticipos, dano, sancion, liquido) {
     const emp = dbDirectorioRRHH.find(e => String(e.id) === String(idEmp));
     if(!emp) return;
+
+    let trAtrasos = atrasos > 0 ? `<tr><td style="color: #ea580c;">(-) Penalización Minutos Atraso</td><td class="text-right" style="color: #ea580c;">- Bs ${atrasos.toFixed(2)}</td></tr>` : '';
+    let trFaltas = faltas > 0 ? `<tr><td style="color: #dc2626;">(-) Penalización Días Falta</td><td class="text-right" style="color: #dc2626;">- Bs ${faltas.toFixed(2)}</td></tr>` : '';
+    let trAnticipos = anticipos > 0 ? `<tr><td style="color: #666;">(-) Anticipos Recibidos en el Mes</td><td class="text-right" style="color: #666;">- Bs ${anticipos.toFixed(2)}</td></tr>` : '';
+    let trDano = dano > 0 ? `<tr><td style="color: #9333ea;">(-) Descuento por Daño Material</td><td class="text-right" style="color: #9333ea;">- Bs ${dano.toFixed(2)}</td></tr>` : '';
+    let trSancion = sancion > 0 ? `<tr><td style="color: #475569;">(-) Sanciones Administrativas</td><td class="text-right" style="color: #475569;">- Bs ${sancion.toFixed(2)}</td></tr>` : '';
 
     const html = `
     <!DOCTYPE html>
@@ -13825,13 +13958,16 @@ function imprimirBoletaSueldo(idEmp, mes, basico, faltas, anticipos, liquido) {
         <div class="boleta">
             <h1>PLASTENSA - BOLETA DE PAGO</h1>
             <div class="detalle">
-                <div><span>EMPLEADO: </span><span>${emp.nombre}</span><br><span>ÁREA: </span><span>${emp.area}</span></div>
+                <div><span>EMPLEADO: </span><span>${emp.nombre}</span><br><span>ÁREA: </span><span>${emp.area}</span><br><span>CONTRATO: </span><span>${emp.contrato || 'INDEFINIDO'}</span></div>
                 <div style="text-align: right;"><span>MES/AÑO: </span><span>${mes}</span><br><span>ID ZK: </span><span>${emp.idZk}</span></div>
             </div>
             <table>
                 <tr><td>Haber Básico Acordado</td><td class="text-right">Bs ${basico.toFixed(2)}</td></tr>
-                <tr><td style="color: #666;">(-) Penalización Atrasos / Faltas</td><td class="text-right" style="color: #666;">- Bs ${faltas.toFixed(2)}</td></tr>
-                <tr><td style="color: #666;">(-) Anticipos Recibidos en el Mes</td><td class="text-right" style="color: #666;">- Bs ${anticipos.toFixed(2)}</td></tr>
+                ${trAtrasos}
+                ${trFaltas}
+                ${trAnticipos}
+                ${trDano}
+                ${trSancion}
             </table>
             <div class="total">LÍQUIDO A RECIBIR: Bs ${liquido.toFixed(2)}</div>
             
