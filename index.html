@@ -457,6 +457,11 @@
                 <button id="nav-rrhh-planilla" onclick="showTab('rrhh-planilla')" class="nav-btn w-full flex items-center justify-between p-4 rounded-xl transition-all text-slate-400 hover:bg-slate-800 hover:text-slate-200 hidden" data-tab="rrhh-planilla">
                     <div class="flex items-center gap-4"><i data-lucide="file-spreadsheet" class="w-5 h-5"></i><span class="font-bold text-xs uppercase tracking-wider">Planilla de Sueldos</span></div>
                 </button>
+                <button id="nav-rrhh-bonos" onclick="showTab('rrhh-bonos')" class="nav-btn w-full flex items-center justify-between p-4 rounded-xl transition-all text-slate-400 hover:bg-slate-800 hover:text-slate-200 hidden relative" data-tab="rrhh-bonos">
+                    <div class="flex items-center gap-4"><i data-lucide="award" class="w-5 h-5"></i><span class="font-bold text-xs uppercase tracking-wider">Bonos Producción</span></div>
+                    <span id="alerta-bonos" class="hidden absolute top-4 right-4 w-3 h-3 bg-red-500 rounded-full animate-ping"></span>
+                    <span id="alerta-bonos-dot" class="hidden absolute top-4 right-4 w-3 h-3 bg-red-500 rounded-full border border-slate-900 shadow"></span>
+                </button>
                 <!-- FIN NUEVO MENÚ -->
 
                 <p id="label-produccion" class="px-4 py-2 mt-4 text-[10px] font-black text-slate-500 uppercase tracking-widest">Producción</p>
@@ -3083,7 +3088,6 @@
                                     <tr>
                                         <th class="p-3">Empleado</th>
                                         <th class="p-3 text-right bg-blue-50/50 text-blue-600">Haber Básico</th>
-                                        <th class="p-3 text-right bg-orange-50/50 text-orange-600">Bono Prod.</th>
                                         <th class="p-3 text-center text-red-500" title="Atrasos y Faltas Injustificadas (-)">Faltas/Ret</th>
                                         <th class="p-3 text-center text-red-500" title="Anticipos en Caja (-)">Anticipos</th>
                                         <th class="p-3 text-right bg-green-50 text-green-700 text-xs">Líquido Pagable</th>
@@ -3093,6 +3097,108 @@
                                 <tbody id="rrhh-planilla-body" class="divide-y divide-slate-100 bg-white"></tbody>
                             </table>
                         </div>
+                    </div>
+                </div>
+<!-- TAB: BONOS PRODUCCION -->
+                <div id="tab-rrhh-bonos" class="tab-content hidden space-y-6">
+                    <div class="flex flex-col md:flex-row justify-between items-center mb-4 gap-4 border-l-8 border-orange-500 pl-6 bg-white p-4 rounded-3xl shadow-sm">
+                        <div>
+                            <h2 class="text-3xl font-black uppercase italic text-slate-800">Liquidación de Bonos</h2>
+                            <p class="text-[10px] font-black text-slate-400 uppercase tracking-widest mt-1">Cálculo de Incentivos por Volumen Vendido</p>
+                        </div>
+                    </div>
+
+                    <div class="bg-slate-900 p-6 rounded-[32px] shadow-xl text-white">
+                        <div class="grid grid-cols-1 md:grid-cols-4 gap-4 items-end">
+                            <div>
+                                <label class="text-[10px] font-black uppercase text-slate-400 mb-1 block">Mes de Cálculo</label>
+                                <input type="month" id="bonos-mes" onchange="calcularGeneracionBono()" class="w-full bg-slate-800 border border-slate-700 p-3 rounded-xl font-bold text-white outline-none">
+                            </div>
+                            <div>
+                                <label class="text-[10px] font-black uppercase text-slate-400 mb-1 block">M³ Vendidos en Mes</label>
+                                <input type="text" id="bonos-m3-total" readonly class="w-full bg-slate-800 border border-slate-700 p-3 rounded-xl font-black text-blue-400 outline-none text-center">
+                            </div>
+                            <div>
+                                <label class="text-[10px] font-black uppercase text-slate-400 mb-1 block">Días Laborables Planta</label>
+                                <input type="number" id="bonos-dias-planta" min="1" value="25" oninput="calcularGeneracionBono()" class="w-full bg-white border border-slate-200 p-3 rounded-xl font-black text-slate-900 outline-none text-center focus:ring-2 focus:ring-orange-500">
+                            </div>
+                            <div>
+                                <label class="text-[10px] font-black uppercase text-slate-400 mb-1 block">Promedio M³/Día</label>
+                                <input type="text" id="bonos-m3-dia" readonly class="w-full bg-slate-800 border border-slate-700 p-3 rounded-xl font-black text-orange-400 outline-none text-center">
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="bg-white rounded-[32px] border border-slate-200 shadow-sm overflow-hidden">
+                        <div class="p-4 bg-slate-50 border-b border-slate-100 flex justify-between items-center">
+                            <h3 class="font-black text-slate-800 uppercase text-sm flex items-center gap-2"><i data-lucide="calculator" class="text-slate-400"></i> Borrador de Cálculo por Trabajador</h3>
+                            <button onclick="guardarBorradorBono()" class="bg-orange-500 hover:bg-orange-600 text-white px-6 py-2 rounded-xl text-xs font-black uppercase shadow-md transition-colors">Guardar y Enviar a Gerencia</button>
+                        </div>
+                        <div class="overflow-x-auto">
+                            <table class="w-full text-left text-xs whitespace-nowrap">
+                                <thead class="bg-slate-100 text-slate-500 border-b border-slate-200 font-black uppercase tracking-widest text-[9px]">
+                                    <tr>
+                                        <th class="p-3">Empleado</th>
+                                        <th class="p-3 text-center">Tarifa (Bs/M³)</th>
+                                        <th class="p-3 text-center w-32">Días Trabajados</th>
+                                        <th class="p-3 text-center w-32">Ajuste Manual (Bs)</th>
+                                        <th class="p-3 text-right text-green-700">Total a Pagar</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="rrhh-bonos-calc-body" class="divide-y divide-slate-100 bg-white"></tbody>
+                            </table>
+                        </div>
+                    </div>
+
+                    <div class="bg-white rounded-[32px] border border-slate-200 shadow-sm overflow-hidden mt-8">
+                        <div class="p-4 bg-slate-50 border-b border-slate-100">
+                            <h3 class="font-black text-slate-800 uppercase text-sm flex items-center gap-2"><i data-lucide="history" class="text-slate-400"></i> Historial de Liquidaciones</h3>
+                        </div>
+                        <div class="overflow-x-auto">
+                            <table class="w-full text-left text-xs whitespace-nowrap">
+                                <thead class="bg-slate-900 text-slate-300 text-[9px] font-black uppercase tracking-widest">
+                                    <tr>
+                                        <th class="p-3">ID / Mes</th>
+                                        <th class="p-3 text-right">Total Repartido</th>
+                                        <th class="p-3 text-center">Estado</th>
+                                        <th class="p-3 text-center">Acciones</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="rrhh-bonos-history-body" class="divide-y divide-slate-100 bg-white"></tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- MODAL REVISIÓN DE BONOS -->
+                <div id="modal-bono" class="hidden fixed inset-0 bg-slate-900/80 backdrop-blur-sm z-[9999] flex items-center justify-center p-4">
+                    <div class="bg-white rounded-[32px] shadow-2xl w-full max-w-2xl overflow-hidden flex flex-col max-h-[90vh]">
+                        <div class="bg-orange-500 p-6 text-white flex justify-between items-center shrink-0">
+                            <div>
+                                <h3 class="font-black text-xl tracking-tight">Liquidación de Bonos</h3>
+                                <p id="modal-bono-subtitle" class="text-[10px] font-bold uppercase tracking-widest text-orange-100 mt-1">--</p>
+                            </div>
+                            <button type="button" onclick="document.getElementById('modal-bono').classList.add('hidden')" class="text-orange-100 hover:text-white"><i data-lucide="x" class="w-6 h-6"></i></button>
+                        </div>
+                        <div class="p-6 overflow-y-auto flex-1">
+                            <table class="w-full text-left text-xs mb-4 border border-slate-200 rounded-xl overflow-hidden shadow-sm whitespace-nowrap">
+                                <thead class="bg-slate-100 text-[9px] font-black text-slate-500 uppercase">
+                                    <tr>
+                                        <th class="p-3">Empleado</th>
+                                        <th class="p-3 text-center">Días Trab.</th>
+                                        <th class="p-3 text-right">Extra</th>
+                                        <th class="p-3 text-right">Total Pago</th>
+                                        <th class="p-3 text-center">Recibo</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="modal-bono-items" class="divide-y divide-slate-100"></tbody>
+                            </table>
+                            <div class="flex justify-between items-end border-t border-slate-200 pt-4">
+                                <span class="text-[10px] font-black text-slate-400 uppercase tracking-widest">Total Aprobado</span>
+                                <span id="modal-bono-total" class="text-3xl font-black text-orange-600">Bs 0.00</span>
+                            </div>
+                        </div>
+                        <div id="modal-bono-actions" class="p-6 bg-slate-50 border-t border-slate-100 flex gap-4 shrink-0"></div>
                     </div>
                 </div>
 
@@ -3218,6 +3324,7 @@
         let liquidacionEnProceso = null; // Memoria oculta para cerrar el círculo del pago
 	let dbDirectorioRRHH = []; // Personal completo (Operarios, Externos, Administracion)
 	let dbAnticipos = []; // Control de Vales de RRHH
+	let dbBonos = []; // Control de Liquidación de Bonos
         let dbAsistenciaAuditada = []; // Resultados limpios del archivo ZK
         let dbBoletasEmitidas = []; // Historial de boletas de pago generadas
         let tempAsistenciaZK = {}; // Memoria temporal mientras lees el archivo CSV
@@ -3786,6 +3893,14 @@ function iniciarRadar(userEmail) {
         }
     });
 
+    // RADAR MÓDULO RRHH: BONOS
+    db.collection("rrhh_bonos").orderBy("id", "desc").onSnapshot((snapshot) => {
+        let temp = [];
+        snapshot.forEach(doc => temp.push(doc.data()));
+        dbBonos = temp;
+        if (currentUser && typeof renderBonosRRHH === 'function') renderBonosRRHH();
+    });
+
     // RADAR MÓDULO RRHH: ANTICIPOS
     db.collection("rrhh_anticipos").orderBy("id", "desc").onSnapshot((snapshot) => {
         let temp = [];
@@ -3873,7 +3988,7 @@ function iniciarRadar(userEmail) {
 
 // 3. Matriz Estricta de Roles y Permisos (Intacta)
 function aplicarPermisosVisuales(role) {
-    const adminTabs = ['dashboard-gerencial', 'directorio', 'tesoreria-admin', 'salidas-eps', 'historial-admin', 'facturas-admin', 'precios-admin', 'transporte','caja-general', 'seguridad', 'rrhh-directorio', 'rrhh-asistencia', 'rrhh-planilla'];
+    const adminTabs = ['dashboard-gerencial', 'directorio', 'tesoreria-admin', 'salidas-eps', 'historial-admin', 'facturas-admin', 'precios-admin', 'transporte','caja-general', 'seguridad', 'rrhh-directorio', 'rrhh-asistencia', 'rrhh-planilla', 'rrhh-bonos'];
     const comercialTabs = ['clientes', 'catalogo', 'ventas', 'cotizaciones', 'registro-ventas'];
     const produccionTabs = ['materia-prima', 'expansion', 'bloquera', 'inventario-bloques', 'corte', 'reporte-corte', 'produccion', 'plan-diario', 'inventario'];
     const finanzasTabs = ['tesoreria'];
@@ -3972,6 +4087,7 @@ function aplicarPermisosVisuales(role) {
             document.getElementById('nav-rrhh-directorio')?.classList.remove('hidden');
             document.getElementById('nav-rrhh-asistencia')?.classList.remove('hidden');
             document.getElementById('nav-rrhh-planilla')?.classList.remove('hidden');
+            document.getElementById('nav-rrhh-bonos')?.classList.remove('hidden');
         }
         // ------------------------------------------
 
@@ -13587,21 +13703,6 @@ function renderPlanillaGeneral() {
     empleados.forEach(emp => {
         // 1. Haber Básico
         let haberBasico = parseFloat(emp.salario) || 0;
-        
-        // 2. Cálculo de Bonos por Producción (Buscamos en los cortes del mes hechos por este operador)
-        let totalBono = 0;
-        if (emp.bono > 0) {
-            let m3Cortados = 0;
-            dbReportesCorte.forEach(r => {
-                if (r.operador === emp.nombre) {
-                    const partesFecha = r.fecha.split('/'); // DD/MM/YYYY
-                    if (partesFecha.length === 3 && partesFecha[1] === mesFiltro && partesFecha[2] === anioFiltro) {
-                        m3Cortados += (Number(r.volUtil) || 0);
-                    }
-                }
-            });
-            totalBono = m3Cortados * emp.bono;
-        }
 
         // 3. Cálculo de Descuentos por Atrasos y Faltas (Según ZKTeco)
         let descuentoFaltas = 0;
@@ -13633,7 +13734,7 @@ function renderPlanillaGeneral() {
         });
 
         // 5. Total Líquido Pagable
-        const liquidoPagable = haberBasico + totalBono - descuentoFaltas - descuentoAnticipos;
+        const liquidoPagable = haberBasico - descuentoFaltas - descuentoAnticipos;
 
         htmlPlanilla += `
         <tr class="hover:bg-green-50/30 transition-colors border-b border-slate-100">
@@ -13642,12 +13743,11 @@ function renderPlanillaGeneral() {
                 <span class="block text-[9px] text-slate-400 uppercase tracking-widest mt-1">${emp.area}</span>
             </td>
             <td class="p-4 text-right font-black text-blue-600">Bs ${haberBasico.toFixed(2)}</td>
-            <td class="p-4 text-right font-black text-orange-600">${totalBono > 0 ? '+ Bs ' + totalBono.toFixed(2) : '-'}</td>
             <td class="p-4 text-center ${colorFaltas}">${detalleFaltas}</td>
             <td class="p-4 text-center font-bold ${descuentoAnticipos > 0 ? 'text-red-500' : 'text-slate-300'}">${descuentoAnticipos > 0 ? '- Bs ' + descuentoAnticipos.toFixed(2) : '-'}</td>
             <td class="p-4 text-right font-black text-green-700 text-lg bg-green-50/30">Bs ${liquidoPagable.toFixed(2)}</td>
             <td class="p-4 text-center">
-                <button onclick="imprimirBoletaSueldo('${emp.id}', '${mesAnio}', ${haberBasico}, ${totalBono}, ${descuentoFaltas}, ${descuentoAnticipos}, ${liquidoPagable})" class="bg-slate-800 hover:bg-slate-700 text-white p-2 rounded-lg shadow-sm transition-colors text-[9px] font-black uppercase tracking-widest flex items-center gap-1 mx-auto"><i data-lucide="printer" class="w-3 h-3"></i> Boleta</button>
+                <button onclick="imprimirBoletaSueldo('${emp.id}', '${mesAnio}', ${haberBasico}, ${descuentoFaltas}, ${descuentoAnticipos}, ${liquidoPagable})" class="bg-slate-800 hover:bg-slate-700 text-white p-2 rounded-lg shadow-sm transition-colors text-[9px] font-black uppercase tracking-widest flex items-center gap-1 mx-auto"><i data-lucide="printer" class="w-3 h-3"></i> Boleta</button>
             </td>
         </tr>`;
     });
@@ -13697,7 +13797,7 @@ function exportarPlanillaBancoCSV() {
     document.body.removeChild(link);
 }
 
-function imprimirBoletaSueldo(idEmp, mes, basico, bono, faltas, anticipos, liquido) {
+function imprimirBoletaSueldo(idEmp, mes, basico, faltas, anticipos, liquido) {
     const emp = dbDirectorioRRHH.find(e => String(e.id) === String(idEmp));
     if(!emp) return;
 
@@ -13726,7 +13826,6 @@ function imprimirBoletaSueldo(idEmp, mes, basico, bono, faltas, anticipos, liqui
             </div>
             <table>
                 <tr><td>Haber Básico Acordado</td><td class="text-right">Bs ${basico.toFixed(2)}</td></tr>
-                <tr><td>(+) Bono por Producción M³</td><td class="text-right">Bs ${bono.toFixed(2)}</td></tr>
                 <tr><td style="color: #666;">(-) Penalización Atrasos / Faltas</td><td class="text-right" style="color: #666;">- Bs ${faltas.toFixed(2)}</td></tr>
                 <tr><td style="color: #666;">(-) Anticipos Recibidos en el Mes</td><td class="text-right" style="color: #666;">- Bs ${anticipos.toFixed(2)}</td></tr>
             </table>
@@ -13749,6 +13848,310 @@ function imprimirBoletaSueldo(idEmp, mes, basico, bono, faltas, anticipos, liqui
     win.document.write(html);
     win.document.close();
 }
+
+// =========================================================
+// MÓDULO RRHH: BONOS DE PRODUCCIÓN (BASADO EN VENTAS)
+// =========================================================
+
+function renderBonosRRHH() {
+    const mesFiltro = document.getElementById('bonos-mes');
+    if(mesFiltro && !mesFiltro.value) {
+        const d = new Date();
+        // Por defecto, muestra el mes pasado, ya que se paga el 10
+        d.setMonth(d.getMonth() - 1);
+        mesFiltro.value = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`;
+        calcularGeneracionBono();
+    }
+
+    const tbodyHist = document.getElementById('rrhh-bonos-history-body');
+    if(!tbodyHist) return;
+
+    if (dbBonos.length === 0) {
+        tbodyHist.innerHTML = `<tr><td colspan="4" class="p-6 text-center text-slate-400 font-bold italic">No hay liquidaciones de bonos.</td></tr>`;
+        return;
+    }
+
+    tbodyHist.innerHTML = dbBonos.map(b => {
+        const colorEstado = b.estado === 'PAGADO' ? 'bg-green-100 text-green-700 border-green-200' : 'bg-orange-100 text-orange-700 border-orange-200';
+        const iconoEstado = b.estado === 'PAGADO' ? 'check-circle' : 'clock';
+        
+        let btnAccion = '';
+        if(b.estado === 'PENDIENTE' && currentUser.role === 'ADMIN') {
+            btnAccion = `<button onclick="verDetalleBono(${b.id})" class="bg-green-600 hover:bg-green-700 text-white px-3 py-1.5 rounded-lg text-[9px] font-black uppercase shadow-sm transition-colors mx-auto block"><i data-lucide="eye" class="w-3 h-3 inline"></i> Revisar y Pagar</button>`;
+        } else {
+            btnAccion = `<button onclick="verDetalleBono(${b.id})" class="bg-slate-800 hover:bg-slate-700 text-white px-3 py-1.5 rounded-lg text-[9px] font-black uppercase shadow-sm transition-colors mx-auto block"><i data-lucide="eye" class="w-3 h-3 inline"></i> Ver Detalle</button>`;
+        }
+
+        return `
+        <tr class="hover:bg-slate-50 transition-colors border-b border-slate-100">
+            <td class="p-4 font-black text-slate-800">BONO-${b.id}<br><span class="text-[9px] font-bold text-slate-500 uppercase">Mes: ${b.mes}</span></td>
+            <td class="p-4 text-right font-black text-blue-600">Bs ${b.totalGeneral.toFixed(2)}</td>
+            <td class="p-4 text-center"><span class="px-2 py-1 rounded text-[9px] font-black uppercase border ${colorEstado}"><i data-lucide="${iconoEstado}" class="w-3 h-3 inline mr-1 -mt-0.5"></i> ${b.estado}</span></td>
+            <td class="p-4 text-center">${btnAccion}</td>
+        </tr>`;
+    }).join('');
+    if(window.lucide) lucide.createIcons();
+}
+
+function calcularGeneracionBono() {
+    const tbody = document.getElementById('rrhh-bonos-calc-body');
+    const mesFiltro = document.getElementById('bonos-mes').value;
+    const diasPlantaInput = document.getElementById('bonos-dias-planta').value;
+    
+    if(!mesFiltro || !diasPlantaInput) return;
+    const diasPlanta = parseInt(diasPlantaInput) || 25;
+
+    // 1. Calcular M3 Totales Vendidos en el Mes (Cronograma de Entregas)
+    const [yyyy, mm] = mesFiltro.split('-');
+    let totalM3Mes = 0;
+    
+    orders.forEach(o => {
+        const p = o.date.split('/'); // DD/MM/YYYY
+        if (p.length === 3 && p[1] === mm && p[2] === yyyy) {
+            totalM3Mes += (Number(o.volGlobalCotizacion) || 0);
+        }
+    });
+
+    document.getElementById('bonos-m3-total').value = `${totalM3Mes.toFixed(2)} M³`;
+    
+    // 2. Calcular Promedio Diario
+    const promDiario = totalM3Mes / diasPlanta;
+    document.getElementById('bonos-m3-dia').value = `${promDiario.toFixed(2)} M³/Día`;
+
+    // 3. Filtrar Trabajadores con Tarifa de Bono Configurada
+    const empConBono = dbDirectorioRRHH.filter(e => e.estado !== 'BAJA' && e.bono > 0);
+
+    if(empConBono.length === 0) {
+        tbody.innerHTML = `<tr><td colspan="5" class="p-6 text-center text-slate-400 font-bold italic">Ningún empleado tiene configurada una tarifa de bono.</td></tr>`;
+        return;
+    }
+
+    // 4. Renderizar Filas Interactivas para Borrador
+    tbody.innerHTML = empConBono.map((e, idx) => {
+        // Cálculo Teórico Inicial
+        const pagoBase = promDiario * diasPlanta * e.bono;
+        
+        return `
+        <tr class="hover:bg-orange-50/30 transition-colors border-b border-slate-50">
+            <td class="p-3">
+                <span class="font-black text-slate-800 block">${e.nombre}</span>
+                <span class="text-[9px] font-bold text-slate-400 uppercase">${e.area}</span>
+                <input type="hidden" id="bn-id-${idx}" value="${e.id}">
+                <input type="hidden" id="bn-name-${idx}" value="${e.nombre}">
+                <input type="hidden" id="bn-rate-${idx}" value="${e.bono}">
+            </td>
+            <td class="p-3 text-center font-bold text-slate-600">${e.bono} Bs</td>
+            <td class="p-3 text-center">
+                <input type="number" id="bn-days-${idx}" value="${diasPlanta}" min="0" max="31" step="0.5" oninput="recalcFilaBono(${idx}, ${promDiario})" class="w-20 bg-white border border-slate-300 p-2 rounded-lg font-black text-center text-slate-700 outline-none focus:ring-2 focus:ring-orange-500">
+            </td>
+            <td class="p-3 text-center">
+                <input type="number" id="bn-extra-${idx}" value="0" step="0.5" oninput="recalcFilaBono(${idx}, ${promDiario})" class="w-24 bg-white border border-slate-300 p-2 rounded-lg font-black text-center text-indigo-600 outline-none focus:ring-2 focus:ring-indigo-500">
+            </td>
+            <td class="p-3 text-right">
+                <span id="bn-total-${idx}" class="font-black text-green-600 text-lg">Bs ${pagoBase.toFixed(2)}</span>
+            </td>
+        </tr>`;
+    }).join('');
+}
+
+function recalcFilaBono(idx, promDiario) {
+    const rate = parseFloat(document.getElementById(`bn-rate-${idx}`).value);
+    const days = parseFloat(document.getElementById(`bn-days-${idx}`).value) || 0;
+    const extra = parseFloat(document.getElementById(`bn-extra-${idx}`).value) || 0;
+    
+    const total = (promDiario * days * rate) + extra;
+    document.getElementById(`bn-total-${idx}`).innerText = `Bs ${total.toFixed(2)}`;
+}
+
+function guardarBorradorBono() {
+    const mes = document.getElementById('bonos-mes').value;
+    const promDiarioStr = document.getElementById('bonos-m3-dia').value;
+    const m3TotalStr = document.getElementById('bonos-m3-total').value;
+    
+    const empConBono = dbDirectorioRRHH.filter(e => e.estado !== 'BAJA' && e.bono > 0);
+    if(empConBono.length === 0) return;
+
+    // Verificar si ya existe para este mes
+    const existe = dbBonos.find(b => b.mes === mes);
+    if(existe) {
+        if(!confirm(`⚠️ Ya existe una liquidación para ${mes}. Si continúas, se SOBRESCRIBIRÁ. ¿Proceder?`)) return;
+    }
+
+    let detalle = [];
+    let totalGeneral = 0;
+
+    empConBono.forEach((e, idx) => {
+        const idEmp = document.getElementById(`bn-id-${idx}`).value;
+        const nombre = document.getElementById(`bn-name-${idx}`).value;
+        const rate = parseFloat(document.getElementById(`bn-rate-${idx}`).value);
+        const days = parseFloat(document.getElementById(`bn-days-${idx}`).value) || 0;
+        const extra = parseFloat(document.getElementById(`bn-extra-${idx}`).value) || 0;
+        
+        const total = parseFloat(document.getElementById(`bn-total-${idx}`).innerText.replace('Bs ',''));
+
+        if(total > 0) {
+            detalle.push({ idEmp, nombre, rate, days, extra, total });
+            totalGeneral += total;
+        }
+    });
+
+    const data = {
+        id: existe ? existe.id : Date.now(),
+        mes: mes,
+        m3Mes: m3TotalStr,
+        promDiario: promDiarioStr,
+        totalGeneral: totalGeneral,
+        detalle: detalle,
+        estado: 'PENDIENTE',
+        fechaGenerado: new Date().toLocaleDateString(),
+        operador: currentUser.name
+    };
+
+    db.collection("rrhh_bonos").doc(String(data.id)).set(data).then(() => {
+        showToast("Liquidación guardada y enviada a gerencia.");
+    });
+}
+
+function verDetalleBono(id) {
+    const b = dbBonos.find(x => x.id === id);
+    if(!b) return;
+
+    document.getElementById('modal-bono-subtitle').innerText = `Mes: ${b.mes} | Total M3: ${b.m3Mes} | ${b.promDiario}`;
+    document.getElementById('modal-bono-total').innerText = `Bs ${b.totalGeneral.toFixed(2)}`;
+
+    document.getElementById('modal-bono-items').innerHTML = b.detalle.map(d => `
+        <tr class="hover:bg-slate-50">
+            <td class="p-3 font-black text-slate-800">${d.nombre}<br><span class="text-[9px] font-bold text-slate-400">Tarifa: Bs ${d.rate}</span></td>
+            <td class="p-3 text-center font-bold text-slate-600">${d.days}</td>
+            <td class="p-3 text-right font-black text-indigo-600">${d.extra > 0 ? '+'+d.extra : '-'}</td>
+            <td class="p-3 text-right font-black text-green-600">Bs ${d.total.toFixed(2)}</td>
+            <td class="p-3 text-center">
+                ${b.estado === 'PAGADO' ? `<button onclick="imprimirVoucherBono(${b.id}, '${d.idEmp}')" class="bg-slate-800 text-white px-2 py-1 rounded text-[9px] font-black uppercase"><i data-lucide="printer" class="w-3 h-3 inline"></i> Recibo</button>` : `<span class="text-[9px] text-slate-400">Falta Aprob.</span>`}
+            </td>
+        </tr>
+    `).join('');
+
+    let actions = '';
+    if(b.estado === 'PENDIENTE' && currentUser.role === 'ADMIN') {
+        actions = `<button onclick="prepararPagoBono(${b.id})" class="w-full bg-green-600 text-white p-4 rounded-xl font-black text-xs hover:bg-green-700 uppercase flex items-center justify-center gap-2 shadow-lg"><i data-lucide="wallet" class="w-4 h-4"></i> Aprobar y Pasar a Caja</button>`;
+    } else if (b.estado === 'PAGADO') {
+        actions = `<div class="w-full bg-green-50 text-green-700 p-4 rounded-xl font-black text-xs uppercase text-center border border-green-200">✅ LIQUIDACIÓN PAGADA Y CERRADA</div>`;
+    }
+
+    document.getElementById('modal-bono-actions').innerHTML = actions;
+    document.getElementById('modal-bono').classList.remove('hidden');
+    lucide.createIcons();
+}
+
+function prepararPagoBono(id) {
+    const b = dbBonos.find(x => x.id === id);
+    if(!b) return;
+
+    document.getElementById('modal-bono').classList.add('hidden');
+    showTab('caja-general');
+    openSaldoInicialCaja();
+    
+    document.getElementById('caja-mov-fecha').valueAsDate = new Date();
+    if(document.getElementById('caja-mov-categoria')) document.getElementById('caja-mov-categoria').value = '👥 Planilla y Anticipos';
+    document.getElementById('caja-mov-desc').value = `PAGO BONOS PRODUCCION (${b.mes})`;
+    document.getElementById('caja-mov-monto').value = b.totalGeneral.toFixed(2);
+    
+    // Trampa para atrapar el pago
+    window.bonoEnProceso = b.id;
+    showToast("Bonos listos. Elija de dónde sale el dinero y Guarde.");
+}
+
+// Interceptar en submitMovimientoCaja (Engánchalo junto a window.anticipoEnProceso)
+const originalSubmitMovimientoCajaBonos = submitMovimientoCaja;
+submitMovimientoCaja = async function(e) {
+    if (window.bonoEnProceso) {
+        let b = dbBonos.find(x => x.id === window.bonoEnProceso);
+        if (b) {
+            b.estado = 'PAGADO';
+            db.collection("rrhh_bonos").doc(String(b.id)).set(b);
+        }
+        window.bonoEnProceso = null;
+    }
+    await originalSubmitMovimientoCajaBonos(e);
+};
+
+function imprimirVoucherBono(idBono, idEmp) {
+    const b = dbBonos.find(x => x.id === idBono);
+    const d = b.detalle.find(x => String(x.idEmp) === String(idEmp));
+    if(!b || !d) return;
+
+    const html = `
+    <!DOCTYPE html>
+    <html><head><title>Recibo Bono</title>
+    <style>
+        body { font-family: 'Courier New', Courier, monospace; font-size: 12px; color: black; background: white; margin: 0; padding: 20px; }
+        .boleta { width: 100%; max-width: 600px; margin: 0 auto; border: 2px dashed #000; padding: 20px; }
+        h1 { margin: 0; font-size: 20px; text-transform: uppercase; font-weight: 900; text-align: center; border-bottom: 2px solid #000; padding-bottom: 10px; }
+        .detalle { display: flex; justify-content: space-between; margin-top: 15px; font-weight: bold; border-bottom: 1px solid #000; padding-bottom: 10px; }
+        table { width: 100%; border-collapse: collapse; margin-top: 15px; font-size: 13px; }
+        th, td { padding: 8px 0; border-bottom: 1px dashed #666; }
+        .text-right { text-align: right; }
+        .total { font-size: 18px; font-weight: 900; margin-top: 15px; text-align: right; }
+        .firmas { display: flex; justify-content: space-around; margin-top: 60px; text-align: center; }
+        .firma-linea { border-top: 1px solid #000; width: 200px; padding-top: 5px; font-weight: bold; }
+        @media print { .no-print { display: none !important; } }
+    </style>
+    </head><body>
+        <div class="boleta">
+            <h1>RECIBO DE INCENTIVO A LA PRODUCCIÓN</h1>
+            <div class="detalle">
+                <div><span>EMPLEADO: </span><span>${d.nombre}</span></div>
+                <div style="text-align: right;"><span>PERIODO: </span><span>${b.mes}</span></div>
+            </div>
+            <table>
+                <tr><td>Tarifa por M³</td><td class="text-right">Bs ${d.rate}</td></tr>
+                <tr><td>Promedio Diario de Planta</td><td class="text-right">${b.promDiario.replace('M³/', '')} M³</td></tr>
+                <tr><td>Días Computados</td><td class="text-right">${d.days} días</td></tr>
+                ${d.extra > 0 ? `<tr><td>Reconocimiento Adicional</td><td class="text-right">Bs ${d.extra.toFixed(2)}</td></tr>` : ''}
+            </table>
+            <div class="total">MONTO ENTREGADO: Bs ${d.total.toFixed(2)}</div>
+            
+            <p style="margin-top: 20px; font-size: 10px; text-align: justify; color: #444;">Certifico que he recibido de la empresa PLASTENSA la cantidad arriba indicada, correspondiente al reconocimiento y/o incentivo extra de producción del periodo especificado.</p>
+            
+            <div class="firmas">
+                <div class="firma-linea">ENTREGUÉ CONFORME</div>
+                <div class="firma-linea">RECIBÍ CONFORME<br><span style="font-size: 9px; font-weight: normal;">C.I.: ........................</span></div>
+            </div>
+        </div>
+        <div class="no-print" style="margin-top:20px; text-align:center;">
+            <button onclick="window.print()" style="padding:10px 20px; font-weight:bold; cursor:pointer;">IMPRIMIR RECIBO (A5)</button>
+        </div>
+    </body></html>`;
+
+    const win = window.open('','','width=800,height=600');
+    win.document.write(html);
+    win.document.close();
+}
+
+function verificarAlertaBonos() {
+    if(!currentUser || (currentUser.role !== 'ADMIN' && currentUser.name !== 'GZUNIGA' && currentUser.email !== 'gzuniga@plastensa.com')) return;
+    
+    const hoy = new Date();
+    const dia = hoy.getDate();
+    
+    // Si estamos entre el 10 y el 15, validamos
+    if(dia >= 10 && dia <= 15) {
+        let lastMonth = new Date(hoy.getFullYear(), hoy.getMonth() - 1, 1);
+        let mesStr = `${lastMonth.getFullYear()}-${String(lastMonth.getMonth() + 1).padStart(2, '0')}`;
+        
+        let bonoExiste = dbBonos.find(b => b.mes === mesStr);
+        if(!bonoExiste) {
+            document.getElementById('alerta-bonos')?.classList.remove('hidden');
+            document.getElementById('alerta-bonos-dot')?.classList.remove('hidden');
+        } else {
+            document.getElementById('alerta-bonos')?.classList.add('hidden');
+            document.getElementById('alerta-bonos-dot')?.classList.add('hidden');
+        }
+    }
+}
+
+// Disparar la alerta después de que carguen los datos
+setTimeout(verificarAlertaBonos, 4000);
 
 // ==========================================
 // ROBOT MIGRADOR DEFINITIVO A COLECCIONES
