@@ -13640,9 +13640,11 @@ function renderTablaAuditoriaZk() {
                 statusBadge = `<span class="bg-blue-100 text-blue-700 px-2 py-0.5 rounded text-[9px] font-black uppercase">PERMISO / BAJA MED.</span>`;
             }
 
-            // Selector para que RRHH perdone faltas en caliente
+            // Selector para que RRHH perdone faltas en caliente (BLINDADO)
             let selectorAccion = '';
-            if (m.estado === 'FALTA' || m.estado === 'FALTA_MARCA' || m.estado === 'ATRASO') {
+            
+            // Regla: Solo aparece si hay FALTA, si solo marcó entrada/salida (FALTA_MARCA), o si el atraso es irreal (> 4 horas / 240 min)
+            if (m.estado === 'FALTA' || m.estado === 'FALTA_MARCA' || (m.estado === 'ATRASO' && m.atrasoMin > 240)) {
                 selectorAccion = `
                     <select onchange="justificarFaltaZK('${empId}', ${idx}, this.value)" class="text-[9px] font-bold border border-slate-300 rounded p-1.5 ml-2 bg-white text-slate-600 outline-none w-[130px] shadow-sm">
                         <option value="">-- Acción --</option>
