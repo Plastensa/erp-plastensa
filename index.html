@@ -3368,6 +3368,7 @@
 	let dbDirectorioRRHH = []; // Personal completo (Operarios, Externos, Administracion)
 	let dbAnticipos = []; // Control de Vales de RRHH
 	let dbBonos = []; // Control de Liquidación de Bonos
+	let dbSueldosPagados = []; // Control individual de Sueldos Pagados
         let dbAsistenciaAuditada = []; // Resultados limpios del archivo ZK
         let dbBoletasEmitidas = []; // Historial de boletas de pago generadas
         let tempAsistenciaZK = {}; // Memoria temporal mientras lees el archivo CSV
@@ -3942,6 +3943,16 @@ function iniciarRadar(userEmail) {
         snapshot.forEach(doc => temp.push(doc.data()));
         dbBonos = temp;
         if (currentUser && typeof renderBonosRRHH === 'function') renderBonosRRHH();
+    });
+
+    // RADAR MÓDULO RRHH: SUELDOS PAGADOS
+    db.collection("rrhh_pagos_sueldos").onSnapshot((snapshot) => {
+        let temp = [];
+        snapshot.forEach(doc => temp.push(doc.data()));
+        dbSueldosPagados = temp;
+        if (currentUser && typeof renderPlanillaGeneral === 'function' && pestanaActiva === 'rrhh-planilla') {
+            renderPlanillaGeneral();
+        }
     });
 
     // RADAR MÓDULO RRHH: ANTICIPOS
@@ -13884,6 +13895,24 @@ function renderPlanillaGeneral() {
         // 5. Total Líquido Teórico
         const liquidoBase = haberBasico - penalizacionAtraso - penalizacionFalta - descuentoAnticipos;
 
+        // Validar si este sueldo ya fue pagado
+        const pagoExiste = dbSueldosPagados.find(p => String(p.idEmp) === String(emp.id) && p.mes === mesAnio);
+        let btnAccion = '';
+
+        if (pagoExiste) {
+            btnAccion = `
+                <div class="flex flex-col gap-1 items-center justify-center w-full max-w-[90px] mx-auto">
+                    <span class="bg-green-100 text-green-700 px-2 py-1.5 rounded-lg text-[9px] font-black uppercase shadow-sm border border-green-200 w-full text-center"><i data-lucide="check-circle" class="w-3 h-3 inline mr-1 -mt-0.5"></i>PAGADO</span>
+                    <button onclick="prepararImpresionBoleta('${emp.id}', '${mesAnio}', ${haberBasico}, ${penalizacionAtraso}, ${penalizacionFalta}, ${descuentoAnticipos})" class="bg-slate-800 hover:bg-slate-700 text-white p-1.5 w-full rounded-lg shadow-sm transition-colors text-[9px] font-black uppercase tracking-widest flex items-center justify-center gap-1"><i data-lucide="printer" class="w-3 h-3"></i> Boleta</button>
+                </div>`;
+        } else {
+            btnAccion = `
+                <div class="flex flex-col gap-1 items-center justify-center w-full max-w-[90px] mx-auto">
+                    ${(currentUser && currentUser.role === 'ADMIN') ? `<button onclick="prepararPagoSueldo('${emp.id}', '${mesAnio}')" class="bg-blue-600 hover:bg-blue-700 text-white p-1.5 w-full rounded-lg shadow-sm transition-colors text-[9px] font-black uppercase tracking-widest flex items-center justify-center gap-1"><i data-lucide="wallet" class="w-3 h-3"></i> PAGAR</button>` : ''}
+                    <button onclick="prepararImpresionBoleta('${emp.id}', '${mesAnio}', ${haberBasico}, ${penalizacionAtraso}, ${penalizacionFalta}, ${descuentoAnticipos})" class="bg-slate-800 hover:bg-slate-700 text-white p-1.5 w-full rounded-lg shadow-sm transition-colors text-[9px] font-black uppercase tracking-widest flex items-center justify-center gap-1"><i data-lucide="printer" class="w-3 h-3"></i> Boleta</button>
+                </div>`;
+        }
+
         htmlPlanilla += `
         <tr class="hover:bg-green-50/30 transition-colors border-b border-slate-100">
             <td class="p-4 font-black text-slate-800 text-xs">
@@ -13894,15 +13923,15 @@ function renderPlanillaGeneral() {
             <td class="p-4 text-center font-bold ${penalizacionAtraso > 0 ? 'text-orange-500' : 'text-slate-300'}">${htmlAtraso}</td>
             <td class="p-4 text-center font-bold ${penalizacionFalta > 0 ? 'text-red-500' : 'text-slate-300'}">${htmlFalta}</td>
             <td class="p-4 text-center">
-                <input type="number" id="plan-dano-${emp.id}" value="0" min="0" step="0.5" oninput="recalcFilaPlanilla('${emp.id}', ${liquidoBase})" class="w-full bg-white border border-slate-300 p-2 rounded-lg font-black text-center text-purple-600 outline-none focus:ring-2 focus:ring-purple-500 text-xs">
+                <input type="number" id="plan-dano-${emp.id}" value="0" min="0" step="0.5" oninput="recalcFilaPlanilla('${emp.id}', ${liquidoBase})" class="w-full bg-white border border-slate-300 p-2 rounded-lg font-black text-center text-purple-600 outline-none focus:ring-2 focus:ring-purple-500 text-xs" ${pagoExiste ? 'disabled' : ''}>
             </td>
             <td class="p-4 text-center">
-                <input type="number" id="plan-sancion-${emp.id}" value="0" min="0" step="0.5" oninput="recalcFilaPlanilla('${emp.id}', ${liquidoBase})" class="w-full bg-white border border-slate-300 p-2 rounded-lg font-black text-center text-slate-600 outline-none focus:ring-2 focus:ring-slate-500 text-xs">
+                <input type="number" id="plan-sancion-${emp.id}" value="0" min="0" step="0.5" oninput="recalcFilaPlanilla('${emp.id}', ${liquidoBase})" class="w-full bg-white border border-slate-300 p-2 rounded-lg font-black text-center text-slate-600 outline-none focus:ring-2 focus:ring-slate-500 text-xs" ${pagoExiste ? 'disabled' : ''}>
             </td>
             <td class="p-4 text-center font-bold ${descuentoAnticipos > 0 ? 'text-red-500' : 'text-slate-300'}">${descuentoAnticipos > 0 ? '- Bs ' + descuentoAnticipos.toFixed(2) : '-'}</td>
             <td class="p-4 text-right font-black text-green-700 text-lg bg-green-50/30" id="plan-liquido-${emp.id}">Bs ${liquidoBase.toFixed(2)}</td>
             <td class="p-4 text-center">
-                <button onclick="prepararImpresionBoleta('${emp.id}', '${mesAnio}', ${haberBasico}, ${penalizacionAtraso}, ${penalizacionFalta}, ${descuentoAnticipos})" class="bg-slate-800 hover:bg-slate-700 text-white p-2 rounded-lg shadow-sm transition-colors text-[9px] font-black uppercase tracking-widest flex items-center gap-1 mx-auto"><i data-lucide="printer" class="w-3 h-3"></i> Boleta</button>
+                ${btnAccion}
             </td>
         </tr>`;
     });
@@ -14970,6 +14999,50 @@ function resolverDudaSiat(orderId) {
         showToast("✅ Pedido sincronizado como FACTURADO correctamente.");
     }
 }
+
+function prepararPagoSueldo(idEmp, mesAnio) {
+    const emp = dbDirectorioRRHH.find(e => String(e.id) === String(idEmp));
+    if(!emp) return;
+
+    // Extraemos el monto en vivo, por si tipeaste algo en los cajones de "Sanción"
+    const liquidoStr = document.getElementById(`plan-liquido-${emp.id}`).innerText.replace('Bs ', '').trim();
+    const liquido = parseFloat(liquidoStr);
+
+    if(isNaN(liquido) || liquido <= 0) return alert("El líquido pagable es 0 o inválido. No hay saldo para enviar a caja.");
+
+    // Enviamos a la vista de Caja General
+    showTab('caja-general');
+    openSaldoInicialCaja();
+    
+    document.getElementById('caja-mov-fecha').valueAsDate = new Date();
+    if(document.getElementById('caja-mov-categoria')) document.getElementById('caja-mov-categoria').value = '👥 Planilla y Anticipos';
+    document.getElementById('caja-mov-desc').value = `PAGO SUELDO: ${emp.nombre} (${mesAnio})`;
+    document.getElementById('caja-mov-monto').value = liquido.toFixed(2);
+    document.getElementById('caja-mov-salida').value = '';
+    document.getElementById('caja-mov-entrada').value = '';
+
+    // Trampa para atrapar el pago al guardar
+    window.sueldoEnProceso = { idEmp: emp.id, mes: mesAnio };
+    showToast("Monto calculado. Elija la cuenta bancaria de salida y guarde.");
+}
+
+// Enganchamos este nuevo pago a la función principal de Caja
+const originalSubmitMovCajaSueldos = submitMovimientoCaja;
+submitMovimientoCaja = async function(e) {
+    if (window.sueldoEnProceso) {
+        const pago = {
+            id: Date.now(),
+            idEmp: window.sueldoEnProceso.idEmp,
+            mes: window.sueldoEnProceso.mes,
+            fechaPago: new Date().toLocaleString(),
+            operador: currentUser.name
+        };
+        // Lo mandamos a la nube silenciosamente
+        db.collection("rrhh_pagos_sueldos").doc(String(pago.id)).set(pago);
+        window.sueldoEnProceso = null;
+    }
+    await originalSubmitMovCajaSueldos(e);
+};
 
 renderAll();
     </script>
