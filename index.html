@@ -2971,13 +2971,13 @@
                         </div>
                         <div class="flex gap-4 items-center">
                             <button onclick="cambiarMesCalendario(-1)" class="p-2 bg-slate-100 hover:bg-slate-200 rounded-xl transition-colors"><i data-lucide="chevron-left" class="w-6 h-6 text-slate-600"></i></button>
-                            <h3 id="lbl-mes-calendario" class="text-xl font-black text-indigo-700 w-48 text-center uppercase tracking-widest">---</h3>
+                            <h3 id="lbl-mes-calendario" class="text-xl font-black text-indigo-700 w-64 text-center uppercase tracking-widest">---</h3>
                             <button onclick="cambiarMesCalendario(1)" class="p-2 bg-slate-100 hover:bg-slate-200 rounded-xl transition-colors"><i data-lucide="chevron-right" class="w-6 h-6 text-slate-600"></i></button>
                         </div>
                     </div>
-                    <div class="bg-white p-6 rounded-[32px] border border-slate-200 shadow-sm">
-                        <!-- El grid se renderizará desde Javascript -->
-                        <div id="rrhh-calendario-grid" class="grid grid-cols-7 gap-2"></div>
+                    <div class="bg-white rounded-[32px] border border-slate-200 shadow-sm p-6 overflow-hidden">
+                        <!-- El grid se renderiza a la fuerza saltando el bloqueo de Tailwind -->
+                        <div id="rrhh-calendario-grid" style="display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); border-top: 1px solid #e2e8f0; border-left: 1px solid #e2e8f0;"></div>
                     </div>
                 </div>
 
@@ -13694,18 +13694,21 @@ function renderCalendarioRRHH() {
     if(lblMes) lblMes.innerText = mesCalendarioActual.toLocaleString('es-ES', { month: 'long', year: 'numeric' }).toUpperCase();
 
     const primerDia = new Date(year, month, 1).getDay();
-    const offset = primerDia === 0 ? 6 : primerDia - 1; // Para que el Lunes sea la primera columna
+    const offset = primerDia === 0 ? 6 : primerDia - 1; // Lunes como inicio de semana
     const diasEnMes = new Date(year, month + 1, 0).getDate();
 
     let html = '';
     
-    // Cabeceras de días (LUN a DOM)
-    const diasSemana = ['LUN', 'MAR', 'MIE', 'JUE', 'VIE', 'SAB', 'DOM'];
-    html += diasSemana.map(d => `<div class="text-center font-black text-[10px] text-slate-400 uppercase py-2">${d}</div>`).join('');
+    // Cabeceras de días (LUN a DOM) con estilo de cuadrícula
+    const diasSemana = ['Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb', 'Dom'];
+    html += diasSemana.map(d => `<div class="text-right pr-3 font-black text-[11px] text-slate-400 uppercase py-3 border-b border-r border-slate-200 bg-slate-50">${d}</div>`).join('');
 
-    // Espacios en blanco para arrancar en el día correcto
-    for(let i=0; i<offset; i++) html += `<div class="p-2 bg-slate-50/30 rounded-xl border border-transparent h-24"></div>`;
+    // Espacios en blanco (días del mes anterior)
+    for(let i=0; i<offset; i++) {
+        html += `<div class="min-h-[110px] bg-slate-50/40 border-b border-r border-slate-200 p-2"></div>`;
+    }
 
+    // Renderizar los días del mes actual
     for(let d=1; d<=diasEnMes; d++) {
         let curDate = new Date(year, month, d);
         let dateStr = `${year}-${String(month+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
@@ -13714,22 +13717,58 @@ function renderCalendarioRRHH() {
         let feriado = dbFeriados.find(f => f.fecha === dateStr);
         let vacacionistas = dbVacaciones.filter(v => v.fechaInicio && v.fechaFin && dateStr >= v.fechaInicio && dateStr <= v.fechaFin);
 
-        let bgClass = isSunday ? 'bg-slate-100/50 text-slate-400 border-slate-100' : 'bg-white hover:bg-indigo-50 border-slate-200 cursor-pointer shadow-sm';
-        if(feriado) bgClass = 'bg-red-50 border-red-200 cursor-pointer shadow-sm';
-
+        // Estilos de la celda
+        let bgClass = isSunday ? 'bg-slate-50/80 text-slate-400' : 'bg-white hover:bg-slate-50 text-slate-700 cursor-pointer transition-colors';
+        let numberColor = feriado || isSunday ? 'text-red-500' : 'text-slate-700';
+        
         let pillHtml = '';
-        if (feriado) pillHtml += `<span class="block bg-red-500 text-white text-[8px] font-black uppercase px-1.5 py-0.5 rounded mt-1 truncate" title="${feriado.descripcion}">FERIADO: ${feriado.descripcion}</span>`;
+        
+        if (feriado) {
+            pillHtml += `<div class="bg-red-500 text-white text-[9px] font-black uppercase px-2 py-1 mx-1 mt-1 rounded shadow-sm truncate" title="${feriado.descripcion}">${feriado.descripcion}</div>`;
+        }
         
         vacacionistas.forEach(v => {
             const emp = dbDirectorioRRHH.find(e => String(e.id) === String(v.idEmp));
-            if(emp) pillHtml += `<span class="block bg-indigo-100 text-indigo-700 text-[8px] font-black uppercase px-1.5 py-0.5 rounded mt-1 truncate border border-indigo-200" title="${emp.nombre}"><i data-lucide="palmtree" class="w-2 h-2 inline"></i> ${emp.nombre.split(' ')[0]}</span>`;
+            if(emp) {
+                let esInicio = v.fechaInicio === dateStr;
+                let esFin = v.fechaFin === dateStr;
+                let esLunes = curDate.getDay() === 1;
+                let esDomingo = curDate.getDay() === 0;
+                
+                // LÓGICA DE "CINTAS CONTINUAS"
+                let roundedClass = 'rounded-none';
+                if (esInicio || esLunes) roundedClass += ' rounded-l-md';
+                if (esFin || esDomingo) roundedClass += ' rounded-r-md';
+
+                let marginClass = 'mx-0';
+                if (esInicio || esLunes) marginClass += ' ml-1';
+                if (esFin || esDomingo) marginClass += ' mr-1';
+
+                // Solo escribir el nombre al inicio de la cinta (para que no se repita en cada cuadrito y se vea profesional)
+                let mostrarNombre = esInicio || esLunes ? `<i data-lucide="palmtree" class="w-2.5 h-2.5 inline mr-1 -mt-0.5"></i>${emp.nombre.split(' ')[0]}` : '&nbsp;';
+
+                pillHtml += `<div class="bg-indigo-500 text-white text-[10px] font-black uppercase px-2 py-0.5 mt-0.5 truncate ${roundedClass} ${marginClass} shadow-sm" title="Vacaciones: ${emp.nombre}">${mostrarNombre}</div>`;
+            }
         });
 
-        html += `<div onclick="toggleFeriado('${dateStr}')" class="p-2 rounded-xl border h-24 flex flex-col ${bgClass} transition-colors overflow-hidden relative">
-            <span class="font-black text-sm ${feriado ? 'text-red-600' : (isSunday ? 'text-slate-400' : 'text-slate-700')}">${d}</span>
-            <div class="flex-1 overflow-y-auto mt-1 space-y-1" style="scrollbar-width: none;">${pillHtml}</div>
+        html += `
+        <div onclick="toggleFeriado('${dateStr}')" class="min-h-[110px] border-b border-r border-slate-200 ${bgClass} flex flex-col relative group">
+            <div class="text-right p-2 pb-0">
+                <span class="font-bold text-sm ${numberColor} group-hover:text-indigo-600 transition-colors">${d}</span>
+            </div>
+            <div class="flex-1 overflow-y-auto space-y-0.5 pb-1 mt-1" style="scrollbar-width: none;">
+                ${pillHtml}
+            </div>
         </div>`;
     }
+    
+    // Rellenar las casillas sobrantes al final del mes para mantener el borde cuadrado
+    const celdasUsadas = offset + diasEnMes;
+    const celdasFaltantes = (7 - (celdasUsadas % 7)) % 7;
+    for(let i=0; i<celdasFaltantes; i++) {
+        html += `<div class="min-h-[110px] bg-slate-50/40 border-b border-r border-slate-200 p-2"></div>`;
+    }
+
     grid.innerHTML = html;
     if(window.lucide) lucide.createIcons();
 }
