@@ -462,6 +462,9 @@
                     <span id="alerta-bonos" class="hidden absolute top-4 right-4 w-3 h-3 bg-red-500 rounded-full animate-ping"></span>
                     <span id="alerta-bonos-dot" class="hidden absolute top-4 right-4 w-3 h-3 bg-red-500 rounded-full border border-slate-900 shadow"></span>
                 </button>
+               <button id="nav-rrhh-calendario" onclick="showTab('rrhh-calendario')" class="nav-btn w-full flex items-center justify-between p-4 rounded-xl transition-all text-slate-400 hover:bg-slate-800 hover:text-slate-200 hidden" data-tab="rrhh-calendario">
+                    <div class="flex items-center gap-4"><i data-lucide="calendar-days" class="w-5 h-5"></i><span class="font-bold text-xs uppercase tracking-wider">Calendario (Feriados)</span></div>
+                </button>
                 <!-- FIN NUEVO MENÚ -->
 
                 <p id="label-produccion" class="px-4 py-2 mt-4 text-[10px] font-black text-slate-500 uppercase tracking-widest">Producción</p>
@@ -2957,6 +2960,27 @@
                     </div>
                 </div>
 
+<!-- ========================================== -->
+                <!-- MÓDULO RRHH: CALENDARIO Y FERIADOS         -->
+                <!-- ========================================== -->
+                <div id="tab-rrhh-calendario" class="tab-content hidden space-y-6">
+                    <div class="flex flex-col md:flex-row justify-between items-center mb-4 gap-4 border-l-8 border-indigo-500 pl-6 bg-white p-4 rounded-3xl shadow-sm">
+                        <div>
+                            <h2 class="text-3xl font-black uppercase italic text-slate-800">Calendario Operativo</h2>
+                            <p class="text-[10px] font-black text-slate-400 uppercase tracking-widest mt-1">Gestión de Vacaciones y Días No Laborables (Haz clic en un día para marcar Feriado)</p>
+                        </div>
+                        <div class="flex gap-4 items-center">
+                            <button onclick="cambiarMesCalendario(-1)" class="p-2 bg-slate-100 hover:bg-slate-200 rounded-xl transition-colors"><i data-lucide="chevron-left" class="w-6 h-6 text-slate-600"></i></button>
+                            <h3 id="lbl-mes-calendario" class="text-xl font-black text-indigo-700 w-48 text-center uppercase tracking-widest">---</h3>
+                            <button onclick="cambiarMesCalendario(1)" class="p-2 bg-slate-100 hover:bg-slate-200 rounded-xl transition-colors"><i data-lucide="chevron-right" class="w-6 h-6 text-slate-600"></i></button>
+                        </div>
+                    </div>
+                    <div class="bg-white p-6 rounded-[32px] border border-slate-200 shadow-sm">
+                        <!-- El grid se renderizará desde Javascript -->
+                        <div id="rrhh-calendario-grid" class="grid grid-cols-7 gap-2"></div>
+                    </div>
+                </div>
+
                 <!-- ========================================== -->
                 <!-- MÓDULO RRHH: LECTOR ZKTECO Y AUDITORÍA     -->
                 <!-- ========================================== -->
@@ -3353,12 +3377,21 @@
                     </div>
                 </div>
 
-                <div class="bg-indigo-50 border border-indigo-100 rounded-2xl p-5">
-                    <h4 class="font-black uppercase tracking-widest text-[10px] text-indigo-800 mb-3 border-b border-indigo-200 pb-2">Regularización Histórica</h4>
-                    <p class="text-[9px] font-bold text-slate-500 mb-3 uppercase leading-tight">Usa esto para registrar días que el trabajador ya tomó en años anteriores al sistema.</p>
+                <div class="bg-blue-50 border border-blue-100 rounded-2xl p-5">
+                    <h4 class="font-black uppercase tracking-widest text-[10px] text-blue-800 mb-3 border-b border-blue-200 pb-2 flex items-center gap-1"><i data-lucide="calendar-plus" class="w-3 h-3"></i> Programar Vacaciones</h4>
+                    <p class="text-[9px] font-bold text-slate-500 mb-3 uppercase leading-tight">El sistema saltará automáticamente los domingos y feriados del calendario al calcular los días hábiles.</p>
+                    <div class="grid grid-cols-2 gap-2 mb-3">
+                        <div><label class="text-[9px] font-bold text-slate-500 uppercase">Desde (Primer Día)</label><input type="date" id="ficha-vac-desde" class="w-full bg-white border border-blue-200 p-2 rounded-lg font-bold text-xs outline-none"></div>
+                        <div><label class="text-[9px] font-bold text-slate-500 uppercase">Hasta (Último Día)</label><input type="date" id="ficha-vac-hasta" class="w-full bg-white border border-blue-200 p-2 rounded-lg font-bold text-xs outline-none"></div>
+                    </div>
+                    <button onclick="programarVacacion()" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-black text-[10px] uppercase rounded-lg shadow-sm p-3 transition-colors">Agendar y Descontar Saldo</button>
+                </div>
+
+                <div class="bg-slate-100 border border-slate-200 rounded-2xl p-5">
+                    <h4 class="font-black uppercase tracking-widest text-[10px] text-slate-600 mb-3 border-b border-slate-300 pb-2">Ajuste Histórico (Años Pasados)</h4>
                     <div class="flex gap-2">
-                        <input type="number" id="ficha-ajuste-dias" placeholder="N° Días" class="w-24 bg-white border border-indigo-200 p-2 rounded-lg font-black text-xs text-center outline-none">
-                        <button onclick="guardarAjusteVacacion()" class="flex-1 bg-indigo-600 hover:bg-indigo-700 text-white font-black text-[10px] uppercase rounded-lg shadow-sm">Descontar Días</button>
+                        <input type="number" id="ficha-ajuste-dias" placeholder="N° Días" class="w-24 bg-white border border-slate-300 p-2 rounded-lg font-black text-xs text-center outline-none">
+                        <button onclick="guardarAjusteVacacion()" class="flex-1 bg-slate-600 hover:bg-slate-700 text-white font-black text-[10px] uppercase rounded-lg shadow-sm">Restar Días</button>
                     </div>
                 </div>
             </div>
@@ -3998,7 +4031,16 @@ function iniciarRadar(userEmail) {
         if(currentUser && typeof renderDirectorioRRHH === 'function') renderDirectorioRRHH();
     });
 
-    // NUEVOS RADARES: VACACIONES Y EXPEDIENTES
+   // NUEVOS RADARES: VACACIONES, FERIADOS Y EXPEDIENTES
+    db.collection("rrhh_feriados").onSnapshot((snapshot) => {
+        let tempFer = [];
+        snapshot.forEach(doc => tempFer.push(doc.data()));
+        dbFeriados = tempFer;
+        if(currentUser && pestanaActiva === 'rrhh-calendario') {
+            if(typeof renderCalendarioRRHH === 'function') renderCalendarioRRHH();
+        }
+    });
+
     db.collection("rrhh_vacaciones").onSnapshot((snapshot) => {
         let tempVac = [];
         snapshot.forEach(doc => tempVac.push(doc.data()));
@@ -4125,7 +4167,7 @@ function iniciarRadar(userEmail) {
 
 // 3. Matriz Estricta de Roles y Permisos (Intacta)
 function aplicarPermisosVisuales(role) {
-    const adminTabs = ['dashboard-gerencial', 'directorio', 'tesoreria-admin', 'salidas-eps', 'historial-admin', 'facturas-admin', 'precios-admin', 'transporte','caja-general', 'seguridad', 'rrhh-directorio', 'rrhh-asistencia', 'rrhh-planilla', 'rrhh-bonos'];
+   const adminTabs = ['dashboard-gerencial', 'directorio', 'tesoreria-admin', 'salidas-eps', 'historial-admin', 'facturas-admin', 'precios-admin', 'transporte','caja-general', 'seguridad', 'rrhh-directorio', 'rrhh-asistencia', 'rrhh-planilla', 'rrhh-bonos', 'rrhh-calendario'];
     const comercialTabs = ['clientes', 'catalogo', 'ventas', 'cotizaciones', 'registro-ventas'];
     const produccionTabs = ['materia-prima', 'expansion', 'bloquera', 'inventario-bloques', 'corte', 'reporte-corte', 'produccion', 'plan-diario', 'inventario'];
     const finanzasTabs = ['tesoreria'];
@@ -4184,6 +4226,9 @@ function aplicarPermisosVisuales(role) {
         
         const btnRrhhPlanilla = document.getElementById('nav-rrhh-planilla');
         if (btnRrhhPlanilla) btnRrhhPlanilla.classList.remove('hidden');
+
+	const btnRrhhCalendario = document.getElementById('nav-rrhh-calendario');
+        if (btnRrhhCalendario) btnRrhhCalendario.classList.remove('hidden');
 
         showTab('ventas');
     }
@@ -6202,6 +6247,7 @@ function renderAll() {
         else if(pestanaActiva === 'rrhh-asistencia') { if(typeof renderTablaAuditoriaZk === 'function') renderTablaAuditoriaZk(); }
         else if(pestanaActiva === 'rrhh-planilla') { if(typeof renderPlanillaGeneral === 'function') renderPlanillaGeneral(); }
         else if(pestanaActiva === 'rrhh-bonos') { if(typeof renderBonosRRHH === 'function') renderBonosRRHH(); }
+	else if(pestanaActiva === 'rrhh-calendario') { if(typeof renderCalendarioRRHH === 'function') renderCalendarioRRHH(); }
         else if(pestanaActiva === 'materia-prima') { renderMateriaPrima(); }
         else if(pestanaActiva === 'expansion') { renderSilos(); renderExpansion(); renderHistorialSilos(); }
         else if(pestanaActiva === 'bloquera') { renderVolumenMaquina(); }
@@ -13634,6 +13680,135 @@ function imprimirExpedientePDF() {
     win.document.write(html);
     win.document.close();
 }
+
+// --- FUNCIONES DEL CALENDARIO RRHH ---
+let mesCalendarioActual = new Date();
+
+function renderCalendarioRRHH() {
+    const grid = document.getElementById('rrhh-calendario-grid');
+    if(!grid) return;
+
+    const year = mesCalendarioActual.getFullYear();
+    const month = mesCalendarioActual.getMonth();
+    const lblMes = document.getElementById('lbl-mes-calendario');
+    if(lblMes) lblMes.innerText = mesCalendarioActual.toLocaleString('es-ES', { month: 'long', year: 'numeric' }).toUpperCase();
+
+    const primerDia = new Date(year, month, 1).getDay();
+    const offset = primerDia === 0 ? 6 : primerDia - 1; // Para que el Lunes sea la primera columna
+    const diasEnMes = new Date(year, month + 1, 0).getDate();
+
+    let html = '';
+    
+    // Cabeceras de días (LUN a DOM)
+    const diasSemana = ['LUN', 'MAR', 'MIE', 'JUE', 'VIE', 'SAB', 'DOM'];
+    html += diasSemana.map(d => `<div class="text-center font-black text-[10px] text-slate-400 uppercase py-2">${d}</div>`).join('');
+
+    // Espacios en blanco para arrancar en el día correcto
+    for(let i=0; i<offset; i++) html += `<div class="p-2 bg-slate-50/30 rounded-xl border border-transparent h-24"></div>`;
+
+    for(let d=1; d<=diasEnMes; d++) {
+        let curDate = new Date(year, month, d);
+        let dateStr = `${year}-${String(month+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
+        let isSunday = curDate.getDay() === 0;
+        
+        let feriado = dbFeriados.find(f => f.fecha === dateStr);
+        let vacacionistas = dbVacaciones.filter(v => v.fechaInicio && v.fechaFin && dateStr >= v.fechaInicio && dateStr <= v.fechaFin);
+
+        let bgClass = isSunday ? 'bg-slate-100/50 text-slate-400 border-slate-100' : 'bg-white hover:bg-indigo-50 border-slate-200 cursor-pointer shadow-sm';
+        if(feriado) bgClass = 'bg-red-50 border-red-200 cursor-pointer shadow-sm';
+
+        let pillHtml = '';
+        if (feriado) pillHtml += `<span class="block bg-red-500 text-white text-[8px] font-black uppercase px-1.5 py-0.5 rounded mt-1 truncate" title="${feriado.descripcion}">FERIADO: ${feriado.descripcion}</span>`;
+        
+        vacacionistas.forEach(v => {
+            const emp = dbDirectorioRRHH.find(e => String(e.id) === String(v.idEmp));
+            if(emp) pillHtml += `<span class="block bg-indigo-100 text-indigo-700 text-[8px] font-black uppercase px-1.5 py-0.5 rounded mt-1 truncate border border-indigo-200" title="${emp.nombre}"><i data-lucide="palmtree" class="w-2 h-2 inline"></i> ${emp.nombre.split(' ')[0]}</span>`;
+        });
+
+        html += `<div onclick="toggleFeriado('${dateStr}')" class="p-2 rounded-xl border h-24 flex flex-col ${bgClass} transition-colors overflow-hidden relative">
+            <span class="font-black text-sm ${feriado ? 'text-red-600' : (isSunday ? 'text-slate-400' : 'text-slate-700')}">${d}</span>
+            <div class="flex-1 overflow-y-auto mt-1 space-y-1" style="scrollbar-width: none;">${pillHtml}</div>
+        </div>`;
+    }
+    grid.innerHTML = html;
+    if(window.lucide) lucide.createIcons();
+}
+
+function cambiarMesCalendario(offset) {
+    mesCalendarioActual.setMonth(mesCalendarioActual.getMonth() + offset);
+    renderCalendarioRRHH();
+}
+
+function toggleFeriado(fechaStr) {
+    const d = new Date(fechaStr + "T00:00:00");
+    if(d.getDay() === 0) return alert("Los domingos ya son días no laborables por defecto en la planta.");
+
+    const fIndex = dbFeriados.findIndex(f => f.fecha === fechaStr);
+    if(fIndex > -1) {
+        if(confirm(`¿Quitar el feriado del ${fechaStr}?`)) {
+            db.collection("rrhh_feriados").doc(String(dbFeriados[fIndex].id)).delete();
+        }
+    } else {
+        const desc = prompt(`MARCAR DÍA NO LABORAL\n\nFecha: ${fechaStr}\nIngrese el motivo del feriado (Ej: Día del Trabajo):`);
+        if(!desc) return;
+        const id = Date.now();
+        db.collection("rrhh_feriados").doc(String(id)).set({ id, fecha: fechaStr, descripcion: desc.trim().toUpperCase() });
+    }
+}
+
+function programarVacacion() {
+    const idEmp = document.getElementById('ficha-emp-id').value;
+    const desde = document.getElementById('ficha-vac-desde').value;
+    const hasta = document.getElementById('ficha-vac-hasta').value;
+
+    if(!desde || !hasta) return alert("Por favor seleccione una fecha de inicio y una fecha de fin.");
+    if(desde > hasta) return alert("La fecha de finalización debe ser igual o posterior a la fecha de inicio.");
+
+    // Cálculo matemático estricto (Saltando domingos y feriados)
+    let diasLaborables = 0;
+    let cur = new Date(desde + "T00:00:00");
+    let end = new Date(hasta + "T00:00:00");
+    
+    while(cur <= end) {
+        let day = cur.getDay();
+        let dateStr = `${cur.getFullYear()}-${String(cur.getMonth()+1).padStart(2,'0')}-${String(cur.getDate()).padStart(2,'0')}`;
+        let esFeriado = dbFeriados.some(f => f.fecha === dateStr);
+        
+        if (day !== 0 && !esFeriado) diasLaborables++;
+        cur.setDate(cur.getDate() + 1);
+    }
+
+    if(diasLaborables <= 0) return alert("El rango seleccionado no contiene ningún día hábil de trabajo.");
+
+    const saldoText = document.getElementById('ficha-saldo-vacaciones').innerText;
+    const saldoDisponible = parseInt(saldoText);
+    
+    if(diasLaborables > saldoDisponible) {
+        if(!confirm(`⚠️ ATENCIÓN: El trabajador solo tiene ${saldoDisponible} días a favor, pero está solicitando ${diasLaborables} días hábiles.\n\n¿Desea FORZAR la autorización y dejar su saldo de vacaciones en negativo?`)) return;
+    } else {
+        if(!confirm(`El sistema ha calculado ${diasLaborables} DÍAS HÁBILES de vacación entre el ${desde} y el ${hasta} (Omitiendo domingos y feriados).\n\n¿Autorizar y descontar del saldo?`)) return;
+    }
+
+    const data = {
+        id: Date.now(),
+        idEmp: idEmp,
+        fechaRegistro: new Date().toLocaleDateString(),
+        fechaInicio: desde,
+        fechaFin: hasta,
+        diasTomados: diasLaborables,
+        motivo: "Vacación Programada",
+        operador: currentUser ? currentUser.name : 'Admin'
+    };
+
+    db.collection("rrhh_vacaciones").doc(String(data.id)).set(data).then(() => {
+        document.getElementById('ficha-vac-desde').value = '';
+        document.getElementById('ficha-vac-hasta').value = '';
+        showToast(`Éxito. Se descontaron ${diasLaborables} días del saldo.`);
+        abrirFichaEmpleado(idEmp);
+        if(typeof renderCalendarioRRHH === 'function') renderCalendarioRRHH();
+    });
+}
+
 // --- FIN FUNCIONES EXPEDIENTE ---
 
 function toggleFechaFinContrato() {
@@ -13888,20 +14063,35 @@ function leerArchivoZKTeco(event) {
             curD.setDate(curD.getDate() + 1);
         }
 
-        // Revisar si algún empleado no vino un día laborable
+       // Revisar si algún empleado no vino un día laborable (¡Con Inteligencia de Feriados y Vacaciones!)
         for (const empId of Object.keys(tempAsistenciaZK)) {
             const empleadoData = tempAsistenciaZK[empId];
             const fechasMarcadas = empleadoData.marcas.map(m => m.fecha);
 
             fechasDelMes.forEach(diaLaborable => {
                 if(!fechasMarcadas.includes(diaLaborable)) {
+                    // Consultamos a las bases de datos de RRHH
+                    const esFeriado = dbFeriados.find(f => f.fecha === diaLaborable);
+                    const esVacacion = dbVacaciones.find(v => String(v.idEmp) === String(empId) && v.fechaInicio && v.fechaFin && diaLaborable >= v.fechaInicio && diaLaborable <= v.fechaFin);
+
+                    let estadoAutom = 'FALTA';
+                    let obsAutom = 'No asistió / No marcó';
+
+                    if (esFeriado) {
+                        estadoAutom = 'JUSTIFICADA';
+                        obsAutom = `FERIADO: ${esFeriado.descripcion}`;
+                    } else if (esVacacion) {
+                        estadoAutom = 'JUSTIFICADA';
+                        obsAutom = 'VACACIÓN APROBADA Y PROGRAMADA';
+                    }
+
                     empleadoData.marcas.push({
                         fecha: diaLaborable,
                         entrada: null,
                         salida: null,
                         atrasoMin: 0,
-                        estado: 'FALTA',
-                        obs: 'No asistió / No marcó'
+                        estado: estadoAutom,
+                        obs: obsAutom
                     });
                 }
             });
