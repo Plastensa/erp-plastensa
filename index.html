@@ -2917,13 +2917,17 @@
                                         <input type="number" id="rrhh-emp-bono" step="0.001" placeholder="Ej: 0.18" class="w-full bg-orange-50 border border-orange-200 p-3 rounded-xl font-black text-orange-700 outline-none">
                                     </div>
                                 </div>
-                                <div class="grid grid-cols-2 gap-3">
+                               <div class="grid grid-cols-3 gap-3">
                                     <div>
-                                        <label class="text-[10px] font-black uppercase text-slate-400 ml-2 block mb-1">Fecha Ingreso</label>
+                                        <label class="text-[10px] font-black uppercase text-slate-400 ml-2 block mb-1">F. Ingreso</label>
                                         <input type="date" id="rrhh-emp-fecha" class="w-full bg-slate-50 border border-slate-200 p-3 rounded-xl font-bold text-xs outline-none">
                                     </div>
                                     <div>
-                                        <label class="text-[10px] font-black uppercase text-slate-400 ml-2 block mb-1">Cuenta Banco (Pagos)</label>
+                                        <label class="text-[10px] font-black uppercase text-pink-500 ml-2 block mb-1">Cumpleaños</label>
+                                        <input type="date" id="rrhh-emp-nacimiento" class="w-full bg-pink-50 border border-pink-200 p-3 rounded-xl font-bold text-pink-700 text-xs outline-none focus:ring-2 focus:ring-pink-400">
+                                    </div>
+                                    <div>
+                                        <label class="text-[10px] font-black uppercase text-slate-400 ml-2 block mb-1">Cuenta Banco</label>
                                         <input type="text" id="rrhh-emp-banco" placeholder="BNB - 12345" class="w-full bg-slate-50 border border-slate-200 p-3 rounded-xl font-bold text-xs outline-none">
                                     </div>
                                 </div>
@@ -13867,6 +13871,7 @@ function guardarEmpleadoRRHH(e) {
     const salario = parseFloat(document.getElementById('rrhh-emp-salario').value) || 0;
     const bono = parseFloat(document.getElementById('rrhh-emp-bono').value) || 0;
     const fecha = document.getElementById('rrhh-emp-fecha').value;
+    const nacimiento = document.getElementById('rrhh-emp-nacimiento').value; // NUEVO
     const banco = document.getElementById('rrhh-emp-banco').value.toUpperCase().trim();
     const contrato = document.getElementById('rrhh-emp-contrato').value;
     const finContrato = document.getElementById('rrhh-emp-fin-contrato').value;
@@ -13875,7 +13880,7 @@ function guardarEmpleadoRRHH(e) {
         // Editando
         const index = dbDirectorioRRHH.findIndex(emp => String(emp.id) === String(uidInput));
         if (index > -1) {
-            const empAct = { ...dbDirectorioRRHH[index], nombre, idZk, area, salario, bono, fecha, banco, contrato, finContrato };
+            const empAct = { ...dbDirectorioRRHH[index], nombre, idZk, area, salario, bono, fecha, nacimiento, banco, contrato, finContrato };
             db.collection("rrhh_directorio").doc(String(uidInput)).set(empAct);
             showToast("Empleado actualizado en la nube.");
         }
@@ -13884,7 +13889,7 @@ function guardarEmpleadoRRHH(e) {
         if (dbDirectorioRRHH.find(emp => String(emp.idZk) === String(idZk))) {
             return alert("Error: El ID de ZKTeco ya está asignado a otro empleado.");
         }
-        const nuevoEmp = { id: Date.now(), nombre, idZk, area, salario, bono, fecha, banco, contrato, finContrato, estado: 'ACTIVO' };
+        const nuevoEmp = { id: Date.now(), nombre, idZk, area, salario, bono, fecha, nacimiento, banco, contrato, finContrato, estado: 'ACTIVO' };
         db.collection("rrhh_directorio").doc(String(nuevoEmp.id)).set(nuevoEmp);
         showToast("Empleado registrado en la base de datos.");
     }
@@ -13908,6 +13913,7 @@ function editarEmpleadoRRHH(id) {
     document.getElementById('rrhh-emp-salario').value = emp.salario;
     document.getElementById('rrhh-emp-bono').value = emp.bono;
     document.getElementById('rrhh-emp-fecha').value = emp.fecha || '';
+    document.getElementById('rrhh-emp-nacimiento').value = emp.nacimiento || ''; // NUEVO
     document.getElementById('rrhh-emp-banco').value = emp.banco || '';
     document.getElementById('rrhh-emp-contrato').value = emp.contrato || 'INDEFINIDO';
     document.getElementById('rrhh-emp-fin-contrato').value = emp.finContrato || '';
@@ -14053,29 +14059,75 @@ function leerArchivoZKTeco(event) {
                 const entrada = horas[0]; // La primera marca del día
                 const salida = horas.length > 1 ? horas[horas.length - 1] : null; // La última (si hay más de 1)
 
-                // 3. Auditor de Atrasos (Matemática pura)
-                let minAtraso = 0;
+                // 3. AUDITOR MATEMÁTICO AVANZADO
+                let minAtrasoEntrada = 0;
+                let minSalidaTemprana = 0;
                 let msjConflicto = '';
                 let estadoFlag = 'OK';
 
-                if (!salida) {
-                    estadoFlag = 'FALTA_MARCA';
-                    msjConflicto = 'Marcó entrada pero olvidó salida';
+                const dayOfWeek = new Date(fechaStr + "T00:00:00").getDay();
+                let horaTeoricaEntrada = "08:00:00";
+                let horaTeoricaSalida = (dayOfWeek === 6) ? "12:00:00" : "18:00:00"; // Sábados salen a las 12
+
+                // Detección Mágica de Cumpleaños
+                let esCumpleanos = false;
+                if (empleado.nacimiento) {
+                    const [nY, nM, nD] = empleado.nacimiento.split('-');
+                    const [cY, cM, cD] = fechaStr.split('-');
+                    if (nM === cM && nD === cD) {
+                        esCumpleanos = true;
+                        // En su cumpleaños, salen medio día antes
+                        horaTeoricaSalida = (dayOfWeek === 6) ? "10:00:00" : "13:00:00";
+                    }
                 }
 
-                // Cálculo de Minutos de Atraso (Se supone Entrada 08:00)
-                const horaTeoricaStr = `${fechaStr}T08:00:00`;
-                const horaRealStr = `${fechaStr}T${entrada}`;
-                
+                if (!salida && entrada) {
+                    estadoFlag = 'FALTA_MARCA';
+                    msjConflicto = 'Olvidó marcar salida';
+                }
+
                 try {
-                    const tEntradaTeorica = new Date(horaTeoricaStr).getTime();
-                    const tEntradaReal = new Date(horaRealStr).getTime();
-                    
+                    // Atraso de llegada
+                    const tEntradaTeorica = new Date(`${fechaStr}T${horaTeoricaEntrada}`).getTime();
+                    const tEntradaReal = new Date(`${fechaStr}T${entrada}`).getTime();
                     if (tEntradaReal > tEntradaTeorica) {
-                        minAtraso = Math.floor((tEntradaReal - tEntradaTeorica) / 60000);
-                        if(minAtraso > 0 && estadoFlag === 'OK') estadoFlag = 'ATRASO';
+                        minAtrasoEntrada = Math.floor((tEntradaReal - tEntradaTeorica) / 60000);
+                    }
+
+                    // Salida temprana
+                    if (salida) {
+                        const tSalidaTeorica = new Date(`${fechaStr}T${horaTeoricaSalida}`).getTime();
+                        const tSalidaReal = new Date(`${fechaStr}T${salida}`).getTime();
+                        if (tSalidaReal < tSalidaTeorica) {
+                            minSalidaTemprana = Math.floor((tSalidaTeorica - tSalidaReal) / 60000);
+                        }
                     }
                 } catch(err){}
+
+                const totalPenalizacionMinutos = minAtrasoEntrada + minSalidaTemprana;
+
+                if (estadoFlag === 'OK' && totalPenalizacionMinutos > 0) {
+                    estadoFlag = 'ATRASO';
+                }
+
+                // REGLA 5: Ausencia extrema (> 3 horas / 180 min)
+                if (totalPenalizacionMinutos > 180 && estadoFlag !== 'FALTA_MARCA') {
+                    estadoFlag = 'ATRASO_GRAVE';
+                    msjConflicto = 'Falta +3 Hrs. Admin debe decidir.';
+                }
+
+                if (esCumpleanos) {
+                    msjConflicto = msjConflicto ? msjConflicto + ' (🎂 Cumpleaños)' : '🎂 Medio Día (Cumpleaños)';
+                }
+
+                tempAsistenciaZK[empleado.id].marcas.push({
+                    fecha: fechaStr,
+                    entrada: entrada,
+                    salida: salida,
+                    atrasoMin: totalPenalizacionMinutos,
+                    estado: estadoFlag,
+                    obs: msjConflicto
+                });
 
                 tempAsistenciaZK[empleado.id].marcas.push({
                     fecha: fechaStr,
@@ -14181,20 +14233,24 @@ function renderTablaAuditoriaZk() {
                 statusBadge = `<span class="bg-blue-100 text-blue-700 px-2 py-0.5 rounded text-[9px] font-black uppercase">PERMISO / BAJA MED.</span>`;
             }
 
-            // Selector para que RRHH perdone faltas en caliente (BLINDADO)
+           if (m.estado === 'ATRASO_GRAVE') {
+                statusBadge = `<span class="bg-red-500 text-white px-2 py-0.5 rounded text-[9px] font-black uppercase shadow-sm animate-pulse">⚠️ +3 HRS</span>`;
+                colorFila = 'bg-red-50';
+            }
+
+            // Selector para que RRHH tome decisiones
             let selectorAccion = '';
-            
-            // Regla: Solo aparece si hay FALTA, si solo marcó entrada/salida (FALTA_MARCA), o si el atraso es irreal (> 4 horas / 240 min)
-            if (m.estado === 'FALTA' || m.estado === 'FALTA_MARCA' || (m.estado === 'ATRASO' && m.atrasoMin > 240)) {
+            if (m.estado === 'FALTA' || m.estado === 'FALTA_MARCA' || m.estado === 'ATRASO_GRAVE') {
                 selectorAccion = `
-                    <select onchange="justificarFaltaZK('${empId}', ${idx}, this.value)" class="text-[9px] font-bold border border-slate-300 rounded p-1.5 ml-2 bg-white text-slate-600 outline-none w-[130px] shadow-sm">
-                        <option value="">-- Acción --</option>
-                        <option value="MODIFICAR_MANUAL">✍️ Modificar Manualmente</option>
-                        <option value="BAJA_MEDICA">Baja Médica</option>
+                    <select onchange="justificarFaltaZK('${empId}', ${idx}, this.value)" class="text-[9px] font-bold border border-slate-300 rounded p-1.5 ml-2 bg-white text-slate-600 outline-none w-[150px] shadow-sm">
+                        <option value="">-- Decisión Admin --</option>
+                        ${m.estado === 'ATRASO_GRAVE' ? '<option value="CASTIGAR_FALTA">🚨 Castigar como Falta Injust. (Día Entero)</option>' : ''}
+                        ${m.estado === 'ATRASO_GRAVE' ? '<option value="JUSTIFICAR_ATRASO">✅ Perdonar (Solo cobrar Minutos Perdidos)</option>' : ''}
+                        <option value="MODIFICAR_MANUAL">✍️ Modificar Hora Manual</option>
+                        <option value="FALTA_JUSTIFICADA">Falta Justificada (1 Día)</option>
+                        <option value="BAJA_MEDICA">Baja Médica (No descuenta)</option>
                         <option value="VACACION">Día de Vacación</option>
                         <option value="FERIADO">Día Feriado</option>
-                        <option value="NO_LABORADO">Día No Laborado</option>
-                        <option value="IGNORAR">Día Libre / Franco</option>
                     </select>
                 `;
             }
@@ -14230,25 +14286,27 @@ function justificarFaltaZK(empId, idxMarca, accion) {
         document.getElementById('zk-manual-emp').value = empId;
         document.getElementById('zk-manual-idx').value = idxMarca;
         document.getElementById('zk-manual-info').innerHTML = `Empleado: <b>${tempAsistenciaZK[empId].nombre}</b><br>Fecha: <b>${marca.fecha}</b>`;
-        
-        // Cargar datos actuales si existen, si no, dejar vacío o poner valores estándar
         document.getElementById('zk-manual-entrada').value = marca.entrada || '08:00:00';
         document.getElementById('zk-manual-salida').value = marca.salida || '18:00:00';
-        
         document.getElementById('modal-zk-manual').classList.remove('hidden');
-        renderTablaAuditoriaZk(); // Refresca para resetear el selector
+        renderTablaAuditoriaZk(); 
         return;
     }
 
-    if (accion === 'IGNORAR') {
-        marca.estado = 'OK';
-        marca.obs = 'Día libre / Franco';
+    if (accion === 'CASTIGAR_FALTA') {
+        marca.estado = 'FALTA_INJUSTIFICADA_SANCION';
+        marca.obs = 'Admin: Sanción por llegada súper tardía';
+    } else if (accion === 'JUSTIFICAR_ATRASO') {
+        marca.estado = 'ATRASO';
+        marca.obs = 'Admin: Atraso con respaldo aceptado';
+    } else if (accion === 'FALTA_JUSTIFICADA') {
+        marca.estado = 'FALTA_JUSTIFICADA';
+        marca.obs = 'Permiso Aprobado';
     } else {
         marca.estado = 'JUSTIFICADA';
-        if(accion === 'BAJA_MEDICA') marca.obs = 'Baja Médica';
+        if(accion === 'BAJA_MEDICA') marca.obs = 'Baja Médica (Pagada)';
         else if(accion === 'VACACION') marca.obs = 'Día de Vacación';
         else if(accion === 'FERIADO') marca.obs = 'Día Feriado';
-        else if(accion === 'NO_LABORADO') marca.obs = 'No Laborado Gral.';
     }
     renderTablaAuditoriaZk();
 }
@@ -14369,100 +14427,97 @@ function guardarAuditoriaAsistencia() {
 function renderPlanillaGeneral() {
     const tbody = document.getElementById('rrhh-planilla-body');
     const filtroMes = document.getElementById('planilla-filtro-mes').value;
-    
     if (!tbody) return;
 
     if (!filtroMes) {
-        tbody.innerHTML = `<tr><td colspan="7" class="p-8 text-center text-slate-400 font-bold italic">Seleccione un mes para generar la planilla.</td></tr>`;
+        tbody.innerHTML = `<tr><td colspan="9" class="p-8 text-center text-slate-400 font-bold italic">Seleccione un mes para generar la planilla.</td></tr>`;
         return;
     }
 
     const [anioFiltro, mesFiltro] = filtroMes.split('-');
-    const mesAnio = `${mesFiltro}/${anioFiltro}`; // Formato: 07/2026
-
-    // Empleados activos
+    const mesAnio = `${mesFiltro}/${anioFiltro}`; 
     const empleados = dbDirectorioRRHH.filter(e => e.estado !== 'BAJA');
     
     if (empleados.length === 0) {
-        tbody.innerHTML = `<tr><td colspan="7" class="p-8 text-center text-slate-400 font-bold italic">No hay empleados registrados en el Directorio RRHH.</td></tr>`;
+        tbody.innerHTML = `<tr><td colspan="9" class="p-8 text-center text-slate-400 font-bold italic">No hay empleados registrados.</td></tr>`;
         return;
     }
 
+    // --- REGLA 1: CÁLCULO DE HORAS REALES DEL MES (L-V 10hrs, Sab 4hrs) ---
+    let horasMesActual = 0;
+    const diasDelMes = new Date(anioFiltro, mesFiltro, 0).getDate();
+    for(let d=1; d<=diasDelMes; d++) {
+        let curDate = new Date(anioFiltro, mesFiltro - 1, d);
+        let dayOfWeek = curDate.getDay();
+        let dateStr = `${anioFiltro}-${mesFiltro}-${String(d).padStart(2,'0')}`;
+        
+        let esFeriado = dbFeriados.some(f => f.fecha === dateStr);
+        if(dayOfWeek !== 0 && !esFeriado) {
+            if(dayOfWeek === 6) horasMesActual += 4; // Sábado
+            else horasMesActual += 10; // Lunes a Viernes
+        }
+    }
+    const totalMinutosLaborables = horasMesActual * 60;
+    // ---------------------------------------------------------------------
+
     let htmlPlanilla = '';
     
-    // Configuración de penalizaciones (Ejemplo: 1 Bs por minuto de atraso, 100 Bs por falta injustificada)
-    const COSTO_MINUTO_ATRASO = 1;
-    const COSTO_FALTA = 100;
-
     empleados.forEach(emp => {
-        // 1. Haber Básico
         let haberBasico = parseFloat(emp.salario) || 0;
 
-        // 3. Cálculo de Descuentos por Atrasos y Faltas
+        // CÁLCULO DE COSTOS EXACTOS
+        const costoPorDia = haberBasico / 30; // REGLA 2: Comercial estándar
+        const costoPorMinuto = totalMinutosLaborables > 0 ? (haberBasico / totalMinutosLaborables) : 0; // REGLA 1: Dinámico
+
         let penalizacionAtraso = 0;
         let penalizacionFalta = 0;
+        let totalMinAtraso = 0;
+        let totalFaltasInjus = 0;
+        let totalFaltasJus = 0;
         
+        // LEER LOS DATOS AUDITADOS DEL ZKTECO
         const asistenciaMes = dbAsistenciaAuditada.find(a => String(a.idEmp) === String(emp.id) && a.mes === mesAnio);
         if (asistenciaMes) {
-            penalizacionAtraso = asistenciaMes.minAtraso * COSTO_MINUTO_ATRASO;
-            penalizacionFalta = asistenciaMes.faltasInjus * COSTO_FALTA;
+            totalMinAtraso = asistenciaMes.minAtraso;
+            // REGLAS 2 Y 3: 2x1 para injustificadas, 1x1 para justificadas
+            totalFaltasInjus = asistenciaMes.faltasInjus || 0; // FALTA o FALTA_INJUSTIFICADA_SANCION
+            totalFaltasJus = asistenciaMes.faltasJus || 0; // FALTA_JUSTIFICADA (Permiso)
+            
+            penalizacionAtraso = totalMinAtraso * costoPorMinuto;
+            penalizacionFalta = (totalFaltasInjus * (costoPorDia * 2)) + (totalFaltasJus * costoPorDia);
         }
 
-        let htmlAtraso = penalizacionAtraso > 0 ? `- Bs ${penalizacionAtraso.toFixed(2)}<br><span class="text-[8px] text-slate-400 uppercase tracking-widest">${asistenciaMes.minAtraso} min</span>` : '-';
-        let htmlFalta = penalizacionFalta > 0 ? `- Bs ${penalizacionFalta.toFixed(2)}<br><span class="text-[8px] text-slate-400 uppercase tracking-widest">${asistenciaMes.faltasInjus} días</span>` : '-';
+        let htmlAtraso = penalizacionAtraso > 0 ? `- Bs ${penalizacionAtraso.toFixed(2)}<br><span class="text-[8px] text-slate-400 uppercase tracking-widest">${totalMinAtraso} min</span>` : '-';
+        let txtFaltas = (totalFaltasInjus > 0 ? `${totalFaltasInjus} Inj.` : '') + (totalFaltasJus > 0 ? ` ${totalFaltasJus} Jus.` : '');
+        let htmlFalta = penalizacionFalta > 0 ? `- Bs ${penalizacionFalta.toFixed(2)}<br><span class="text-[8px] text-slate-400 uppercase tracking-widest">${txtFaltas}</span>` : '-';
 
-        // 4. Búsqueda de Vales/Anticipos Aprobados
         let descuentoAnticipos = 0;
         dbAnticipos.forEach(a => {
             if (a.estado === 'PAGADO' && String(a.empleadoId) === String(emp.id)) {
                 const p = a.fecha.split('-'); 
-                if (p.length === 3 && p[1] === mesFiltro && p[0] === anioFiltro) {
-                    descuentoAnticipos += parseFloat(a.monto);
-                }
+                if (p.length === 3 && p[1] === mesFiltro && p[0] === anioFiltro) descuentoAnticipos += parseFloat(a.monto);
             }
         });
 
-        // 5. Total Líquido Teórico
         const liquidoBase = haberBasico - penalizacionAtraso - penalizacionFalta - descuentoAnticipos;
-
-        // Validar si este sueldo ya fue pagado
         const pagoExiste = dbSueldosPagados.find(p => String(p.idEmp) === String(emp.id) && p.mes === mesAnio);
-        let btnAccion = '';
-
-        if (pagoExiste) {
-            btnAccion = `
-                <div class="flex flex-col gap-1 items-center justify-center w-full max-w-[90px] mx-auto">
-                    <span class="bg-green-100 text-green-700 px-2 py-1.5 rounded-lg text-[9px] font-black uppercase shadow-sm border border-green-200 w-full text-center"><i data-lucide="check-circle" class="w-3 h-3 inline mr-1 -mt-0.5"></i>PAGADO</span>
-                    <button onclick="prepararImpresionBoleta('${emp.id}', '${mesAnio}', ${haberBasico}, ${penalizacionAtraso}, ${penalizacionFalta}, ${descuentoAnticipos})" class="bg-slate-800 hover:bg-slate-700 text-white p-1.5 w-full rounded-lg shadow-sm transition-colors text-[9px] font-black uppercase tracking-widest flex items-center justify-center gap-1"><i data-lucide="printer" class="w-3 h-3"></i> Boleta</button>
-                </div>`;
-        } else {
-            btnAccion = `
-                <div class="flex flex-col gap-1 items-center justify-center w-full max-w-[90px] mx-auto">
-                    ${(currentUser && currentUser.role === 'ADMIN') ? `<button onclick="prepararPagoSueldo('${emp.id}', '${mesAnio}')" class="bg-blue-600 hover:bg-blue-700 text-white p-1.5 w-full rounded-lg shadow-sm transition-colors text-[9px] font-black uppercase tracking-widest flex items-center justify-center gap-1"><i data-lucide="wallet" class="w-3 h-3"></i> PAGAR</button>` : ''}
-                    <button onclick="prepararImpresionBoleta('${emp.id}', '${mesAnio}', ${haberBasico}, ${penalizacionAtraso}, ${penalizacionFalta}, ${descuentoAnticipos})" class="bg-slate-800 hover:bg-slate-700 text-white p-1.5 w-full rounded-lg shadow-sm transition-colors text-[9px] font-black uppercase tracking-widest flex items-center justify-center gap-1"><i data-lucide="printer" class="w-3 h-3"></i> Boleta</button>
-                </div>`;
-        }
+        
+        let btnAccion = pagoExiste ? 
+            `<div class="flex flex-col gap-1 items-center justify-center w-full max-w-[90px] mx-auto"><span class="bg-green-100 text-green-700 px-2 py-1.5 rounded-lg text-[9px] font-black uppercase shadow-sm border border-green-200 w-full text-center"><i data-lucide="check-circle" class="w-3 h-3 inline mr-1 -mt-0.5"></i>PAGADO</span><button onclick="prepararImpresionBoleta('${emp.id}', '${mesAnio}', ${haberBasico}, ${penalizacionAtraso}, ${penalizacionFalta}, ${descuentoAnticipos})" class="bg-slate-800 hover:bg-slate-700 text-white p-1.5 w-full rounded-lg shadow-sm transition-colors text-[9px] font-black uppercase tracking-widest flex items-center justify-center gap-1"><i data-lucide="printer" class="w-3 h-3"></i> Boleta</button></div>`
+            : 
+            `<div class="flex flex-col gap-1 items-center justify-center w-full max-w-[90px] mx-auto">${(currentUser && currentUser.role === 'ADMIN') ? `<button onclick="prepararPagoSueldo('${emp.id}', '${mesAnio}')" class="bg-blue-600 hover:bg-blue-700 text-white p-1.5 w-full rounded-lg shadow-sm transition-colors text-[9px] font-black uppercase tracking-widest flex items-center justify-center gap-1"><i data-lucide="wallet" class="w-3 h-3"></i> PAGAR</button>` : ''}<button onclick="prepararImpresionBoleta('${emp.id}', '${mesAnio}', ${haberBasico}, ${penalizacionAtraso}, ${penalizacionFalta}, ${descuentoAnticipos})" class="bg-slate-800 hover:bg-slate-700 text-white p-1.5 w-full rounded-lg shadow-sm transition-colors text-[9px] font-black uppercase tracking-widest flex items-center justify-center gap-1"><i data-lucide="printer" class="w-3 h-3"></i> Boleta</button></div>`;
 
         htmlPlanilla += `
         <tr class="hover:bg-green-50/30 transition-colors border-b border-slate-100">
-            <td class="p-4 font-black text-slate-800 text-xs">
-                ${emp.nombre}
-                <span class="block text-[9px] text-slate-400 uppercase tracking-widest mt-1">${emp.area}</span>
-            </td>
+            <td class="p-4 font-black text-slate-800 text-xs">${emp.nombre}<span class="block text-[9px] text-slate-400 uppercase tracking-widest mt-1">${emp.area}</span></td>
             <td class="p-4 text-right font-black text-blue-600">Bs ${haberBasico.toFixed(2)}</td>
             <td class="p-4 text-center font-bold ${penalizacionAtraso > 0 ? 'text-orange-500' : 'text-slate-300'}">${htmlAtraso}</td>
             <td class="p-4 text-center font-bold ${penalizacionFalta > 0 ? 'text-red-500' : 'text-slate-300'}">${htmlFalta}</td>
-            <td class="p-4 text-center">
-                <input type="number" id="plan-dano-${emp.id}" value="0" min="0" step="0.5" oninput="recalcFilaPlanilla('${emp.id}', ${liquidoBase})" class="w-full bg-white border border-slate-300 p-2 rounded-lg font-black text-center text-purple-600 outline-none focus:ring-2 focus:ring-purple-500 text-xs" ${pagoExiste ? 'disabled' : ''}>
-            </td>
-            <td class="p-4 text-center">
-                <input type="number" id="plan-sancion-${emp.id}" value="0" min="0" step="0.5" oninput="recalcFilaPlanilla('${emp.id}', ${liquidoBase})" class="w-full bg-white border border-slate-300 p-2 rounded-lg font-black text-center text-slate-600 outline-none focus:ring-2 focus:ring-slate-500 text-xs" ${pagoExiste ? 'disabled' : ''}>
-            </td>
+            <td class="p-4 text-center"><input type="number" id="plan-dano-${emp.id}" value="0" min="0" step="0.5" oninput="recalcFilaPlanilla('${emp.id}', ${liquidoBase})" class="w-full bg-white border border-slate-300 p-2 rounded-lg font-black text-center text-purple-600 outline-none focus:ring-2 focus:ring-purple-500 text-xs" ${pagoExiste ? 'disabled' : ''}></td>
+            <td class="p-4 text-center"><input type="number" id="plan-sancion-${emp.id}" value="0" min="0" step="0.5" oninput="recalcFilaPlanilla('${emp.id}', ${liquidoBase})" class="w-full bg-white border border-slate-300 p-2 rounded-lg font-black text-center text-slate-600 outline-none focus:ring-2 focus:ring-slate-500 text-xs" ${pagoExiste ? 'disabled' : ''}></td>
             <td class="p-4 text-center font-bold ${descuentoAnticipos > 0 ? 'text-red-500' : 'text-slate-300'}">${descuentoAnticipos > 0 ? '- Bs ' + descuentoAnticipos.toFixed(2) : '-'}</td>
             <td class="p-4 text-right font-black text-green-700 text-lg bg-green-50/30" id="plan-liquido-${emp.id}">Bs ${liquidoBase.toFixed(2)}</td>
-            <td class="p-4 text-center">
-                ${btnAccion}
-            </td>
+            <td class="p-4 text-center">${btnAccion}</td>
         </tr>`;
     });
 
