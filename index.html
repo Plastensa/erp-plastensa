@@ -4263,13 +4263,14 @@ function aplicarPermisosVisuales(role) {
             if(['PRODUCCIÓN', 'ADMINISTRACIÓN', 'RECURSOS HUMANOS'].includes(text)) p.classList.add('hidden');
         });
 
-        // --- PERMISO ESPECIAL RRHH PARA GZUNIGA ---
+       // --- PERMISO ESPECIAL RRHH PARA GZUNIGA ---
         if (currentUser && String(currentUser.email).toLowerCase().trim() === 'gzuniga@plastensa.com') {
             document.getElementById('label-rrhh')?.classList.remove('hidden');
             document.getElementById('nav-rrhh-directorio')?.classList.remove('hidden');
             document.getElementById('nav-rrhh-asistencia')?.classList.remove('hidden');
             document.getElementById('nav-rrhh-planilla')?.classList.remove('hidden');
             document.getElementById('nav-rrhh-bonos')?.classList.remove('hidden');
+            document.getElementById('nav-rrhh-calendario')?.classList.remove('hidden'); // <-- NUEVO BOTÓN HABILITADO
         }
         // ------------------------------------------
 
