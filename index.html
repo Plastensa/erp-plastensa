@@ -3323,6 +3323,74 @@
     </div>
 </div>
 
+<!-- MODAL FICHA MAESTRA DEL EMPLEADO (VACACIONES Y MEMORANDUMS) -->
+<div id="modal-ficha-empleado" class="hidden fixed inset-0 bg-slate-900/90 backdrop-blur-sm z-[9999] flex items-center justify-center p-4">
+    <div class="bg-white rounded-[32px] w-full max-w-4xl shadow-2xl relative flex flex-col max-h-[90vh] overflow-hidden">
+        <button type="button" onclick="document.getElementById('modal-ficha-empleado').classList.add('hidden')" class="absolute top-6 right-6 text-slate-400 hover:text-red-500 transition-colors z-10"><i data-lucide="x" class="w-6 h-6"></i></button>
+        
+        <div class="p-8 border-b border-slate-100 bg-slate-50 shrink-0">
+            <h3 class="font-black text-2xl text-slate-800 uppercase tracking-tight flex items-center gap-2"><i data-lucide="contact-2" class="text-indigo-600 w-8 h-8"></i> Expediente del Trabajador</h3>
+            <p id="ficha-emp-nombre" class="text-sm font-bold text-slate-500 mt-1 uppercase">---</p>
+        </div>
+        
+        <div class="p-8 overflow-y-auto flex-1 grid md:grid-cols-2 gap-8">
+            <input type="hidden" id="ficha-emp-id">
+            
+            <!-- PANEL IZQUIERDO: VACACIONES -->
+            <div class="space-y-6">
+                <div class="bg-slate-900 rounded-2xl p-6 text-white shadow-lg relative overflow-hidden">
+                    <i data-lucide="palmtree" class="absolute -bottom-4 -right-4 w-24 h-24 text-slate-700 opacity-30"></i>
+                    <h4 class="font-black uppercase tracking-widest text-[10px] text-indigo-400 mb-4 border-b border-slate-700 pb-2">Kardex de Vacaciones (Ley de Bolivia)</h4>
+                    <div class="grid grid-cols-2 gap-4">
+                        <div><p class="text-[9px] text-slate-400 uppercase font-bold">Fecha Ingreso</p><p id="ficha-fecha-ingreso" class="font-black text-sm">--</p></div>
+                        <div><p class="text-[9px] text-slate-400 uppercase font-bold">Antigüedad</p><p id="ficha-antiguedad" class="font-black text-sm text-indigo-300">--</p></div>
+                        <div><p class="text-[9px] text-slate-400 uppercase font-bold">Días Ganados (Ley)</p><p id="ficha-dias-ganados" class="font-black text-xl text-green-400">0</p></div>
+                        <div><p class="text-[9px] text-slate-400 uppercase font-bold">Días Utilizados</p><p id="ficha-dias-usados" class="font-black text-xl text-red-400">0</p></div>
+                    </div>
+                    <div class="mt-4 pt-4 border-t border-slate-700 flex justify-between items-end">
+                        <span class="text-[11px] font-black uppercase text-slate-300 tracking-widest">SALDO DISPONIBLE:</span>
+                        <span id="ficha-saldo-vacaciones" class="text-3xl font-black text-white">0 Días</span>
+                    </div>
+                </div>
+
+                <div class="bg-indigo-50 border border-indigo-100 rounded-2xl p-5">
+                    <h4 class="font-black uppercase tracking-widest text-[10px] text-indigo-800 mb-3 border-b border-indigo-200 pb-2">Regularización Histórica</h4>
+                    <p class="text-[9px] font-bold text-slate-500 mb-3 uppercase leading-tight">Usa esto para registrar días que el trabajador ya tomó en años anteriores al sistema.</p>
+                    <div class="flex gap-2">
+                        <input type="number" id="ficha-ajuste-dias" placeholder="N° Días" class="w-24 bg-white border border-indigo-200 p-2 rounded-lg font-black text-xs text-center outline-none">
+                        <button onclick="guardarAjusteVacacion()" class="flex-1 bg-indigo-600 hover:bg-indigo-700 text-white font-black text-[10px] uppercase rounded-lg shadow-sm">Descontar Días</button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- PANEL DERECHO: MEMORANDUMS -->
+            <div class="space-y-6">
+                <div class="bg-red-50 border border-red-100 rounded-2xl p-6 h-full flex flex-col">
+                    <h4 class="font-black uppercase tracking-widest text-[10px] text-red-800 mb-4 border-b border-red-200 pb-2 flex items-center gap-1"><i data-lucide="alert-octagon" class="w-3 h-3"></i> Registro Disciplinario</h4>
+                    
+                    <div class="space-y-3 mb-4">
+                        <select id="ficha-memo-gravedad" class="w-full bg-white border border-red-200 p-2 rounded-lg font-bold text-xs text-slate-700 outline-none">
+                            <option value="LEVE">Llamada de Atención Leve (Verbal)</option>
+                            <option value="MEDIA">Llamada de Atención Media (Escrita)</option>
+                            <option value="GRAVE">Memorándum Grave (Con copia Min. Trabajo)</option>
+                        </select>
+                        <textarea id="ficha-memo-motivo" rows="2" placeholder="Motivo de la infracción o llamada de atención..." class="w-full bg-white border border-red-200 p-3 rounded-lg font-bold text-xs text-slate-700 outline-none resize-none"></textarea>
+                        <button onclick="guardarMemorandum()" class="w-full bg-red-600 hover:bg-red-700 text-white font-black text-[10px] uppercase p-3 rounded-lg shadow-sm">Registrar Infracción</button>
+                    </div>
+
+                    <div class="flex-1 bg-white rounded-xl border border-red-100 overflow-y-auto max-h-[200px] p-2">
+                        <ul id="ficha-historial-memos" class="space-y-2"></ul>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <div class="p-6 bg-slate-50 border-t border-slate-200 shrink-0">
+            <button onclick="imprimirExpedientePDF()" class="w-full bg-slate-800 hover:bg-slate-900 text-white font-black text-xs uppercase tracking-widest p-4 rounded-xl shadow-lg transition-colors flex items-center justify-center gap-2"><i data-lucide="printer" class="w-4 h-4"></i> IMPRIMIR EXPEDIENTE COMPLETO</button>
+        </div>
+    </div>
+</div>
+
     <!-- VISTA INVISIBLE PARA IMPRESIÓN -->
     <div id="quote-print-view" class="print-only p-10 bg-white min-h-screen"></div>
 
@@ -3366,6 +3434,9 @@
         let dbLiquidaciones = [];
         let liquidacionEnProceso = null; // Memoria oculta para cerrar el círculo del pago
 	let dbDirectorioRRHH = []; // Personal completo (Operarios, Externos, Administracion)
+	let dbVacaciones = []; // Historial de vacaciones y ajustes
+	let dbMemorandums = []; // Expediente disciplinario
+	let dbFeriados = []; // Calendario de feriados
 	let dbAnticipos = []; // Control de Vales de RRHH
 	let dbBonos = []; // Control de Liquidación de Bonos
 	let dbSueldosPagados = []; // Control individual de Sueldos Pagados
@@ -3925,6 +3996,18 @@ function iniciarRadar(userEmail) {
         snapshot.forEach(doc => tempRRHH.push(doc.data()));
         dbDirectorioRRHH = tempRRHH;
         if(currentUser && typeof renderDirectorioRRHH === 'function') renderDirectorioRRHH();
+    });
+
+    // NUEVOS RADARES: VACACIONES Y EXPEDIENTES
+    db.collection("rrhh_vacaciones").onSnapshot((snapshot) => {
+        let tempVac = [];
+        snapshot.forEach(doc => tempVac.push(doc.data()));
+        dbVacaciones = tempVac;
+    });
+    db.collection("rrhh_memorandums").orderBy("id", "desc").onSnapshot((snapshot) => {
+        let tempMem = [];
+        snapshot.forEach(doc => tempMem.push(doc.data()));
+        dbMemorandums = tempMem;
     });
 
     // RADAR PARA ASISTENCIA Y BOLETAS (SE MANTIENE AQUÍ TEMPORALMENTE)
@@ -13369,6 +13452,190 @@ function ejecutarDescargaKardex() {
 // MÓDULO RRHH: DIRECTORIO Y LECTOR ZKTECO
 // =========================================================
 
+// --- FUNCIONES DEL EXPEDIENTE Y VACACIONES ---
+function calcularAntiguedadYVacaciones(fechaIngreso) {
+    if (!fechaIngreso) return { anios: 0, ganados: 0 };
+    const [y, m, d] = fechaIngreso.split('-');
+    const ingreso = new Date(y, m - 1, d);
+    const hoy = new Date();
+    
+    let anios = hoy.getFullYear() - ingreso.getFullYear();
+    // Ajustar si aún no cumplió el año en el mes/día actual
+    if (hoy.getMonth() < ingreso.getMonth() || (hoy.getMonth() === ingreso.getMonth() && hoy.getDate() < ingreso.getDate())) {
+        anios--;
+    }
+    if (anios < 0) anios = 0;
+
+    // Regla Ley General del Trabajo Bolivia
+    // 1 a 5 años: 15 días | 5 a 10 años: 20 días | > 10 años: 30 días
+    let ganados = 0;
+    for (let i = 1; i <= anios; i++) {
+        if (i <= 5) ganados += 15;
+        else if (i <= 10) ganados += 20;
+        else ganados += 30;
+    }
+    return { anios, ganados };
+}
+
+function abrirFichaEmpleado(id) {
+    const emp = dbDirectorioRRHH.find(e => String(e.id) === String(id));
+    if (!emp) return;
+
+    document.getElementById('ficha-emp-id').value = emp.id;
+    document.getElementById('ficha-emp-nombre').innerText = `${emp.nombre} - ${emp.area}`;
+    
+    // Matemática de Antigüedad
+    let fechaTxt = emp.fecha ? emp.fecha.split('-').reverse().join('/') : 'Sin Registro';
+    document.getElementById('ficha-fecha-ingreso').innerText = fechaTxt;
+    
+    const calculo = calcularAntiguedadYVacaciones(emp.fecha);
+    document.getElementById('ficha-antiguedad').innerText = `${calculo.anios} Año(s)`;
+    document.getElementById('ficha-dias-ganados').innerText = calculo.ganados;
+
+    // Calcular Días Usados
+    let diasUsados = 0;
+    dbVacaciones.filter(v => String(v.idEmp) === String(emp.id)).forEach(v => {
+        diasUsados += parseFloat(v.diasTomados);
+    });
+    
+    document.getElementById('ficha-dias-usados').innerText = diasUsados;
+    
+    const saldo = calculo.ganados - diasUsados;
+    const saldoEl = document.getElementById('ficha-saldo-vacaciones');
+    saldoEl.innerText = `${saldo} Días`;
+    saldoEl.className = saldo > 30 ? "text-3xl font-black text-red-500 animate-pulse" : "text-3xl font-black text-white";
+
+    // Llenar Historial de Memos
+    const listaMemos = document.getElementById('ficha-historial-memos');
+    const memosEmp = dbMemorandums.filter(m => String(m.idEmp) === String(emp.id));
+    
+    if(memosEmp.length === 0) {
+        listaMemos.innerHTML = `<li class="text-[10px] text-slate-400 font-bold italic text-center py-4">Expediente limpio. Sin infracciones.</li>`;
+    } else {
+        listaMemos.innerHTML = memosEmp.map(m => {
+            const color = m.gravedad === 'GRAVE' ? 'text-red-700 bg-red-100 border-red-200' : (m.gravedad === 'MEDIA' ? 'text-orange-700 bg-orange-100 border-orange-200' : 'text-slate-700 bg-slate-100 border-slate-200');
+            return `<li class="p-3 rounded-lg border ${color} shadow-sm">
+                <div class="flex justify-between items-start mb-1"><span class="text-[10px] font-black uppercase tracking-widest">${m.gravedad}</span><span class="text-[9px] font-bold opacity-70">${m.fecha}</span></div>
+                <p class="text-xs font-bold leading-tight">${m.motivo}</p>
+            </li>`;
+        }).join('');
+    }
+
+    document.getElementById('modal-ficha-empleado').classList.remove('hidden');
+    lucide.createIcons();
+}
+
+function guardarAjusteVacacion() {
+    const idEmp = document.getElementById('ficha-emp-id').value;
+    const dias = parseFloat(document.getElementById('ficha-ajuste-dias').value);
+    
+    if (isNaN(dias) || dias <= 0) return alert("Ingresa un número de días válido a descontar.");
+    if (!confirm(`¿Descontar ${dias} días de vacación al historial de este trabajador por regularización de años pasados?`)) return;
+
+    const data = {
+        id: Date.now(),
+        idEmp: idEmp,
+        fechaRegistro: new Date().toLocaleDateString(),
+        diasTomados: dias,
+        motivo: "Ajuste Histórico (Regularización)",
+        operador: currentUser ? currentUser.name : 'Admin'
+    };
+
+    db.collection("rrhh_vacaciones").doc(String(data.id)).set(data).then(() => {
+        document.getElementById('ficha-ajuste-dias').value = '';
+        showToast("Días descontados con éxito.");
+        abrirFichaEmpleado(idEmp); // Recarga la ficha para ver la resta
+    });
+}
+
+function guardarMemorandum() {
+    const idEmp = document.getElementById('ficha-emp-id').value;
+    const gravedad = document.getElementById('ficha-memo-gravedad').value;
+    const motivo = document.getElementById('ficha-memo-motivo').value.trim();
+
+    if (!motivo) return alert("Debe escribir el motivo de la infracción.");
+
+    const data = {
+        id: Date.now(),
+        idEmp: idEmp,
+        fecha: new Date().toLocaleDateString(),
+        gravedad: gravedad,
+        motivo: motivo,
+        operador: currentUser ? currentUser.name : 'Admin'
+    };
+
+    db.collection("rrhh_memorandums").doc(String(data.id)).set(data).then(() => {
+        document.getElementById('ficha-memo-motivo').value = '';
+        showToast("Registro disciplinario guardado.");
+        abrirFichaEmpleado(idEmp); // Recarga para mostrar el memo
+    });
+}
+
+function imprimirExpedientePDF() {
+    const idEmp = document.getElementById('ficha-emp-id').value;
+    const emp = dbDirectorioRRHH.find(e => String(e.id) === String(idEmp));
+    if (!emp) return;
+
+    const calculo = calcularAntiguedadYVacaciones(emp.fecha);
+    let diasUsados = 0;
+    dbVacaciones.filter(v => String(v.idEmp) === String(emp.id)).forEach(v => { diasUsados += parseFloat(v.diasTomados); });
+    const saldo = calculo.ganados - diasUsados;
+
+    const memosEmp = dbMemorandums.filter(m => String(m.idEmp) === String(emp.id));
+    let memosHTML = memosEmp.map(m => `<tr><td style="padding:8px; border-bottom:1px solid #ccc;">${m.fecha}</td><td style="padding:8px; border-bottom:1px solid #ccc; font-weight:bold;">${m.gravedad}</td><td style="padding:8px; border-bottom:1px solid #ccc;">${m.motivo}</td></tr>`).join('');
+    if(memosHTML === '') memosHTML = `<tr><td colspan="3" style="padding:15px; text-align:center; font-style:italic;">No registra infracciones.</td></tr>`;
+
+    const html = `
+    <!DOCTYPE html>
+    <html><head><title>Expediente - ${emp.nombre}</title>
+    <style>
+        body { font-family: Arial, sans-serif; font-size: 12px; color: #333; max-width: 800px; margin: 0 auto; padding: 20px; }
+        .header { border-bottom: 2px solid #2563eb; padding-bottom: 10px; margin-bottom: 20px; display: flex; justify-content: space-between; }
+        .box { background: #f8fafc; border: 1px solid #e2e8f0; padding: 15px; border-radius: 8px; margin-bottom: 20px; }
+        table { width: 100%; border-collapse: collapse; margin-top: 10px; font-size: 11px; }
+        th { background: #f1f5f9; padding: 8px; text-align: left; border-bottom: 1px solid #ccc; }
+        @media print { .no-print { display: none !important; } }
+    </style>
+    </head><body>
+        <div class="header">
+            <div><h1 style="margin:0; color:#2563eb; font-size: 24px;">PLASTENSA</h1><p style="margin:0; font-weight:bold; font-size:10px;">EXPEDIENTE ÚNICO DE PERSONAL</p></div>
+            <div style="text-align:right;"><h2 style="margin:0; font-size:16px;">${emp.nombre}</h2><p style="margin:0;">CI: ${emp.ci || 'S/R'} | Área: ${emp.area}</p></div>
+        </div>
+        
+        <div class="box">
+            <h3 style="margin-top:0; color:#1e40af; font-size:14px; text-transform:uppercase;">Kardex de Vacaciones</h3>
+            <p><b>Fecha de Ingreso:</b> ${emp.fecha ? emp.fecha.split('-').reverse().join('/') : 'Sin Registro'}</p>
+            <p><b>Antigüedad:</b> ${calculo.anios} años cumplidos</p>
+            <hr style="border:0; border-top:1px dashed #ccc; margin:10px 0;">
+            <p><b>Días Ganados (Por Ley):</b> ${calculo.ganados} días</p>
+            <p><b>Días Utilizados/Pagados:</b> ${diasUsados} días</p>
+            <h4 style="margin:10px 0 0 0; font-size:16px; color:#16a34a;">SALDO DISPONIBLE: ${saldo} DÍAS</h4>
+        </div>
+
+        <div class="box">
+            <h3 style="margin-top:0; color:#991b1b; font-size:14px; text-transform:uppercase;">Registro Disciplinario</h3>
+            <table>
+                <thead><tr><th width="80px">Fecha</th><th width="80px">Gravedad</th><th>Motivo / Descripción</th></tr></thead>
+                <tbody>${memosHTML}</tbody>
+            </table>
+        </div>
+        
+        <div style="margin-top: 50px; text-align:center;">
+            <p style="margin:0; font-weight:bold;">_______________________________________</p>
+            <p style="margin:5px 0 0 0; font-size:10px;">Firma RRHH / Gerencia</p>
+        </div>
+
+        <div class="no-print" style="margin-top:30px; text-align:center;">
+            <button onclick="window.print()" style="padding:10px 20px; background:#2563eb; color:white; font-weight:bold; border:none; border-radius:5px; cursor:pointer;">IMPRIMIR HOJA (A4)</button>
+        </div>
+    </body></html>`;
+    
+    const win = window.open('','','width=800,height=800');
+    win.document.write(html);
+    win.document.close();
+}
+// --- FIN FUNCIONES EXPEDIENTE ---
+
 function toggleFechaFinContrato() {
     const tipo = document.getElementById('rrhh-emp-contrato').value;
     const divFin = document.getElementById('div-fin-contrato');
@@ -13500,6 +13767,7 @@ function renderDirectorioRRHH() {
             <td class="p-4 text-right font-black text-blue-600">Bs ${e.salario.toFixed(2)}</td>
             <td class="p-4 text-right font-black text-orange-600">${e.bono > 0 ? `Bs ${e.bono.toFixed(2)}` : '-'}</td>
             <td class="p-4 text-center">
+                <button onclick="abrirFichaEmpleado(${e.id})" class="text-indigo-600 hover:bg-indigo-100 p-2 rounded-lg bg-indigo-50 shadow-sm border border-indigo-200 transition-colors mr-1" title="Ver Expediente / Vacaciones"><i data-lucide="folder-open" class="w-4 h-4"></i></button>
                 <button onclick="editarEmpleadoRRHH(${e.id})" class="text-blue-500 hover:bg-blue-100 p-2 rounded-lg bg-blue-50 shadow-sm border border-blue-200 transition-colors mr-1"><i data-lucide="edit-3" class="w-4 h-4"></i></button>
                 <button onclick="darBajaEmpleadoRRHH(${e.id})" class="text-red-500 hover:bg-red-100 p-2 rounded-lg bg-red-50 shadow-sm border border-red-200 transition-colors" title="Dar de Baja"><i data-lucide="user-minus" class="w-4 h-4"></i></button>
             </td>
