@@ -3090,6 +3090,7 @@
                         </div>
                         <div class="flex gap-2 items-center">
                             <input type="month" id="planilla-filtro-mes" onchange="renderPlanillaGeneral()" class="bg-slate-50 border border-slate-200 p-3 rounded-xl font-bold text-xs outline-none">
+                            <button onclick="reabrirMesZKTeco()" class="bg-yellow-500 text-slate-900 px-4 py-3 rounded-xl font-black text-xs uppercase shadow-md hover:bg-yellow-600 transition-colors flex items-center gap-2"><i data-lucide="edit" class="w-4 h-4"></i> REABRIR Y EDITAR ZKTECO</button>
                             <button onclick="exportarPlanillaBancoCSV()" class="bg-slate-900 text-white px-4 py-3 rounded-xl font-black text-xs uppercase shadow-md hover:bg-slate-800 transition-colors flex items-center gap-2"><i data-lucide="download" class="w-4 h-4"></i> TXT BANCO</button>
                         </div>
                     </div>
@@ -14128,15 +14129,6 @@ function leerArchivoZKTeco(event) {
                     estado: estadoFlag,
                     obs: msjConflicto
                 });
-
-                tempAsistenciaZK[empleado.id].marcas.push({
-                    fecha: fechaStr,
-                    entrada: entrada,
-                    salida: salida,
-                    atrasoMin: minAtraso,
-                    estado: estadoFlag,
-                    obs: msjConflicto
-                });
             }
         }
 
@@ -14393,11 +14385,23 @@ function guardarAuditoriaAsistencia() {
         let totalAtrasosMin = 0;
         let faltasInjustificadas = 0;
         let faltasJustificadas = 0;
+        let bajasMedicas = 0;
 
         data.marcas.forEach(m => {
-            totalAtrasosMin += m.atrasoMin;
-            if(m.estado === 'FALTA' || m.estado === 'FALTA_MARCA') faltasInjustificadas++;
-            if(m.estado === 'JUSTIFICADA') faltasJustificadas++;
+            totalAtrasosMin += (m.atrasoMin || 0);
+            
+            // Faltas Injustificadas (2x1) - Aplica para faltas reales, olvidos de marcado o castigos de Admin
+            if(m.estado === 'FALTA' || m.estado === 'FALTA_MARCA' || m.estado === 'FALTA_INJUSTIFICADA_SANCION' || m.estado === 'ATRASO_GRAVE') {
+                faltasInjustificadas++;
+            }
+            // Permisos (1x1)
+            else if(m.estado === 'FALTA_JUSTIFICADA') {
+                faltasJustificadas++;
+            }
+            // Bajas Médicas (0 descuento)
+            else if(m.estado === 'BAJA_MEDICA') {
+                bajasMedicas++;
+            }
         });
 
         resumenMes.push({
@@ -14405,7 +14409,9 @@ function guardarAuditoriaAsistencia() {
             mes: mesAnio,
             minAtraso: totalAtrasosMin,
             faltasInjus: faltasInjustificadas,
-            faltasJus: faltasJustificadas
+            faltasJus: faltasJustificadas,
+            bajasMedicas: bajasMedicas,
+            marcas: data.marcas // Guardamos el día a día para poder reabrirlo sin el Excel
         });
     }
 
@@ -14477,19 +14483,27 @@ function renderPlanillaGeneral() {
         
         // LEER LOS DATOS AUDITADOS DEL ZKTECO
         const asistenciaMes = dbAsistenciaAuditada.find(a => String(a.idEmp) === String(emp.id) && a.mes === mesAnio);
+        let totalBajasMedicas = 0;
+        
         if (asistenciaMes) {
-            totalMinAtraso = asistenciaMes.minAtraso;
-            // REGLAS 2 Y 3: 2x1 para injustificadas, 1x1 para justificadas
-            totalFaltasInjus = asistenciaMes.faltasInjus || 0; // FALTA o FALTA_INJUSTIFICADA_SANCION
-            totalFaltasJus = asistenciaMes.faltasJus || 0; // FALTA_JUSTIFICADA (Permiso)
+            totalMinAtraso = asistenciaMes.minAtraso || 0;
+            totalFaltasInjus = asistenciaMes.faltasInjus || 0; 
+            totalFaltasJus = asistenciaMes.faltasJus || 0; 
+            totalBajasMedicas = asistenciaMes.bajasMedicas || 0;
             
             penalizacionAtraso = totalMinAtraso * costoPorMinuto;
+            
+            // LÓGICA ESTRICTA: 2 Días por Injustificada, 1 Día por Permiso. Baja médica no descuenta dinero.
             penalizacionFalta = (totalFaltasInjus * (costoPorDia * 2)) + (totalFaltasJus * costoPorDia);
         }
 
         let htmlAtraso = penalizacionAtraso > 0 ? `- Bs ${penalizacionAtraso.toFixed(2)}<br><span class="text-[8px] text-slate-400 uppercase tracking-widest">${totalMinAtraso} min</span>` : '-';
-        let txtFaltas = (totalFaltasInjus > 0 ? `${totalFaltasInjus} Inj.` : '') + (totalFaltasJus > 0 ? ` ${totalFaltasJus} Jus.` : '');
-        let htmlFalta = penalizacionFalta > 0 ? `- Bs ${penalizacionFalta.toFixed(2)}<br><span class="text-[8px] text-slate-400 uppercase tracking-widest">${txtFaltas}</span>` : '-';
+        
+        let txtFaltas = (totalFaltasInjus > 0 ? `${totalFaltasInjus} Inj.` : '') + 
+                        (totalFaltasJus > 0 ? ` ${totalFaltasJus} Jus.` : '') + 
+                        (totalBajasMedicas > 0 ? ` ${totalBajasMedicas} B.Med` : '');
+                        
+        let htmlFalta = (penalizacionFalta > 0 || totalBajasMedicas > 0) ? `- Bs ${penalizacionFalta.toFixed(2)}<br><span class="text-[8px] text-slate-400 uppercase tracking-widest">${txtFaltas}</span>` : '-';
 
         let descuentoAnticipos = 0;
         dbAnticipos.forEach(a => {
@@ -15595,6 +15609,45 @@ function prepararPagoSueldo(idEmp, mesAnio) {
     // Trampa para atrapar el pago al guardar
     window.sueldoEnProceso = { idEmp: emp.id, mes: mesAnio };
     showToast("Monto calculado. Elija la cuenta bancaria de salida y guarde.");
+}
+
+// ==========================================
+// FUNCIÓN PARA REABRIR EL MES CERRADO (SOLO ADMIN)
+// ==========================================
+function reabrirMesZKTeco() {
+    if(!currentUser || currentUser.role !== 'ADMIN') return alert("❌ Acceso Denegado: Solo Gerencia puede reabrir planillas ya cerradas.");
+
+    const mesAnio = document.getElementById('planilla-filtro-mes').value;
+    if(!mesAnio) return alert("Seleccione un mes en el filtro primero.");
+    const [anio, mes] = mesAnio.split('-');
+    const formatoFiltro = `${mes}/${anio}`;
+
+    const registrosMes = dbAsistenciaAuditada.filter(a => a.mes === formatoFiltro);
+    if(registrosMes.length === 0) return alert("No hay datos guardados para reabrir en este mes.");
+
+    if(!confirm(`⚠️ ¿Estás seguro de reabrir el mes de ${formatoFiltro}?\n\nPodrás revisar día por día las faltas, modificarlas manualmente y volver a guardar.`)) return;
+
+    // Restauramos el historial exacto a la memoria del ZKTeco
+    tempAsistenciaZK = {};
+    registrosMes.forEach(reg => {
+        const emp = dbDirectorioRRHH.find(e => e.id == reg.idEmp);
+        if(emp && reg.marcas) {
+            tempAsistenciaZK[emp.id] = { nombre: emp.nombre, idZk: emp.idZk, marcas: reg.marcas };
+        }
+    });
+
+    // Saltamos a la pestaña de auditoría ZKTeco
+    showTab('rrhh-asistencia');
+    
+    document.getElementById('zk-lbl-rango').innerText = `MES REABIERTO: ${formatoFiltro}`;
+    document.getElementById('zk-estadisticas').classList.remove('hidden');
+    
+    const selFiltro = document.getElementById('zk-filtro-empleado');
+    selFiltro.innerHTML = `<option value="ALL">📋 Mostrar Todo el Personal (Consolidado)</option>` + 
+                          Object.keys(tempAsistenciaZK).map(empId => `<option value="${empId}">${tempAsistenciaZK[empId].nombre}</option>`).join('');
+    
+    renderTablaAuditoriaZk();
+    showToast("Mes reabierto. Edita las asistencias y haz clic en Aprobar para sobreescribir la planilla.");
 }
 
 renderAll();
