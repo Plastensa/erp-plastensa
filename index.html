@@ -3092,6 +3092,7 @@
                             <input type="month" id="planilla-filtro-mes" onchange="renderPlanillaGeneral()" class="bg-slate-50 border border-slate-200 p-3 rounded-xl font-bold text-xs outline-none">
                             <button onclick="reabrirMesZKTeco()" class="bg-yellow-500 text-slate-900 px-4 py-3 rounded-xl font-black text-xs uppercase shadow-md hover:bg-yellow-600 transition-colors flex items-center gap-2"><i data-lucide="edit" class="w-4 h-4"></i> REABRIR Y EDITAR ZKTECO</button>
                             <button onclick="exportarPlanillaBancoCSV()" class="bg-slate-900 text-white px-4 py-3 rounded-xl font-black text-xs uppercase shadow-md hover:bg-slate-800 transition-colors flex items-center gap-2"><i data-lucide="download" class="w-4 h-4"></i> TXT BANCO</button>
+			<button onclick="rechazarPlanillaMensual()" class="bg-red-600 text-white px-4 py-3 rounded-xl font-black text-xs uppercase shadow-md hover:bg-red-700 transition-colors flex items-center gap-2"><i data-lucide="x-octagon" class="w-4 h-4"></i> RECHAZAR PLANILLA</button>
                         </div>
                     </div>
 			<!-- NUEVO: MÓDULO DE VALES Y ANTICIPOS -->
@@ -14286,14 +14287,16 @@ function justificarFaltaZK(empId, idxMarca, accion) {
     }
 
     if (accion === 'CASTIGAR_FALTA') {
-        marca.estado = 'FALTA_INJUSTIFICADA_SANCION';
-        marca.obs = 'Admin: Sanción por llegada súper tardía';
+        // El trabajador SÍ vino, pero llegó súper tarde. Se le castiga perdiendo el día de sueldo, 
+        // pero NO aplicamos el 2x1 de las inasistencias absolutas.
+        marca.estado = 'ATRASO_CASTIGADO_DIA'; 
+        marca.obs = 'Admin: Castigo por llegada súper tardía (Pierde 1 día)';
     } else if (accion === 'JUSTIFICAR_ATRASO') {
         marca.estado = 'ATRASO';
-        marca.obs = 'Admin: Atraso con respaldo aceptado';
+        marca.obs = 'Admin: Atraso con respaldo aceptado (Paga minutos)';
     } else if (accion === 'FALTA_JUSTIFICADA') {
         marca.estado = 'FALTA_JUSTIFICADA';
-        marca.obs = 'Permiso Aprobado';
+        marca.obs = 'Permiso Aprobado (Sin multa)';
     } else {
         marca.estado = 'JUSTIFICADA';
         if(accion === 'BAJA_MEDICA') marca.obs = 'Baja Médica (Pagada)';
@@ -14390,12 +14393,12 @@ function guardarAuditoriaAsistencia() {
         data.marcas.forEach(m => {
             totalAtrasosMin += (m.atrasoMin || 0);
             
-            // Faltas Injustificadas (2x1) - Aplica para faltas reales, olvidos de marcado o castigos de Admin
-            if(m.estado === 'FALTA' || m.estado === 'FALTA_MARCA' || m.estado === 'FALTA_INJUSTIFICADA_SANCION' || m.estado === 'ATRASO_GRAVE') {
+           // Faltas Injustificadas Absolutas (Descuento 2x1) - No vino, no avisó, no marcó
+            if(m.estado === 'FALTA' || m.estado === 'FALTA_MARCA' || m.estado === 'ATRASO_GRAVE') {
                 faltasInjustificadas++;
             }
-            // Permisos (1x1)
-            else if(m.estado === 'FALTA_JUSTIFICADA') {
+            // Permisos o Castigos por Atraso Grave (Descuento 1x1) - Pierde el día, pero sin multa doble
+            else if(m.estado === 'FALTA_JUSTIFICADA' || m.estado === 'ATRASO_CASTIGADO_DIA') {
                 faltasJustificadas++;
             }
             // Bajas Médicas (0 descuento)
@@ -14469,11 +14472,11 @@ function renderPlanillaGeneral() {
     let htmlPlanilla = '';
     
     empleados.forEach(emp => {
-        let haberBasico = parseFloat(emp.salario) || 0;
+       let haberBasico = parseFloat(emp.salario) || 0;
 
-        // CÁLCULO DE COSTOS EXACTOS
-        const costoPorDia = haberBasico / 30; // REGLA 2: Comercial estándar
-        const costoPorMinuto = totalMinutosLaborables > 0 ? (haberBasico / totalMinutosLaborables) : 0; // REGLA 1: Dinámico
+        // CÁLCULO DE COSTOS EXACTOS (Como en tu Google Sheets)
+        const costoPorDia = haberBasico / 30; // REGLA COMERCIAL: Sueldo mensual dividido 30 días
+        const costoPorMinuto = totalMinutosLaborables > 0 ? (haberBasico / (totalMinutosLaborables * 60)) : 0; // REGLA DINÁMICA: Dividimos primero entre las horas reales (ej. 240) y luego por 60 para tener el valor del MINUTO sin tolerancias.
 
         let penalizacionAtraso = 0;
         let penalizacionFalta = 0;
@@ -14487,23 +14490,24 @@ function renderPlanillaGeneral() {
         
         if (asistenciaMes) {
             totalMinAtraso = asistenciaMes.minAtraso || 0;
-            totalFaltasInjus = asistenciaMes.faltasInjus || 0; 
-            totalFaltasJus = asistenciaMes.faltasJus || 0; 
+            totalFaltasInjus = asistenciaMes.faltasInjus || 0; // Faltas absolutas
+            totalFaltasJus = asistenciaMes.faltasJus || 0; // Permisos o Atrasos castigados (1 día)
             totalBajasMedicas = asistenciaMes.bajasMedicas || 0;
             
+            // 1. Descuento exacto por los minutos atrasados (Sin tolerancia)
             penalizacionAtraso = totalMinAtraso * costoPorMinuto;
             
-            // LÓGICA ESTRICTA: 2 Días por Injustificada, 1 Día por Permiso. Baja médica no descuenta dinero.
+            // 2. LÓGICA ESTRICTA: 2x1 para Faltas Injustificadas | 1x1 para Justificadas o Castigos | 0 para Bajas Médicas
             penalizacionFalta = (totalFaltasInjus * (costoPorDia * 2)) + (totalFaltasJus * costoPorDia);
         }
 
         let htmlAtraso = penalizacionAtraso > 0 ? `- Bs ${penalizacionAtraso.toFixed(2)}<br><span class="text-[8px] text-slate-400 uppercase tracking-widest">${totalMinAtraso} min</span>` : '-';
         
-        let txtFaltas = (totalFaltasInjus > 0 ? `${totalFaltasInjus} Inj.` : '') + 
-                        (totalFaltasJus > 0 ? ` ${totalFaltasJus} Jus.` : '') + 
-                        (totalBajasMedicas > 0 ? ` ${totalBajasMedicas} B.Med` : '');
+        let txtFaltas = (totalFaltasInjus > 0 ? `${totalFaltasInjus} Falta(2x1)` : '') + 
+                        (totalFaltasJus > 0 ? `<br>${totalFaltasJus} Perm/Cast(1x1)` : '') + 
+                        (totalBajasMedicas > 0 ? `<br>${totalBajasMedicas} Baja Med` : '');
                         
-        let htmlFalta = (penalizacionFalta > 0 || totalBajasMedicas > 0) ? `- Bs ${penalizacionFalta.toFixed(2)}<br><span class="text-[8px] text-slate-400 uppercase tracking-widest">${txtFaltas}</span>` : '-';
+        let htmlFalta = (penalizacionFalta > 0 || totalBajasMedicas > 0) ? `- Bs ${penalizacionFalta.toFixed(2)}<br><span class="text-[8px] text-slate-400 uppercase tracking-widest leading-tight block mt-1">${txtFaltas}</span>` : '-';
 
         let descuentoAnticipos = 0;
         dbAnticipos.forEach(a => {
@@ -15648,6 +15652,38 @@ function reabrirMesZKTeco() {
     
     renderTablaAuditoriaZk();
     showToast("Mes reabierto. Edita las asistencias y haz clic en Aprobar para sobreescribir la planilla.");
+}
+
+// ==========================================
+// FUNCIÓN PARA RECHAZAR LA PLANILLA (SOLO ADMIN)
+// ==========================================
+function rechazarPlanillaMensual() {
+    if(!currentUser || currentUser.role !== 'ADMIN') return alert("❌ Acceso Denegado: Solo Gerencia puede rechazar planillas.");
+
+    const mesAnio = document.getElementById('planilla-filtro-mes').value;
+    if(!mesAnio) return alert("Seleccione un mes en el filtro primero.");
+    const [anio, mes] = mesAnio.split('-');
+    const formatoFiltro = `${mes}/${anio}`;
+
+    const registrosMes = dbAsistenciaAuditada.filter(a => a.mes === formatoFiltro);
+    if(registrosMes.length === 0) return alert("La planilla de este mes aún no ha sido procesada ni guardada.");
+
+    if(!confirm(`⚠️ ATENCIÓN GERENCIA:\n\n¿Estás seguro de RECHAZAR la planilla del mes de ${formatoFiltro}?\n\nEsta acción borrará el cálculo cerrado de la base de datos para que el encargado de RRHH vuelva a subir el archivo del ZKTeco, corrija las faltas/sanciones y lo procese nuevamente.`)) return;
+
+    // Eliminamos de la base de datos las auditorías cerradas de ese mes
+    dbAsistenciaAuditada = dbAsistenciaAuditada.filter(a => a.mes !== formatoFiltro);
+    
+    // Guardamos la eliminación en la nube
+    db.collection("plastensa_erp").doc("datos_rrhh").update({
+        dbAsistenciaAuditada: JSON.stringify(dbAsistenciaAuditada)
+    }).then(() => {
+        save();
+        renderPlanillaGeneral();
+        showToast("✅ Planilla rechazada y eliminada con éxito. Se debe volver a procesar la asistencia.");
+    }).catch(err => {
+        console.error(err);
+        alert("❌ Ocurrió un error al intentar rechazar la planilla en la nube. Revisa tu conexión a internet.");
+    });
 }
 
 renderAll();
