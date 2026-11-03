@@ -14208,8 +14208,15 @@ function renderTablaAuditoriaZk() {
 
     const renderFila = (empId, data) => {
         data.marcas.forEach((m, idx) => {
-            totAtrasos += m.atrasoMin;
-            if (m.estado.includes('FALTA')) totFaltas++;
+            // CORRECCIÓN: Evita el doble castigo visual. Solo suma minutos si es un atraso simple.
+            if (m.estado === 'ATRASO') {
+                totAtrasos += (m.atrasoMin || 0);
+            }
+            
+            // Sumamos al contador de faltas también los castigos graves para que el Admin los note
+            if (m.estado.includes('FALTA') || m.estado === 'ATRASO_CASTIGADO_DIA' || m.estado === 'ATRASO_GRAVE') {
+                totFaltas++;
+            }
 
             let colorFila = 'bg-white hover:bg-slate-50';
             let statusBadge = '<span class="bg-green-100 text-green-700 px-2 py-0.5 rounded text-[9px] font-black uppercase">OK</span>';
@@ -14391,9 +14398,12 @@ function guardarAuditoriaAsistencia() {
         let bajasMedicas = 0;
 
         data.marcas.forEach(m => {
-            totalAtrasosMin += (m.atrasoMin || 0);
+            // CORRECCIÓN: Si el día se castigó con descuento de día entero, ignoramos los minutos para no cobrar el doble.
+            if (m.estado === 'ATRASO') {
+                totalAtrasosMin += (m.atrasoMin || 0);
+            }
             
-           // Faltas Injustificadas Absolutas (Descuento 2x1) - No vino, no avisó, no marcó
+            // Faltas Injustificadas Absolutas (Descuento 2x1) - No vino, no avisó, no marcó
             if(m.estado === 'FALTA' || m.estado === 'FALTA_MARCA' || m.estado === 'ATRASO_GRAVE') {
                 faltasInjustificadas++;
             }
