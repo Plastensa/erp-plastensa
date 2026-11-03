@@ -14476,7 +14476,7 @@ function renderPlanillaGeneral() {
 
         // CÁLCULO DE COSTOS EXACTOS (Como en tu Google Sheets)
         const costoPorDia = haberBasico / 30; // REGLA COMERCIAL: Sueldo mensual dividido 30 días
-        const costoPorMinuto = totalMinutosLaborables > 0 ? (haberBasico / (totalMinutosLaborables * 60)) : 0; // REGLA DINÁMICA: Dividimos primero entre las horas reales (ej. 240) y luego por 60 para tener el valor del MINUTO sin tolerancias.
+        const costoPorMinuto = totalMinutosLaborables > 0 ? (haberBasico / totalMinutosLaborables) : 0; // REGLA DINÁMICA RESTAURADA: Salario dividido entre el total exacto de minutos laborables del mes.
 
         let penalizacionAtraso = 0;
         let penalizacionFalta = 0;
