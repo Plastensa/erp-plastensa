@@ -11586,12 +11586,16 @@ async function ejecutarEmisionFactura() {
 
     const urlPuenteGoogle = "https://script.google.com/macros/s/AKfycbxaiCVugWIcBiafbjvKQ2chMWNk6SCmH2JEQxPshNvxqIYZaOYS6BGo31o7o6FfW4UmUw/exec";
 
+    let idToken = '';
+    try { idToken = await firebase.auth().currentUser.getIdToken(); }
+    catch (errTok) { document.getElementById('loading-overlay').classList.add('hidden'); return alert("⚠️ Su sesión expiró. Cierre sesión, vuelva a entrar e intente de nuevo."); }
+
     // --- PASO 1: PING PREVIO DE CONEXIÓN (checkConnection) ---
     try {
         const pingResponse = await fetch(urlPuenteGoogle, {
             method: 'POST',
             headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-            body: JSON.stringify({ accion: 'verificar_conexion', payload: {} })
+            body: JSON.stringify({ accion: 'verificar_conexion', payload: {}, idToken: idToken })
         });
         
         const pingText = await pingResponse.text();
@@ -11694,7 +11698,8 @@ async function ejecutarEmisionFactura() {
 
     const dataAEnviar = {
         accion: 'emitir',
-        payload: payloadSiat
+        payload: payloadSiat,
+        idToken: idToken
     };
 
     fetch(urlPuenteGoogle, {
@@ -15313,7 +15318,7 @@ function abrirModalAnularFactura(orderId) {
 
 // Ejecuta la anulación hacia el puente enrutador
 // Ejecuta la anulación hacia el puente enrutador
-function ejecutarAnulacionFactura() {
+async function ejecutarAnulacionFactura() {
     const orderId = document.getElementById('anular-orden-id').value;
     const motivoCodigo = document.getElementById('anular-motivo-codigo').value;
     
@@ -15335,9 +15340,13 @@ function ejecutarAnulacionFactura() {
         "reason_code": parseInt(motivoCodigo)
     };
     // EL ENRUTAMIENTO hacia tu puente de Google
+    let idToken = '';
+    try { idToken = await firebase.auth().currentUser.getIdToken(); }
+    catch (errTok) { document.getElementById('loading-overlay').classList.add('hidden'); return alert("⚠️ Su sesión expiró. Cierre sesión, vuelva a entrar e intente de nuevo."); }
     const dataAEnviar = {
         accion: 'anular',
-        payload: payloadSiat
+        payload: payloadSiat,
+        idToken: idToken
     };
 
     const urlPuenteGoogle = "https://script.google.com/macros/s/AKfycbxaiCVugWIcBiafbjvKQ2chMWNk6SCmH2JEQxPshNvxqIYZaOYS6BGo31o7o6FfW4UmUw/exec";
