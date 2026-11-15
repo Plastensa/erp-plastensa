@@ -4568,6 +4568,7 @@ function logout() {
         }
 
 function handleFileUpload(e) {
+    if (!currentUser || currentUser.role !== 'ADMIN') { alert("Solo el Administrador puede importar el catálogo."); e.target.value = ''; return; }
     const file = e.target.files[0]; if(!file) return; 
     const reader = new FileReader();
     reader.onload = (event) => {
@@ -4605,17 +4606,23 @@ function handleFileUpload(e) {
                 }
                 // ---------------------------------------
 
+                const existente = products.find(p => normalizarNombre(p.name) === normalizarNombre(nombreItem));
                 np.push({ 
-                    id: Date.now()+i, 
+                    id: existente ? existente.id : Date.now()+i, 
                     code: cols[0].trim(), 
                     name: nombreItem, 
                     vol: cl(cols[2]), 
                     density: densidadCalculada, 
+                    stock: existente ? (parseFloat(existente.stock) || 0) : 0,
                     pCF1: cl(cols[5]), pSF1: cl(cols[6]), pCF2: cl(cols[7]), pSF2: cl(cols[8]), pCF3: cl(cols[9]), pSF3: cl(cols[10]) 
                 });
             }
         }
-        if (np.length > 0) { products = np; save(); renderAll(); showToast("Catálogo Importado Exitosamente."); } 
+        if (np.length > 0) {
+            const quitados = products.filter(p => !np.some(n => n.id === p.id)).length;
+            if (!confirm("Se importarán " + np.length + " productos.\n" + quitados + " productos actuales que NO están en el archivo serán ELIMINADOS del catálogo.\n\n¿Continuar?")) return;
+            products = np; save(); renderAll(); showToast("Catálogo Importado Exitosamente.");
+        } 
         else alert("Error: Formato incorrecto.");
     }; 
     reader.readAsText(file); e.target.value = ''; 
@@ -5067,7 +5074,9 @@ const existingClientIndex = dbClients.findIndex(x => {
 });
     
     if(existingClientIndex === -1) {
-        dbClients.push({ id: Date.now(), name: cName, nit: cNit, phone: cPhone, propietario: vendedorSeleccionado });
+        const nuevoCliente = { id: Date.now(), name: cName, nit: cNit, phone: cPhone, propietario: vendedorSeleccionado };
+        dbClients.push(nuevoCliente);
+        db.collection("clientes").doc(String(nuevoCliente.id)).set(nuevoCliente);
     } else {
         const clienteDB = dbClients[existingClientIndex];
         if(currentUser.role !== 'ADMIN' && clienteDB.propietario && clienteDB.propietario !== vendedorSeleccionado) {
@@ -5077,6 +5086,7 @@ const existingClientIndex = dbClients.findIndex(x => {
         dbClients[existingClientIndex].nit = cNit;
         dbClients[existingClientIndex].phone = cPhone;
         if(!dbClients[existingClientIndex].propietario) dbClients[existingClientIndex].propietario = vendedorSeleccionado;
+        if (dbClients[existingClientIndex].id) db.collection("clientes").doc(String(dbClients[existingClientIndex].id)).set(dbClients[existingClientIndex]);
     }
 
     const extSellerName = document.getElementById('cot-vendedor').value;
