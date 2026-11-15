@@ -12874,6 +12874,7 @@ async function ejecutarRespaldoDiarioNube() {
         };
 
         const backupData = {
+            idToken: await firebase.auth().currentUser.getIdToken(),
             fechaRespaldo: new Date().toLocaleString(),
             centrales: parseSnap(snapCentrales, true),
             products: parseSnap(snapProds, true),
