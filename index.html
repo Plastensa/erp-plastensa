@@ -9969,6 +9969,8 @@ function renderFormularioDespacho() {
     document.getElementById('panel-despacho-activo').classList.remove('hidden');
     document.getElementById('desp-cliente-nombre').innerText = o.client;
     document.getElementById('desp-orden-id').innerText = o.id;
+    document.getElementById('desp-obs').value = '';
+    document.getElementById('desp-placa').value = '';
 
     // Configurar Botón WhatsApp Chofer
     const btnWa = document.getElementById('btn-wa-chofer');
@@ -10090,7 +10092,7 @@ async function ejecutarDespacho() {
                 it.entregado = entregadoPrevio + aDespachar;
                 const volDespachado = (aDespachar * volUnit);
                 volTotalDespachoM3 += volDespachado;
-                itemsDespachados.push({ name: it.name, qtyComprada: it.qty, qtyDespachada: aDespachar, volDespachadoM3: volDespachado });
+                itemsDespachados.push({ name: it.name, obs: it.obs || '', qtyComprada: it.qty, qtyDespachada: aDespachar, volDespachadoM3: volDespachado });
 
                 // INVENTARIO NEGATIVO (Se mantiene la resta directa al catálogo)
                 const prodCat = products.find(p => normalizarNombre(p.name) === normalizarNombre(it.name));
@@ -10145,9 +10147,11 @@ async function ejecutarDespacho() {
         await batch.commit(); 
         save(); 
         
-        document.getElementById('panel-despacho-activo').classList.add('hidden');
+       document.getElementById('panel-despacho-activo').classList.add('hidden');
         pedidoDespachoActivo = null;
         document.getElementById('buscador-despacho').value = '';
+        document.getElementById('desp-obs').value = '';
+        document.getElementById('desp-placa').value = '';
         
         imprimirTicketTermico(ticket, printWindow);
         
@@ -10179,7 +10183,12 @@ function imprimirTicketTermico(t, prevWindow = null) {
 
     let itemsRows = '';
     t.items.forEach(it => {
-        const obsTkt = it.obs ? `<br><span style="font-size: 9px; font-weight: bold; border: 1px solid #000; padding: 1px 3px;">REQ: ${it.obs}</span>` : '';
+        let obsItem = it.obs || '';
+        if (!obsItem && ordenVinculada && ordenVinculada.items) {
+            const itemOrig = ordenVinculada.items.find(oi => normalizarNombre(oi.name) === normalizarNombre(it.name));
+            if (itemOrig && itemOrig.obs) obsItem = itemOrig.obs;
+        }
+        const obsTkt = obsItem ? `<br><span style="font-size: 9px; font-weight: bold; border: 1px solid #000; padding: 1px 3px; display: inline-block; margin-top: 2px;">CORTE ESP: ${obsItem}</span>` : '';
         
         itemsRows += `
         <tr>
@@ -10193,6 +10202,12 @@ function imprimirTicketTermico(t, prevWindow = null) {
 
     const totalPzas = t.items.reduce((sum, item) => sum + item.qtyDespachada, 0);
     const volTotal = t.volM3.toFixed(2);
+    const obsTexto = String(t.obs || '').trim();
+    const obsGeneralHtml = obsTexto ? `
+            <div style="border: 1px solid #000; padding: 5px; margin-bottom: 18px; font-size: 11px;">
+                <p style="margin: 0 0 2px 0; font-weight: bold;">OBSERVACIONES:</p>
+                <p style="margin: 0; white-space: pre-wrap; word-wrap: break-word;">${obsTexto}</p>
+            </div>` : '';
 
     const html = `
     <!DOCTYPE html>
@@ -10247,7 +10262,7 @@ function imprimirTicketTermico(t, prevWindow = null) {
                 </tbody>
             </table>
 
-            <div style="border-top: 1px dashed #000; padding-top: 5px; margin-bottom: 25px;">
+            <div style="border-top: 1px dashed #000; padding-top: 5px; margin-bottom: 15px;">
                 <table style="font-weight: bold;">
                     <tr>
                         <td>CANT. TOTAL</td>
@@ -10259,6 +10274,8 @@ function imprimirTicketTermico(t, prevWindow = null) {
                     </tr>
                 </table>
             </div>
+
+            ${obsGeneralHtml}
 
             <div style="margin-bottom: 20px;">
                 <p style="margin: 0; text-align: center; font-weight: bold;">Firma Conductor</p>
